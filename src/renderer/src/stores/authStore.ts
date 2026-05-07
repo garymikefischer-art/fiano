@@ -86,29 +86,19 @@ export const useAuth = create<AuthState>((set, get) => ({
       get().fetchSubscription();
     });
 
-    // OAuth-Callback aus dem Main-Prozess empfangen (fiano://-Custom-Protocol).
-    // URL-Form: 'fiano://auth-callback#access_token=...&refresh_token=...&...'
-    // Wir parsen das Hash-Fragment + setzen die Session auf supabase.
-    if (window.api.onAuthCallback) {
-      window.api.onAuthCallback(async (url: string) => {
+    // OAuth-Code aus Loopback-Server empfangen (Dev + Prod). PKCE-flow → wir
+    // tauschen den ?code=... gegen eine Session via exchangeCodeForSession.
+    if (window.api.onAuthOauthCode) {
+      window.api.onAuthOauthCode(async (payload) => {
+        if (payload.error) {
+          set({ lastError: payload.error });
+          return;
+        }
+        if (!payload.code) return;
         try {
-          // URL-API parsed das Custom-Protocol nicht zuverlässig — wir extrahieren
-          // das Hash-Fragment selbst.
-          const hashIdx = url.indexOf('#');
-          if (hashIdx < 0) return;
-          const params = new URLSearchParams(url.slice(hashIdx + 1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-          if (!accessToken || !refreshToken) {
-            console.warn('[auth] OAuth callback missing tokens in URL hash');
-            return;
-          }
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
+          const { data, error } = await supabase.auth.exchangeCodeForSession(payload.code);
           if (error) {
-            console.warn('[auth] OAuth setSession failed:', error.message);
+            console.warn('[auth] exchangeCodeForSession:', error.message);
             set({ lastError: error.message });
             return;
           }
@@ -118,7 +108,33 @@ export const useAuth = create<AuthState>((set, get) => ({
             await get().fetchSubscription();
           }
         } catch (err) {
-          console.warn('[auth] OAuth callback handler error:', err);
+          console.warn('[auth] code exchange failed:', err);
+        }
+      });
+    }
+
+    // Legacy fiano://-Hash-Callback (Production-Path falls Loopback nicht greift).
+    if (window.api.onAuthCallback) {
+      window.api.onAuthCallback(async (url: string) => {
+        try {
+          const hashIdx = url.indexOf('#');
+          if (hashIdx < 0) return;
+          const params = new URLSearchParams(url.slice(hashIdx + 1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          if (!accessToken || !refreshToken) return;
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) { set({ lastError: error.message }); return; }
+          if (data.session) {
+            await window.api.invoke('auth.saveSession', { sessionJson: JSON.stringify(data.session) });
+            set({ user: data.user ?? data.session.user, session: data.session });
+            await get().fetchSubscription();
+          }
+        } catch (err) {
+          console.warn('[auth] hash callback handler error:', err);
         }
       });
     }
@@ -193,30 +209,44 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   // ─── Google OAuth ──────────────────────────────────────────────────────
-  // Öffnet System-Browser → User authorisiert → callback URL mit Token kommt
-  // an Supabase → Session wird in supabase.auth.onAuthStateChange empfangen.
-  // Für Electron muss redirectTo eine Custom-URL-Scheme-Variante sein, sonst
-  // bleibt der OAuth in einem fremden Browser hängen.
-  // → Phase 6.1 MVP: wir machen das mit "Open external + paste session"-Flow,
-  // ODER wir nutzen Supabase's signInWithOAuth + popup window.
+  // Loopback-Flow (Dev + Prod):
+  //  1. Main startet HTTP-Server auf 127.0.0.1:PORT
+  //  2. signInWithOAuth({ redirectTo: 'http://127.0.0.1:PORT/auth-callback' })
+  //  3. Browser → Google → Supabase → 127.0.0.1:PORT/?code=...
+  //  4. Server fängt code ab → IPC-Event → exchangeCodeForSession (siehe init)
   async signInWithGoogle() {
     set({ lastError: null });
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: 'fiano://auth-callback', // Custom-Scheme — wird vom Main-Prozess abgefangen
-        skipBrowserRedirect: true,           // wir öffnen URL selbst extern
-      },
-    });
-    if (error || !data?.url) {
-      set({ lastError: error?.message ?? 'OAuth init failed' });
-      return { ok: false, error: error?.message };
+    try {
+      // Loopback-Server starten (gibt freien Port + URL zurück)
+      const startRes = await window.api.invoke<{ callbackUrl: string; port: number }>(
+        'auth.startOauthLoopback',
+      );
+      if (!startRes?.ok || !startRes.data?.callbackUrl) {
+        const msg = (startRes as { error?: string })?.error ?? 'Failed to start auth loopback';
+        set({ lastError: msg });
+        return { ok: false, error: msg };
+      }
+      const callbackUrl = startRes.data.callbackUrl;
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: callbackUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error || !data?.url) {
+        await window.api.invoke('auth.stopOauthLoopback');
+        set({ lastError: error?.message ?? 'OAuth init failed' });
+        return { ok: false, error: error?.message };
+      }
+      // OAuth-URL extern öffnen — User wählt Google-Account, callback geht zum Loopback
+      await window.api.invoke('shell.openExternal', { url: data.url });
+      return { ok: true };
+    } catch (err: any) {
+      set({ lastError: err?.message ?? String(err) });
+      return { ok: false, error: err?.message };
     }
-    // URL extern öffnen via IPC
-    await window.api.invoke('shell.openExternal', { url: data.url });
-    // Den Callback fangen wir dann im Main-Prozess via 'fiano://' protocol →
-    // sendet uns die Tokens via IPC zurück. Wird in Phase 6.1.5 verkabelt.
-    return { ok: true };
   },
 
   async signOut() {

@@ -23,9 +23,13 @@ if (!URL || !ANON) {
 
 export const supabase: SupabaseClient = createClient(URL ?? '', ANON ?? '', {
   auth: {
-    persistSession: false,    // wir machen das über safeStorage selbst
+    persistSession: false,     // wir machen das über safeStorage selbst
     autoRefreshToken: true,
     detectSessionInUrl: false, // wir sind kein Browser, kein Hash-Callback
+    // PKCE: Supabase schickt nach OAuth einen ?code=... Query-Parameter (server-readable
+    // im Loopback) statt einem #access_token Hash-Fragment (client-only). Wir tauschen
+    // den Code dann via exchangeCodeForSession gegen die Session aus.
+    flowType: 'pkce',
   },
 });
 

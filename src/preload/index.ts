@@ -29,14 +29,23 @@ const api = {
     },
   },
 
-  /** Auth: OAuth-Callback aus dem Custom-Protocol fiano:// (Phase 6.1.5).
-   *  Main-Prozess fängt die fiano://auth-callback#access_token=...-URL ab und
-   *  schickt sie hier rein. AuthStore subscribed darauf und ruft setSession auf. */
+  /** Auth: OAuth-Callback via fiano:// Custom-Protocol (Production-Builds).
+   *  Wird im Dev-Mode nicht zuverlässig getriggert — dort übernimmt der Loopback. */
   onAuthCallback: (cb: (url: string) => void): (() => void) => {
     const handler = (_: unknown, payload: { url: string }) => cb(payload.url);
     ipcRenderer.on('auth.oauth-callback', handler);
     return () => {
       ipcRenderer.off('auth.oauth-callback', handler);
+    };
+  },
+
+  /** Auth: OAuth-Code aus dem Loopback-Server (Dev + Prod). Funktioniert
+   *  ohne OS-Custom-Scheme-Registrierung. */
+  onAuthOauthCode: (cb: (payload: { code?: string; error?: string }) => void): (() => void) => {
+    const handler = (_: unknown, payload: { code?: string; error?: string }) => cb(payload);
+    ipcRenderer.on('auth.oauth-code', handler);
+    return () => {
+      ipcRenderer.off('auth.oauth-code', handler);
     };
   },
 };
