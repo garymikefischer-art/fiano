@@ -247,10 +247,27 @@ app.whenReady().then(async () => {
   // Auto-Updates — nur in Production. Check beim Start, dann periodisch.
   // Bei verfügbarem Update: download → broadcast event zur UI → User entscheidet ob er installiert.
   // Manueller Check: über IPC 'app.checkForUpdates' (von der Notification-Bell aufgerufen).
+  //
+  // electron-updater ist CommonJS, electron-vite kann den Default-Export
+  // unterschiedlich wrappen. `await import(...)` kann liefern:
+  //   { autoUpdater }          → moderne Bundlers
+  //   { default: { autoUpdater } }  → CJS-interop wrap
+  //   { default: autoUpdater } → manche Setups
+  // → robuster Helper, der alle Varianten abfängt.
+  const loadAutoUpdater = async () => {
+    const mod: any = await import('electron-updater');
+    const u = mod.autoUpdater ?? mod.default?.autoUpdater ?? mod.default ?? mod;
+    if (!u || typeof u.checkForUpdates !== 'function') {
+      throw new Error(
+        `electron-updater autoUpdater export not found. Got keys: ${Object.keys(mod).join(', ')}`,
+      );
+    }
+    return u;
+  };
   const { broadcast } = await import('./core/events');
   if (app.isPackaged) {
     try {
-      const { autoUpdater } = await import('electron-updater');
+      const autoUpdater = await loadAutoUpdater();
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.on('checking-for-update', () => {
@@ -296,7 +313,7 @@ app.whenReady().then(async () => {
     }
     try {
       broadcast({ type: 'update.checking' });
-      const { autoUpdater } = await import('electron-updater');
+      const autoUpdater = await loadAutoUpdater();
       const result = await autoUpdater.checkForUpdates();
       // Wenn checkForUpdates ohne result zurückkommt (kein Error, kein Event),
       // explizit not-available broadcasten — sonst hängt UI im "checking"-Status.
