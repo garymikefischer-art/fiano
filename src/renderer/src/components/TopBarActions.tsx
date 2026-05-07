@@ -279,12 +279,19 @@ function NotificationButton() {
     return () => { try { off?.(); } catch { /* ignore */ } };
   }, []);
 
-  // Auto-clear für end-states ohne Action (not-available, error). Available/downloading/ready
+  // Auto-clear für end-states ohne Action: 'not-available' nach 4s (kurze Bestätigung),
+  // 'error' nach 12s (User soll Zeit haben die Message zu lesen). Available/downloading/ready
   // bleiben bis der nächste Check sie überschreibt — sie haben einen Bell-Eintrag der eh persistiert.
   useEffect(() => {
-    if (checkStatus.kind !== 'not-available' && checkStatus.kind !== 'error') return;
-    const t = setTimeout(() => setCheckStatus({ kind: 'idle' }), 4000);
-    return () => clearTimeout(t);
+    if (checkStatus.kind === 'not-available') {
+      const t = setTimeout(() => setCheckStatus({ kind: 'idle' }), 4000);
+      return () => clearTimeout(t);
+    }
+    if (checkStatus.kind === 'error') {
+      const t = setTimeout(() => setCheckStatus({ kind: 'idle' }), 12000);
+      return () => clearTimeout(t);
+    }
+    return;
   }, [checkStatus]);
 
   const triggerCheck = () => {
@@ -423,6 +430,7 @@ function UpdateStatusLine({ status }: { status: CheckStatus }) {
 
   let dotColor = 'bg-zinc-500';
   let text = '';
+  let isError = false;
   if (status.kind === 'checking') {
     dotColor = 'bg-zinc-400 animate-pulse';
     text = t('topBar.updateChecking');
@@ -435,12 +443,24 @@ function UpdateStatusLine({ status }: { status: CheckStatus }) {
   } else if (status.kind === 'error') {
     dotColor = 'bg-fiano-red';
     text = `${t('topBar.updateCheckFailed')}: ${status.message}`;
+    isError = true;
   }
 
+  // Bei Errors: volle Message lesbar (multi-line, max-h mit scroll). Sonst single-line.
   return (
-    <div className="px-4 py-2 flex items-center gap-2 border-b border-white/[0.06] bg-white/[0.02]">
-      <span className={clsx('shrink-0 w-1.5 h-1.5 rounded-full', dotColor)} />
-      <div className="text-[10px] text-zinc-300 truncate">{text}</div>
+    <div className="px-4 py-2 flex items-start gap-2 border-b border-white/[0.06] bg-white/[0.02]">
+      <span className={clsx('shrink-0 w-1.5 h-1.5 rounded-full mt-1', dotColor)} />
+      <div
+        className={clsx(
+          'text-[10px] text-zinc-300 flex-1 min-w-0',
+          isError
+            ? 'whitespace-pre-wrap break-words font-mono leading-snug max-h-32 overflow-y-auto'
+            : 'truncate',
+        )}
+        title={isError ? text : undefined}
+      >
+        {text}
+      </div>
     </div>
   );
 }

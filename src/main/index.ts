@@ -254,22 +254,27 @@ app.whenReady().then(async () => {
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.on('checking-for-update', () => {
+        console.log('[updater] checking-for-update');
         broadcast({ type: 'update.checking' });
       });
       autoUpdater.on('update-available', (info) => {
-        console.log(`[updater] update available: ${info.version}`);
-        broadcast({ type: 'update.available', version: String(info.version) });
+        const v = String(info?.version ?? '');
+        console.log(`[updater] update-available: version=${v}`);
+        broadcast({ type: 'update.available', version: v || 'unknown' });
       });
       autoUpdater.on('update-not-available', (info) => {
-        broadcast({ type: 'update.not-available', currentVersion: String(info?.version ?? app.getVersion()) });
+        const v = String(info?.version ?? app.getVersion());
+        console.log(`[updater] update-not-available: current=${v}`);
+        broadcast({ type: 'update.not-available', currentVersion: v });
       });
       autoUpdater.on('update-downloaded', (info) => {
-        console.log(`[updater] update downloaded: ${info.version}`);
-        broadcast({ type: 'update.downloaded', version: String(info.version) });
+        const v = String(info?.version ?? '');
+        console.log(`[updater] update-downloaded: version=${v}`);
+        broadcast({ type: 'update.downloaded', version: v || 'unknown' });
       });
       autoUpdater.on('error', (err) => {
-        const msg = err?.message ?? String(err);
-        console.warn(`[updater] error: ${msg}`);
+        const msg = err?.message ?? (typeof err === 'object' ? JSON.stringify(err) : String(err));
+        console.warn(`[updater] error:`, err);
         broadcast({ type: 'update.error', message: msg });
       });
       // Initial check 15s nach Start (App soll erst voll laden) + dann alle 6h
@@ -292,9 +297,16 @@ app.whenReady().then(async () => {
     try {
       broadcast({ type: 'update.checking' });
       const { autoUpdater } = await import('electron-updater');
-      await autoUpdater.checkForUpdates();
+      const result = await autoUpdater.checkForUpdates();
+      // Wenn checkForUpdates ohne result zurückkommt (kein Error, kein Event),
+      // explizit not-available broadcasten — sonst hängt UI im "checking"-Status.
+      if (!result || !result.updateInfo) {
+        broadcast({ type: 'update.not-available', currentVersion: app.getVersion() });
+      }
     } catch (err: any) {
-      broadcast({ type: 'update.error', message: err?.message ?? String(err) });
+      const msg = err?.message ?? (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      console.warn('[updater] manual check failed:', err);
+      broadcast({ type: 'update.error', message: msg });
     }
   });
 
