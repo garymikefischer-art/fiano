@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import clsx from 'clsx';
-import { FianoLogo } from '../components/FianoLogo';
 import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
 
@@ -57,12 +56,6 @@ export function LoginPage() {
 
       <div className="relative h-full flex items-center justify-center p-8">
         <div className="w-full max-w-md">
-          {/* Logo */}
-          <div className="flex flex-col items-center mb-8">
-            <FianoLogo className="h-20 w-auto mb-2" />
-            <div className="text-[12px] text-zinc-500">{t('auth.tagline')}</div>
-          </div>
-
           {/* Glass-Card */}
           <div className="glass p-7 space-y-5">
             <div>
