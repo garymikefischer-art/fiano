@@ -17,6 +17,73 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+// ─── Auth Custom-Protocol fiano:// (Phase 6.1.5) ─────────────────────────
+// Supabase OAuth + Email-Confirmation redirected nach Auth zur Site-URL.
+// Im Browser landet ein Hash-Fragment mit access_token. Default-Site-URL
+// http://localhost:3000 funktioniert für eine Electron-App nicht, weil
+// kein Localhost-Server läuft. Stattdessen registrieren wir 'fiano://' als
+// Custom-Protocol-Client → Browser delegiert das URL-Open ans OS → OS
+// startet (oder fokussiert) unsere App mit der URL. Wir parsen das
+// Hash-Fragment und broadcasten die Tokens an den Renderer.
+
+// Single-Instance-Lock: ohne diesen Lock startet ein zweiter Klick auf
+// fiano://-URL eine zweite App-Instanz statt die existierende zu fokussieren.
+// Mit Lock kommt die URL als 'second-instance'-event in der ersten Instanz an.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  // Custom-Scheme registrieren. Im Dev-Mode braucht es den Pfad zum Electron-
+  // Executable + zum Vite-Entry, sonst trifft der OS-Open-Call den falschen Prozess.
+  if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient('fiano', process.execPath, [process.argv[1]]);
+    }
+  } else {
+    app.setAsDefaultProtocolClient('fiano');
+  }
+}
+
+// Pending Auth-URL: falls die App durch den Custom-Scheme erstgestartet wird
+// und der Renderer noch nicht ready ist, halten wir die URL hier zwischen.
+let pendingAuthUrl: string | null = null;
+
+function broadcastAuthCallback(url: string): void {
+  try {
+    const wins = BrowserWindow.getAllWindows();
+    if (wins.length === 0 || !wins[0].webContents || wins[0].webContents.isLoading()) {
+      pendingAuthUrl = url;
+      return;
+    }
+    wins.forEach((w) => w.webContents.send('auth.oauth-callback', { url }));
+    if (wins[0]) {
+      wins[0].show();
+      wins[0].focus();
+    }
+  } catch (err) {
+    console.warn('[auth-protocol] broadcast failed:', err);
+  }
+}
+
+// macOS: Custom-Protocol kommt als 'open-url' event
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (url.startsWith('fiano://')) broadcastAuthCallback(url);
+});
+
+// Win/Linux: zweite Instanz wurde via fiano:// angetriggert → URL ist im argv
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find((a) => a.startsWith('fiano://'));
+  if (url) broadcastAuthCallback(url);
+  // Window in Vordergrund holen
+  const wins = BrowserWindow.getAllWindows();
+  if (wins[0]) {
+    if (wins[0].isMinimized()) wins[0].restore();
+    wins[0].show();
+    wins[0].focus();
+  }
+});
+
 const MIME: Record<string, string> = {
   '.mp4':  'video/mp4',
   '.m4v':  'video/mp4',
@@ -165,6 +232,16 @@ function createWindow() {
 
   win.on('ready-to-show', () => win.show());
 
+  // Falls App via fiano://-URL gestartet wurde, war der Renderer beim Empfang
+  // noch nicht ready — die URL ist in pendingAuthUrl. Nach Renderer-Load nachsenden.
+  win.webContents.on('did-finish-load', () => {
+    if (pendingAuthUrl) {
+      const url = pendingAuthUrl;
+      pendingAuthUrl = null;
+      win.webContents.send('auth.oauth-callback', { url });
+    }
+  });
+
   // Security: blockiere DevTools-Shortcuts IMMER (auch in Dev-Mode — User-Wunsch).
   // Dev-Mode: DevTools nur via App-Menu öffnenbar. Production: gar nicht (devTools=false).
   win.webContents.on('before-input-event', (event, input) => {
@@ -223,6 +300,10 @@ app.whenReady().then(async () => {
 
   registerMediaProtocol();
   registerIpc();
+
+  // Falls App durch fiano://-URL gestartet wurde (Win/Linux), URL ist im argv
+  const initialAuthUrl = process.argv.find((a) => a.startsWith('fiano://'));
+  if (initialAuthUrl) pendingAuthUrl = initialAuthUrl;
 
   // Window-Controls: globale Handler — operieren auf dem Sender-Window.
   ipcMain.handle('window:minimize', (e) => {

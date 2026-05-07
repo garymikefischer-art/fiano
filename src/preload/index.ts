@@ -28,6 +28,17 @@ const api = {
       };
     },
   },
+
+  /** Auth: OAuth-Callback aus dem Custom-Protocol fiano:// (Phase 6.1.5).
+   *  Main-Prozess fängt die fiano://auth-callback#access_token=...-URL ab und
+   *  schickt sie hier rein. AuthStore subscribed darauf und ruft setSession auf. */
+  onAuthCallback: (cb: (url: string) => void): (() => void) => {
+    const handler = (_: unknown, payload: { url: string }) => cb(payload.url);
+    ipcRenderer.on('auth.oauth-callback', handler);
+    return () => {
+      ipcRenderer.off('auth.oauth-callback', handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

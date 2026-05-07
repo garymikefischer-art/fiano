@@ -86,6 +86,43 @@ export const useAuth = create<AuthState>((set, get) => ({
       get().fetchSubscription();
     });
 
+    // OAuth-Callback aus dem Main-Prozess empfangen (fiano://-Custom-Protocol).
+    // URL-Form: 'fiano://auth-callback#access_token=...&refresh_token=...&...'
+    // Wir parsen das Hash-Fragment + setzen die Session auf supabase.
+    if (window.api.onAuthCallback) {
+      window.api.onAuthCallback(async (url: string) => {
+        try {
+          // URL-API parsed das Custom-Protocol nicht zuverlässig — wir extrahieren
+          // das Hash-Fragment selbst.
+          const hashIdx = url.indexOf('#');
+          if (hashIdx < 0) return;
+          const params = new URLSearchParams(url.slice(hashIdx + 1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          if (!accessToken || !refreshToken) {
+            console.warn('[auth] OAuth callback missing tokens in URL hash');
+            return;
+          }
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) {
+            console.warn('[auth] OAuth setSession failed:', error.message);
+            set({ lastError: error.message });
+            return;
+          }
+          if (data.session) {
+            await window.api.invoke('auth.saveSession', { sessionJson: JSON.stringify(data.session) });
+            set({ user: data.user ?? data.session.user, session: data.session });
+            await get().fetchSubscription();
+          }
+        } catch (err) {
+          console.warn('[auth] OAuth callback handler error:', err);
+        }
+      });
+    }
+
     try {
       const stored = await window.api.invoke<string | null>('auth.loadSession');
       const sessionJson = stored?.ok ? (stored.data as string | null) : null;
