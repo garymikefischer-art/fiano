@@ -1,0 +1,56 @@
+appId: app.fiano.video
+productName: fiano
+directories:
+  output: dist
+  buildResources: build
+# Icon wird automatisch aus build/icon.png abgeleitet (Mac → .icns, Win → .ico)
+files:
+  - "out/**/*"
+  - "package.json"
+asarUnpack:
+  - "resources/**"
+extraResources:
+  - from: "resources/bin/${os}"
+    to: "bin"
+    filter:
+      - "**/*"
+mac:
+  category: public.app-category.video
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  # Code-Signing — braucht Apple Developer ID + Cert in Keychain.
+  # Falls APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID env-vars gesetzt:
+  # electron-builder notarized automatisch.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false  # Auf true setzen wenn Apple Dev-Account konfiguriert ist
+  identity: null   # null = unsigned build (kein Apple-Cert nötig). Auf "Developer ID..." setzen wenn Cert installiert ist.
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-Setup.${ext}
+  # Windows code-signing — braucht .pfx oder Azure-Trusted-Signing.
+  # Setze CSC_LINK + CSC_KEY_PASSWORD env-vars für Auto-Sign.
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: fiano
+  # Keine expliziten installerIcon/uninstallerIcon-Pfade — electron-builder leitet
+  # automatisch aus build/icon.png ab (konvertiert zu .ico). Wenn du ein dediziertes
+  # .ico bauen willst: mit `npm run icon` (existing script).
+# Auto-Update Publish-Provider (GitHub Releases).
+# Beim Build: electron-builder generiert latest.yml/latest-mac.yml für electron-updater.
+# Setze GH_TOKEN env-var für CI-Publish, oder publish manuell mit `electron-builder --publish=always`.
+publish:
+  provider: github
+  owner: garyfischer
+  repo: fiano
+  releaseType: release
