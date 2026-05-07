@@ -1188,10 +1188,23 @@ const handlers: Record<string, Handler<any, any>> = {
   },
 
   // Auto-Updater: User klickt "Restart now" im UpdateToast → quitAndInstall
+  // electron-updater ist CommonJS — durch electron-vite kann der Default-Export
+  // unterschiedlich gewrappt sein. Wir versuchen alle gängigen Shapes (siehe
+  // gleicher Helper in main/index.ts).
   'app.restartAndInstall': async () => {
     try {
-      const { autoUpdater } = await import('electron-updater');
-      autoUpdater.quitAndInstall();
+      const mod: any = await import('electron-updater');
+      const autoUpdater = mod.autoUpdater ?? mod.default?.autoUpdater ?? mod.default ?? mod;
+      if (!autoUpdater || typeof autoUpdater.quitAndInstall !== 'function') {
+        console.warn(
+          `[updater] quitAndInstall unavailable. Module keys: ${Object.keys(mod).join(', ')}`,
+        );
+        return { ok: false };
+      }
+      console.log('[updater] quitAndInstall: closing app to install update');
+      // isSilent=false (Installer-UI zeigen, sonst wirken Win-Installer "stuck"),
+      // isForceRunAfter=true (App nach Install neustarten)
+      autoUpdater.quitAndInstall(false, true);
       return { ok: true };
     } catch (err: any) {
       console.warn('[updater] quitAndInstall failed:', err);
