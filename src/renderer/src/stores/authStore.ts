@@ -38,12 +38,35 @@ interface AuthState {
   lastError: string | null;
 
   init(): Promise<void>;
-  signInWithPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }>;
+  signInWithPassword(email: string, password: string): Promise<{ ok: boolean; error?: string; needsConfirmation?: boolean }>;
   signUpWithPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }>;
   signInWithGoogle(): Promise<{ ok: boolean; error?: string }>;
+  resendConfirmation(email: string): Promise<{ ok: boolean; error?: string }>;
   signOut(): Promise<void>;
   fetchSubscription(): Promise<void>;
   clearError(): void;
+}
+
+/** Macht aus cryptischen Supabase-Errors verständliche User-facing Strings.
+ *  Wir nutzen das übers ganze AuthStore — egal ob signIn, signUp, oder resend. */
+function humanizeAuthError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes('email rate limit')) {
+    return 'Too many email requests. Please wait ~1 hour, or set up Custom SMTP in Supabase to remove the limit.';
+  }
+  if (m.includes('over_email_send_rate_limit')) {
+    return 'Too many email requests. Please wait ~1 hour.';
+  }
+  if (m.includes('email not confirmed')) {
+    return 'Please confirm your email first. Check your inbox or request a new confirmation email below.';
+  }
+  if (m.includes('invalid login credentials')) {
+    return 'Email or password is incorrect.';
+  }
+  if (m.includes('user already registered')) {
+    return 'An account with this email already exists. Try signing in instead.';
+  }
+  return msg;
 }
 
 // Module-level guard gegen mehrfaches init() (StrictMode, Re-Renders).
@@ -180,8 +203,11 @@ export const useAuth = create<AuthState>((set, get) => ({
     set({ lastError: null });
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      set({ lastError: error.message });
-      return { ok: false, error: error.message };
+      const friendly = humanizeAuthError(error.message);
+      set({ lastError: friendly });
+      // Special-Case: Email noch nicht confirmed → UI soll Resend-Button zeigen
+      const needsConfirmation = error.message.toLowerCase().includes('email not confirmed');
+      return { ok: false, error: friendly, needsConfirmation };
     }
     if (data.session) {
       await window.api.invoke('auth.saveSession', { sessionJson: JSON.stringify(data.session) });
@@ -205,8 +231,9 @@ export const useAuth = create<AuthState>((set, get) => ({
       options: emailRedirectTo ? { emailRedirectTo } : undefined,
     });
     if (error) {
-      set({ lastError: error.message });
-      return { ok: false, error: error.message };
+      const friendly = humanizeAuthError(error.message);
+      set({ lastError: friendly });
+      return { ok: false, error: friendly };
     }
     // Wenn Email-Confirmation an ist (Default), kommt session=null zurück. User muss
     // erst bestätigen. UI muss das anzeigen.
@@ -248,6 +275,30 @@ export const useAuth = create<AuthState>((set, get) => ({
     } catch (err: any) {
       set({ lastError: err?.message ?? String(err) });
       return { ok: false, error: err?.message };
+    }
+  },
+
+  // ─── Email-Confirmation erneut senden ─────────────────────────────────
+  async resendConfirmation(email) {
+    set({ lastError: null });
+    try {
+      const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
+      const emailRedirectTo = lp?.ok ? lp.data?.callbackUrl ?? undefined : undefined;
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: emailRedirectTo ? { emailRedirectTo } : undefined,
+      });
+      if (error) {
+        const friendly = humanizeAuthError(error.message);
+        set({ lastError: friendly });
+        return { ok: false, error: friendly };
+      }
+      return { ok: true };
+    } catch (err: any) {
+      const friendly = humanizeAuthError(err?.message ?? String(err));
+      set({ lastError: friendly });
+      return { ok: false, error: friendly };
     }
   },
 

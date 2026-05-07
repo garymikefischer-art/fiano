@@ -15,6 +15,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const signIn = useAuth((s) => s.signInWithPassword);
   const signInGoogle = useAuth((s) => s.signInWithGoogle);
+  const resendConfirmation = useAuth((s) => s.resendConfirmation);
   const lastError = useAuth((s) => s.lastError);
   const clearError = useAuth((s) => s.clearError);
   const user = useAuth((s) => s.user);
@@ -22,6 +23,9 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
 
   // Wenn schon eingeloggt → direkt weiter (Routing-Gate kümmert sich um Plan-Check)
   useEffect(() => {
@@ -31,12 +35,32 @@ export function LoginPage() {
   // Bei Mount: alten Error löschen
   useEffect(() => { clearError(); }, [clearError]);
 
+  // Cooldown-Timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy || !email || !password) return;
     setBusy(true);
-    await signIn(email.trim(), password);
+    const res = await signIn(email.trim(), password);
     setBusy(false);
+    setNeedsConfirmation(!!res.needsConfirmation);
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0 || resendStatus === 'sending' || !email) return;
+    setResendStatus('sending');
+    const res = await resendConfirmation(email.trim());
+    if (res.ok) {
+      setResendStatus('sent');
+      setResendCooldown(60);
+    } else {
+      setResendStatus('idle');
+    }
   };
 
   const onGoogle = async () => {
@@ -127,6 +151,33 @@ export function LoginPage() {
               {lastError && (
                 <div className="text-[11px] text-fiano-red bg-fiano-red/[0.08] border border-fiano-red/20 rounded-md px-3 py-2">
                   {lastError}
+                </div>
+              )}
+
+              {/* Resend-Block — erscheint wenn signIn 'Email not confirmed' returnt */}
+              {needsConfirmation && (
+                <div className="rounded-md border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5 space-y-2">
+                  <div className="text-[11px] text-amber-300">{t('auth.notConfirmedHint')}</div>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resendCooldown > 0 || resendStatus === 'sending' || !email}
+                    className={clsx(
+                      'text-[11px] font-medium px-3 py-1.5 rounded-md transition w-full',
+                      resendCooldown > 0 || resendStatus === 'sending' || !email
+                        ? 'bg-white/[0.04] text-zinc-500 cursor-not-allowed'
+                        : 'bg-fiano-red text-white hover:brightness-110',
+                    )}
+                  >
+                    {resendStatus === 'sending'
+                      ? t('auth.sendingEmail')
+                      : resendCooldown > 0
+                        ? t('auth.resendIn').replace('{seconds}', String(resendCooldown))
+                        : t('auth.resendEmail')}
+                  </button>
+                  {resendStatus === 'sent' && resendCooldown > 0 && (
+                    <div className="text-[10px] text-emerald-400">✓ {t('auth.resendSuccess')}</div>
+                  )}
                 </div>
               )}
 

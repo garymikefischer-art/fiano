@@ -17,6 +17,7 @@ export function SignupPage() {
   const navigate = useNavigate();
   const signUp = useAuth((s) => s.signUpWithPassword);
   const signInGoogle = useAuth((s) => s.signInWithGoogle);
+  const resendConfirmation = useAuth((s) => s.resendConfirmation);
   const lastError = useAuth((s) => s.lastError);
   const clearError = useAuth((s) => s.clearError);
   const user = useAuth((s) => s.user);
@@ -25,6 +26,28 @@ export function SignupPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  // Cooldown nach Resend (verhindert spammen + zeigt Status)
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  // Cooldown-Timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  const handleResend = async () => {
+    if (resendCooldown > 0 || resendStatus === 'sending') return;
+    setResendStatus('sending');
+    const res = await resendConfirmation(email);
+    if (res.ok) {
+      setResendStatus('sent');
+      setResendCooldown(60);
+    } else {
+      setResendStatus('error');
+    }
+  };
 
   useEffect(() => {
     if (user) navigate('/', { replace: true });
@@ -71,6 +94,36 @@ export function SignupPage() {
                 </div>
                 <h2 className="text-[16px] font-semibold text-zinc-100">{t('auth.checkEmailTitle')}</h2>
                 <p className="text-[12px] text-zinc-400 leading-relaxed">{t('auth.checkEmailBody').replace('{email}', email)}</p>
+
+                {/* Resend-Block */}
+                <div className="pt-3 mt-2 border-t border-white/[0.06] space-y-2">
+                  <div className="text-[11px] text-zinc-500">{t('auth.didntReceive')}</div>
+                  <button
+                    onClick={handleResend}
+                    disabled={resendCooldown > 0 || resendStatus === 'sending'}
+                    className={clsx(
+                      'text-[12px] font-medium px-4 py-2 rounded-lg transition w-full',
+                      resendCooldown > 0 || resendStatus === 'sending'
+                        ? 'bg-white/[0.04] border border-white/[0.06] text-zinc-500 cursor-not-allowed'
+                        : 'bg-white/[0.04] border border-white/[0.10] text-zinc-300 hover:bg-white/[0.08] hover:text-white',
+                    )}
+                  >
+                    {resendStatus === 'sending'
+                      ? t('auth.sendingEmail')
+                      : resendCooldown > 0
+                        ? t('auth.resendIn').replace('{seconds}', String(resendCooldown))
+                        : t('auth.resendEmail')}
+                  </button>
+                  {resendStatus === 'sent' && resendCooldown > 0 && (
+                    <div className="text-[11px] text-emerald-400">✓ {t('auth.resendSuccess')}</div>
+                  )}
+                  {resendStatus === 'error' && lastError && (
+                    <div className="text-[11px] text-fiano-red bg-fiano-red/[0.08] border border-fiano-red/20 rounded-md px-3 py-2 text-left">
+                      {lastError}
+                    </div>
+                  )}
+                </div>
+
                 <Link
                   to="/login"
                   className="inline-block mt-2 text-[12px] text-fiano-red hover:brightness-110 font-medium"
