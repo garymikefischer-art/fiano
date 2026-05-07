@@ -98,8 +98,8 @@ export function Sidebar() {
       </div>
 
       {/* Logo */}
-      <div className="px-5 pt-0 pb-2 [-webkit-app-region:no-drag]">
-        <FianoLogo className="h-20 w-auto" />
+      <div className="pl-[0.3rem] pr-5 pt-0 [-webkit-app-region:no-drag]">
+        <FianoLogo className="h-28 w-auto" />
       </div>
 
       {/* Trennlinie unter Logo */}
