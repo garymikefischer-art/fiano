@@ -174,7 +174,7 @@ type CheckStatus =
   | { kind: 'idle' }
   | { kind: 'checking' }
   | { kind: 'available'; version: string }
-  | { kind: 'downloading'; version: string }
+  | { kind: 'downloading'; version: string; percent: number }
   | { kind: 'ready'; version: string }
   | { kind: 'not-available'; currentVersion: string }
   | { kind: 'error'; message: string };
@@ -248,10 +248,25 @@ function NotificationButton() {
         setCheckStatus({ kind: 'error', message: e.message });
         return;
       }
+      if (e.type === 'update.progress') {
+        setCheckStatus((prev) => {
+          // Behalte version aus vorherigem 'available'/'downloading' state
+          const v = (prev.kind === 'downloading' || prev.kind === 'available' || prev.kind === 'ready')
+            ? prev.version
+            : 'unknown';
+          return { kind: 'downloading', version: v, percent: e.percent };
+        });
+        // Bell-Notif für die laufende version aktualisieren (Live-Prozent im Title)
+        setNotifications((prev) => prev.map((n) => {
+          if (n.type !== 'update' || !n.title.startsWith('Update v') || n.title.endsWith('ready')) return n;
+          return { ...n, title: `${n.title.split(' · ')[0]} · ${Math.round(e.percent)}%` };
+        }));
+        return;
+      }
       if (e.type !== 'update.available' && e.type !== 'update.downloaded') return;
       const version = e.version;
       const isReady = e.type === 'update.downloaded';
-      setCheckStatus(isReady ? { kind: 'ready', version } : { kind: 'downloading', version });
+      setCheckStatus(isReady ? { kind: 'ready', version } : { kind: 'downloading', version, percent: 0 });
       setNotifications((prev) => {
         // doppelte für die selbe version filtern
         const filtered = prev.filter(
@@ -426,11 +441,12 @@ function NotificationButton() {
  *  - error             → rot + Fehlermeldung */
 function UpdateStatusLine({ status }: { status: CheckStatus }) {
   const t = useT();
-  if (status.kind === 'idle' || status.kind === 'downloading' || status.kind === 'ready') return null;
+  if (status.kind === 'idle' || status.kind === 'ready') return null;
 
   let dotColor = 'bg-zinc-500';
   let text = '';
   let isError = false;
+  let progressPercent: number | null = null;
   if (status.kind === 'checking') {
     dotColor = 'bg-zinc-400 animate-pulse';
     text = t('topBar.updateChecking');
@@ -440,6 +456,10 @@ function UpdateStatusLine({ status }: { status: CheckStatus }) {
   } else if (status.kind === 'available') {
     dotColor = 'bg-fiano-red';
     text = `v${status.version} ${t('topBar.updateAvailable')}`;
+  } else if (status.kind === 'downloading') {
+    dotColor = 'bg-fiano-red animate-pulse';
+    text = `v${status.version} · ${Math.round(status.percent)}%`;
+    progressPercent = status.percent;
   } else if (status.kind === 'error') {
     dotColor = 'bg-fiano-red';
     text = `${t('topBar.updateCheckFailed')}: ${status.message}`;
@@ -448,19 +468,29 @@ function UpdateStatusLine({ status }: { status: CheckStatus }) {
 
   // Bei Errors: volle Message lesbar (multi-line, max-h mit scroll). Sonst single-line.
   return (
-    <div className="px-4 py-2 flex items-start gap-2 border-b border-white/[0.06] bg-white/[0.02]">
-      <span className={clsx('shrink-0 w-1.5 h-1.5 rounded-full mt-1', dotColor)} />
-      <div
-        className={clsx(
-          'text-[10px] text-zinc-300 flex-1 min-w-0',
-          isError
-            ? 'whitespace-pre-wrap break-words font-mono leading-snug max-h-32 overflow-y-auto'
-            : 'truncate',
-        )}
-        title={isError ? text : undefined}
-      >
-        {text}
+    <div className="px-4 py-2 border-b border-white/[0.06] bg-white/[0.02]">
+      <div className="flex items-start gap-2">
+        <span className={clsx('shrink-0 w-1.5 h-1.5 rounded-full mt-1', dotColor)} />
+        <div
+          className={clsx(
+            'text-[10px] text-zinc-300 flex-1 min-w-0',
+            isError
+              ? 'whitespace-pre-wrap break-words font-mono leading-snug max-h-32 overflow-y-auto'
+              : 'truncate',
+          )}
+          title={isError ? text : undefined}
+        >
+          {text}
+        </div>
       </div>
+      {progressPercent !== null && (
+        <div className="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden ml-3.5">
+          <div
+            className="h-full bg-gradient-to-r from-fiano-red/80 to-fiano-red transition-all duration-150 shadow-[0_0_6px_rgba(255,16,57,0.4)]"
+            style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }

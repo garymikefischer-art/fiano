@@ -258,6 +258,7 @@ export type AppEvent =
   | { type: 'update.checking' }
   | { type: 'update.available'; version: string }
   | { type: 'update.not-available'; currentVersion: string }
+  | { type: 'update.progress'; percent: number; transferred: number; total: number; bytesPerSecond: number }
   | { type: 'update.downloaded'; version: string }
   | { type: 'update.error'; message: string };
 

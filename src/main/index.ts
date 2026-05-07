@@ -284,6 +284,15 @@ app.whenReady().then(async () => {
         console.log(`[updater] update-not-available: current=${v}`);
         broadcast({ type: 'update.not-available', currentVersion: v });
       });
+      autoUpdater.on('download-progress', (p: any) => {
+        broadcast({
+          type: 'update.progress',
+          percent: Number(p?.percent ?? 0),
+          transferred: Number(p?.transferred ?? 0),
+          total: Number(p?.total ?? 0),
+          bytesPerSecond: Number(p?.bytesPerSecond ?? 0),
+        });
+      });
       autoUpdater.on('update-downloaded', (info: any) => {
         const v = String(info?.version ?? '');
         console.log(`[updater] update-downloaded: version=${v}`);
