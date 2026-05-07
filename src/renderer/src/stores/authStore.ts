@@ -46,6 +46,10 @@ interface AuthState {
   clearError(): void;
 }
 
+// Module-level guard gegen mehrfaches init() (StrictMode, Re-Renders).
+let initStarted = false;
+const INIT_TIMEOUT_MS = 8000;
+
 export const useAuth = create<AuthState>((set, get) => ({
   initializing: true,
   user: null,
@@ -55,6 +59,19 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   // ─── Session beim App-Start aus safeStorage laden ─────────────────────
   async init() {
+    // Idempotent — StrictMode + HMR sonst doppelt
+    if (initStarted) return;
+    initStarted = true;
+
+    // Hartes Timeout-Sicherheitsnetz: in jedem Fall nach 8s die UI freischalten,
+    // damit der User nicht im LoadingScreen hängt wenn Network/Supabase langsam ist.
+    const safetyTimer = setTimeout(() => {
+      if (get().initializing) {
+        console.warn('[auth] init timeout — forcing UI release');
+        set({ initializing: false });
+      }
+    }, INIT_TIMEOUT_MS);
+
     // Listener für künftige Token-Refreshes registrieren — bevor wir restoren.
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
@@ -71,17 +88,28 @@ export const useAuth = create<AuthState>((set, get) => ({
 
     try {
       const stored = await window.api.invoke<string | null>('auth.loadSession');
-      const sessionJson = stored?.ok ? stored.data : null;
+      const sessionJson = stored?.ok ? (stored.data as string | null) : null;
       if (sessionJson) {
         const parsed = JSON.parse(sessionJson) as Session;
-        const { data, error } = await supabase.auth.setSession({
+        // setSession kann hängen wenn Refresh-Token expired und kein Network — race mit Timeout
+        const restorePromise = supabase.auth.setSession({
           access_token: parsed.access_token,
           refresh_token: parsed.refresh_token,
         });
+        const timeoutPromise = new Promise<{ data: { session: null; user: null }; error: Error }>(
+          (resolve) => setTimeout(
+            () => resolve({ data: { session: null, user: null }, error: new Error('setSession timeout') }),
+            6000,
+          ),
+        );
+        const result = await Promise.race([restorePromise, timeoutPromise]);
+        const { data, error } = result as Awaited<typeof restorePromise>;
         if (!error && data.session) {
           set({ user: data.user ?? data.session.user, session: data.session });
-          await get().fetchSubscription();
+          // fetchSubscription auch nicht blockierend — fire-and-forget
+          get().fetchSubscription().catch((e) => console.warn('[auth] sub fetch:', e));
         } else {
+          console.warn('[auth] session restore failed:', error?.message ?? 'unknown');
           // Session abgelaufen / invalid — clean up
           await window.api.invoke('auth.clearSession');
         }
@@ -89,6 +117,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     } catch (err) {
       console.warn('[auth] init failed:', err);
     } finally {
+      clearTimeout(safetyTimer);
       set({ initializing: false });
     }
   },

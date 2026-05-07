@@ -3,17 +3,19 @@ import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import type { FacecamRegion } from '@shared/types';
 import { useApp } from '../stores/appStore';
+import { useAuth } from '../stores/authStore';
 import { mediaUrl } from '../lib/mediaUrl';
 import { TopBarActions } from '../components/TopBarActions';
 import * as sounds from '../lib/sounds';
 import { useT, LANGUAGES, type LanguageCode } from '../lib/i18n';
 
-type SettingsSection = 'general' | 'language' | 'export' | 'appearance' | 'api-keys';
+type SettingsSection = 'account' | 'general' | 'language' | 'export' | 'appearance' | 'api-keys';
 
 /** Section-Liste i18n-aware via useT — Re-Render bei Sprachwechsel. */
 function useSections(): Array<{ id: SettingsSection; label: string }> {
   const t = useT();
   return [
+    { id: 'account',    label: t('settings.sectionAccount') },
     { id: 'general',    label: t('settings.sectionGeneral') },
     { id: 'language',   label: t('settings.languageHeading') },
     { id: 'export',     label: t('settings.sectionExport') },
@@ -21,7 +23,7 @@ function useSections(): Array<{ id: SettingsSection; label: string }> {
     { id: 'api-keys',   label: t('settings.sectionApiKeys') },
   ];
 }
-const SECTION_IDS: SettingsSection[] = ['general', 'language', 'export', 'appearance', 'api-keys'];
+const SECTION_IDS: SettingsSection[] = ['account', 'general', 'language', 'export', 'appearance', 'api-keys'];
 
 export function SettingsPage() {
   const { hasApiKey, binaries, setApiKey, clearApiKey, refreshHealth, loadAppDefaults } = useApp();
@@ -112,6 +114,8 @@ export function SettingsPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-8 max-w-2xl mx-auto pb-16 space-y-6">
+
+          {section === 'account' && <AccountSection />}
 
           {section === 'appearance' && <AppearanceSection />}
 
@@ -1253,6 +1257,133 @@ function selectBtnClass(active: boolean) {
 
 function Divider() {
   return <div className="h-px bg-white/[0.06]" />;
+}
+
+/* ─── Account Section (Phase 6.1) ─────────────────────────── */
+
+function AccountSection() {
+  const t = useT();
+  const user = useAuth((s) => s.user);
+  const subscription = useAuth((s) => s.subscription);
+  const signOut = useAuth((s) => s.signOut);
+  const fetchSubscription = useAuth((s) => s.fetchSubscription);
+
+  const planLabel = subscription?.lifetime
+    ? t('settings.account.planLifetime')
+    : subscription?.plan === 'pro'
+      ? t('settings.account.planPro')
+      : subscription?.plan === 'creator'
+        ? t('settings.account.planCreator')
+        : t('settings.account.planNone');
+
+  const renewLabel = (() => {
+    if (!subscription) return null;
+    if (subscription.lifetime) return t('settings.account.renewLifetime');
+    if (subscription.status === 'canceled') return t('settings.account.renewCanceled');
+    if (!subscription.current_period_end) return null;
+    const d = new Date(subscription.current_period_end);
+    return t('settings.account.renewsOn').replace('{date}', d.toLocaleDateString());
+  })();
+
+  const initial = (user?.user_metadata?.full_name?.[0] ?? user?.email?.[0] ?? 'f').toUpperCase();
+  const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
+
+  return (
+    <>
+      <h2 className="text-[14px] font-semibold mb-4">{t('settings.sectionAccount')}</h2>
+
+      {/* Profil-Header */}
+      <section className="bg-panel rounded-xl p-6 border border-zinc-800">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-fiano-red/80 to-fiano-red/50
+                          text-white text-[20px] font-bold flex items-center justify-center shrink-0
+                          shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+            {initial}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-semibold text-zinc-100 truncate">{displayName || '—'}</div>
+            <div className="text-[12px] text-zinc-500 truncate">{user?.email ?? '—'}</div>
+            <div className="text-[10px] text-zinc-600 font-mono mt-1">
+              {t('settings.account.userId')}: {user?.id?.slice(0, 8) ?? '—'}…
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Plan-Status */}
+      <section className="bg-panel rounded-xl p-6 border border-zinc-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[12px] text-zinc-500">{t('settings.account.currentPlan')}</div>
+            <div className="text-[18px] font-semibold text-zinc-100 mt-1">{planLabel}</div>
+            {renewLabel && (
+              <div className="text-[11px] text-zinc-500 mt-1">{renewLabel}</div>
+            )}
+          </div>
+          <div className={clsx(
+            'px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider',
+            subscription?.lifetime
+              ? 'bg-fiano-red/15 text-fiano-red border border-fiano-red/30'
+              : subscription?.status === 'active' || subscription?.status === 'trialing'
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : subscription?.status === 'past_due'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : 'bg-zinc-700/30 text-zinc-400 border border-zinc-600/40',
+          )}>
+            {subscription?.lifetime ? '✦ Lifetime' : subscription?.status ?? t('settings.account.statusInactive')}
+          </div>
+        </div>
+
+        {/* Action-Buttons je nach Plan-State */}
+        {!subscription?.lifetime && (
+          <div className="flex gap-2 pt-2 border-t border-zinc-800">
+            {subscription?.plan === 'creator' && (
+              <button
+                onClick={() => alert(t('settings.account.checkoutSoon'))}
+                className="text-[12px] font-semibold px-4 py-2 rounded-lg
+                           bg-fiano-red text-white hover:brightness-110 transition"
+              >
+                {t('settings.account.upgradeToPro')}
+              </button>
+            )}
+            <button
+              onClick={() => alert(t('settings.account.portalSoon'))}
+              className="text-[12px] font-medium px-4 py-2 rounded-lg
+                         bg-white/[0.04] border border-white/[0.10] text-zinc-300
+                         hover:bg-white/[0.08] transition"
+            >
+              {t('settings.account.manageBilling')}
+            </button>
+            <button
+              onClick={() => fetchSubscription()}
+              className="text-[12px] font-medium px-4 py-2 rounded-lg
+                         bg-white/[0.04] border border-white/[0.10] text-zinc-400
+                         hover:bg-white/[0.08] transition"
+            >
+              {t('settings.account.refresh')}
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* Sign-Out */}
+      <section className="bg-panel rounded-xl p-6 border border-zinc-800">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[12px] font-semibold text-zinc-200">{t('settings.account.signOutTitle')}</div>
+            <div className="text-[11px] text-zinc-500 mt-1">{t('settings.account.signOutBody')}</div>
+          </div>
+          <button
+            onClick={signOut}
+            className="text-[12px] font-medium px-4 py-2 rounded-lg
+                       text-fiano-red border border-fiano-red/30 hover:bg-fiano-red/10 transition"
+          >
+            {t('settings.account.signOut')}
+          </button>
+        </div>
+      </section>
+    </>
+  );
 }
 
 /* ─── Language Section (i18n) ────────────────────────────── */

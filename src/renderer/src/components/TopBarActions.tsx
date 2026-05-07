@@ -642,7 +642,7 @@ function Avatar({ initial }: { initial: string }) {
 
           {/* Menu */}
           <div className="py-1">
-            <MenuItem icon={<IconUser />}      label={t('topBar.myAccount')}   onClick={() => goTo('/settings?section=general')} />
+            <MenuItem icon={<IconUser />}      label={t('topBar.myAccount')}   onClick={() => goTo('/settings?section=account')} />
             <MenuItem icon={<IconSettings />}  label={t('topBar.preferences')}  onClick={() => goTo('/settings?section=appearance')} />
             <MenuItem icon={<IconKey />}       label={t('topBar.apiKeys')}     onClick={() => goTo('/settings?section=api-keys')} />
             <div className="my-1 border-t border-white/[0.06]" />

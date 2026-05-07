@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { FianoLogo } from './FianoLogo';
 import { WindowControls } from './WindowControls';
 import { useApp } from '../stores/appStore';
+import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
 
 /* ─── Sidebar ─────────────────────────────────────────────────── */
@@ -377,36 +378,139 @@ function Item({ to, icon, label, badge, disabledHint, isActive, onClick }: ItemP
   );
 }
 
+/**
+ * Sidebar-Footer-Card: zeigt aktuellen Plan-Status.
+ *  - Lifetime  → "Lifetime Access" Badge, kein Upgrade-Button
+ *  - Pro       → "All features unlocked", kein Upgrade-Button
+ *  - Creator   → "X / 25 projects" mit Progress-Bar + Upgrade-Button
+ *  - Sonst (no plan / canceled) → reine Upgrade-Karte
+ */
 function ProPlanCard() {
-  // Kosmetisch — Storage-Werte nur Mock
-  const usedGb = 64.2, totalGb = 500;
-  const pct = (usedGb / totalGb) * 100;
   const t = useT();
+  const navigate = useNavigate();
+  const subscription = useAuth((s) => s.subscription);
+  const projects = useApp((s) => s.projects);
 
+  const goPricing = () => navigate('/pricing');
+
+  // Lifetime — Premium-Badge, kein Upgrade
+  if (subscription?.lifetime) {
+    return (
+      <div className="glass p-3 rounded-2xl">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
+                          flex items-center justify-center shrink-0">
+            <FianoLogo variant="mark" className="w-4 h-auto" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold leading-tight">fiano</div>
+            <div className="text-[10px] text-fiano-red/90 font-semibold uppercase tracking-wider">
+              {t('sidebar.planLifetime')}
+            </div>
+          </div>
+        </div>
+        <div className="mt-2.5 px-2 py-1.5 rounded-lg bg-fiano-red/[0.08] border border-fiano-red/20 text-center">
+          <div className="text-[10px] text-zinc-300">{t('sidebar.lifetimeBadge')}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Pro — alle Features, kein Upgrade möglich
+  if (subscription?.plan === 'pro') {
+    return (
+      <div className="glass p-3 rounded-2xl">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
+                          flex items-center justify-center shrink-0">
+            <FianoLogo variant="mark" className="w-4 h-auto" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold leading-tight">fiano</div>
+            <div className="text-[10px] text-fiano-red/90 font-semibold uppercase tracking-wider">
+              {t('sidebar.planPro')}
+            </div>
+          </div>
+        </div>
+        <div className="mt-2.5 text-[10px] text-zinc-500">
+          {t('sidebar.proAllUnlocked')}
+        </div>
+      </div>
+    );
+  }
+
+  // Creator — Project-Limit + Upgrade-Button
+  if (subscription?.plan === 'creator') {
+    const max = 25;
+    const used = projects.length;
+    const pct = Math.min(100, (used / max) * 100);
+    const nearLimit = used >= max - 3;
+
+    return (
+      <div className="glass p-3 rounded-2xl">
+        <div className="flex items-center gap-2.5 mb-3">
+          <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
+                          flex items-center justify-center shrink-0">
+            <FianoLogo variant="mark" className="w-4 h-auto" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold leading-tight">fiano</div>
+            <div className="text-[10px] text-fiano-red/90 font-medium">{t('sidebar.planCreator')}</div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-zinc-500">{t('sidebar.projectsLabel')}</span>
+            <span className={clsx('font-mono', nearLimit ? 'text-fiano-red' : 'text-zinc-300')}>
+              {used} / {max}
+            </span>
+          </div>
+          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+            <div
+              className={clsx(
+                'h-full rounded-full transition-all',
+                nearLimit
+                  ? 'bg-fiano-red shadow-[0_0_8px_rgba(255,16,57,0.6)]'
+                  : 'bg-fiano-red/70',
+              )}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={goPricing}
+          className="w-full mt-3 py-1.5 rounded-lg text-[11px] font-semibold
+                     bg-fiano-red text-white hover:brightness-110 hover:shadow-[0_0_12px_rgba(255,16,57,0.5)]
+                     active:scale-[0.98] transition-all"
+        >
+          {t('sidebar.upgradeToPro')}
+        </button>
+      </div>
+    );
+  }
+
+  // Kein aktiver Plan (sollte durch AuthGate eh nicht passieren — Fallback)
   return (
     <div className="glass p-3 rounded-2xl">
-      <div className="flex items-center gap-2.5 mb-3">
+      <div className="flex items-center gap-2.5 mb-2.5">
         <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
                         flex items-center justify-center shrink-0">
           <FianoLogo variant="mark" className="w-4 h-auto" />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-[12px] font-semibold leading-tight">fiano</div>
-          <div className="text-[10px] text-fiano-red/90 font-medium">{t('sidebar.proPlan')}</div>
+          <div className="text-[10px] text-zinc-500">{t('sidebar.noPlan')}</div>
         </div>
       </div>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[10px]">
-          <span className="text-zinc-500">{t('sidebar.storage')}</span>
-          <span className="font-mono text-zinc-300">{usedGb} GB / {totalGb} GB</span>
-        </div>
-        <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
-          <div
-            className="h-full bg-fiano-red rounded-full shadow-[0_0_8px_rgba(255,16,57,0.5)] transition-all"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
+      <button
+        onClick={goPricing}
+        className="w-full py-1.5 rounded-lg text-[11px] font-semibold
+                   bg-fiano-red text-white hover:brightness-110 transition"
+      >
+        {t('sidebar.upgradePlan')}
+      </button>
     </div>
   );
 }
