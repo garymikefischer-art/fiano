@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useApp } from './stores/appStore';
+import { useAuth, hasActiveAccess } from './stores/authStore';
 import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { LoadingScreen } from './components/LoadingScreen';
@@ -12,6 +13,9 @@ import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ThumbnailPage } from './pages/ThumbnailPage';
 import { HelpPage } from './pages/HelpPage';
+import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
+import { PricingPage } from './pages/PricingPage';
 import * as sounds from './lib/sounds';
 
 const SPLASH_MS = 1200;
@@ -20,8 +24,12 @@ export default function App() {
   const loadProjects = useApp((s) => s.loadProjects);
   const refreshHealth = useApp((s) => s.refreshHealth);
   const loadAppDefaults = useApp((s) => s.loadAppDefaults);
+  const initAuth = useAuth((s) => s.init);
   const [splash, setSplash] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Auth-Init: Session aus safeStorage hydraten — direkt beim App-Start, parallel zum Splash
+  useEffect(() => { initAuth(); }, [initAuth]);
 
   useEffect(() => {
     loadProjects();
@@ -29,9 +37,7 @@ export default function App() {
     loadAppDefaults();
     const t = setTimeout(() => {
       setSplash(false);
-      // App-Start-Sound triggern NACH Splash (sonst wird AudioContext evtl. von Browser blockiert)
       try { sounds.appStart(); } catch {}
-      // Onboarding nur beim ersten Launch (localStorage-Flag)
       if (!hasSeenOnboarding()) setShowOnboarding(true);
     }, SPLASH_MS);
     return () => clearTimeout(t);
@@ -41,19 +47,65 @@ export default function App() {
 
   return (
     <HashRouter>
-      <div className="h-screen flex flex-col bg-fiano-black text-fiano-white">
-        <div className="flex flex-1 min-h-0">
-          <Sidebar />
-          <main className="flex-1 overflow-hidden flex flex-col">
-            <RouteFader />
-          </main>
-        </div>
-        <StatusBar />
-        {showOnboarding && <OnboardingTutorial onClose={() => setShowOnboarding(false)} />}
-        <UpdateToast />
-      </div>
+      <AuthGate>
+        {(state) => {
+          if (state === 'login') {
+            return (
+              <Routes>
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/login"  element={<LoginPage />} />
+                <Route path="*"       element={<Navigate to="/login" replace />} />
+              </Routes>
+            );
+          }
+          if (state === 'pricing') {
+            return (
+              <Routes>
+                <Route path="/pricing" element={<PricingPage />} />
+                <Route path="*"        element={<Navigate to="/pricing" replace />} />
+              </Routes>
+            );
+          }
+          // state === 'app' — voller Zugriff
+          return (
+            <div className="h-screen flex flex-col bg-fiano-black text-fiano-white">
+              <div className="flex flex-1 min-h-0">
+                <Sidebar />
+                <main className="flex-1 overflow-hidden flex flex-col">
+                  <RouteFader />
+                </main>
+              </div>
+              <StatusBar />
+              {showOnboarding && <OnboardingTutorial onClose={() => setShowOnboarding(false)} />}
+              <UpdateToast />
+            </div>
+          );
+        }}
+      </AuthGate>
     </HashRouter>
   );
+}
+
+/**
+ * AuthGate: entscheidet welcher View basierend auf Auth + Subscription state gerendert wird.
+ *  - initializing → LoadingScreen (Splash ist eh schon weg, das ist nur die Auth-Hydration)
+ *  - kein User → 'login'
+ *  - User aber kein active plan → 'pricing'
+ *  - User + active plan → 'app'
+ */
+function AuthGate({ children }: { children: (state: 'login' | 'pricing' | 'app') => React.ReactNode }) {
+  const initializing = useAuth((s) => s.initializing);
+  const user = useAuth((s) => s.user);
+  const subscription = useAuth((s) => s.subscription);
+
+  if (initializing) return <LoadingScreen />;
+
+  let state: 'login' | 'pricing' | 'app';
+  if (!user) state = 'login';
+  else if (!hasActiveAccess(subscription)) state = 'pricing';
+  else state = 'app';
+
+  return <>{children(state)}</>;
 }
 
 /**
@@ -71,6 +123,7 @@ function RouteFader() {
         <Route path="/thumbnail"  element={<ThumbnailPage />} />
         <Route path="/settings"   element={<SettingsPage />} />
         <Route path="/help"       element={<HelpPage />} />
+        <Route path="*"           element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   );

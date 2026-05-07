@@ -4,6 +4,7 @@ import * as sounds from '../lib/sounds';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useApp } from '../stores/appStore';
+import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
 
 /**
@@ -32,14 +33,21 @@ interface Notification {
 
 export function TopBarActions({ searchPlaceholder }: Props) {
   const t = useT();
+  const user = useAuth((s) => s.user);
   // Default fällt sprachenabhängig zurück (vorher hardcoded EN). Nur überschrieben wenn caller
   // einen sprachspezifischen Custom-Placeholder mitgibt.
   const placeholder = searchPlaceholder ?? t('topBar.searchPlaceholder');
+  // Initial aus echtem User-Email/-Name; Fallback "f" wenn kein User (sollte nicht passieren).
+  const initial = (
+    user?.user_metadata?.full_name?.[0]
+    ?? user?.email?.[0]
+    ?? 'f'
+  ).toUpperCase();
   return (
     <div className="flex items-center gap-2.5">
       <SearchInput placeholder={placeholder} />
       <NotificationButton />
-      <Avatar initial="G" />
+      <Avatar initial={initial} />
     </div>
   );
 }
@@ -556,6 +564,9 @@ function fmtRelative(ts: number, t: (key: string) => string): string {
 
 function Avatar({ initial }: { initial: string }) {
   const navigate = useNavigate();
+  const signOut = useAuth((s) => s.signOut);
+  const user = useAuth((s) => s.user);
+  const subscription = useAuth((s) => s.subscription);
   const t = useT();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -614,8 +625,18 @@ function Avatar({ initial }: { initial: string }) {
               {initial}
             </div>
             <div className="min-w-0">
-              <div className="text-[12px] font-semibold text-zinc-200">Gary Fischer</div>
-              <div className="text-[10px] text-zinc-500">{t('topBar.proPlanLabel')}</div>
+              <div className="text-[12px] font-semibold text-zinc-200 truncate">
+                {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'fiano'}
+              </div>
+              <div className="text-[10px] text-zinc-500 truncate">
+                {subscription?.lifetime
+                  ? 'fiano · Lifetime'
+                  : subscription?.plan === 'pro'
+                    ? 'fiano · Pro'
+                    : subscription?.plan === 'creator'
+                      ? 'fiano · Creator'
+                      : t('topBar.proPlanLabel')}
+              </div>
             </div>
           </div>
 
@@ -628,7 +649,7 @@ function Avatar({ initial }: { initial: string }) {
             <MenuItem icon={<IconHelp />}      label={t('topBar.helpAbout')}
               onClick={() => goTo('/help')} />
             <MenuItem icon={<IconSignOut />}   label={t('topBar.signOut')}     danger
-              onClick={() => { setOpen(false); window.alert(t('topBar.signOutAlert')); }} />
+              onClick={async () => { setOpen(false); await signOut(); }} />
           </div>
         </div>,
         document.body,

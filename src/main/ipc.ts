@@ -1187,6 +1187,34 @@ const handlers: Record<string, Handler<any, any>> = {
     return { ok: true };
   },
 
+  // ─── Auth: Session encrypted persisting via safeStorage (Phase 6.1) ───────
+  // saveSession nimmt einen JSON-stringified Supabase-Session-Object,
+  // ver-/entschlüsselt mit Electron safeStorage (Keychain/DPAPI), legt's
+  // in userData/auth-session.enc ab.
+  'auth.saveSession': async (i: { sessionJson: string }) => {
+    const { saveSession } = await import('./core/auth');
+    await saveSession(i.sessionJson);
+    return { ok: true };
+  },
+  'auth.loadSession': async () => {
+    const { loadSession } = await import('./core/auth');
+    return await loadSession();
+  },
+  'auth.clearSession': async () => {
+    const { clearSession } = await import('./core/auth');
+    await clearSession();
+    return { ok: true };
+  },
+
+  // Generic external-URL opener (für Stripe Checkout, Google OAuth, etc.)
+  'shell.openExternal': async (i: { url: string }) => {
+    if (!i?.url) return { ok: false };
+    // Whitelist auf https/fiano-Custom-Scheme — keine arbiträren Protocols
+    if (!/^https?:\/\//i.test(i.url)) return { ok: false, error: 'Unsupported protocol' };
+    await shell.openExternal(i.url);
+    return { ok: true };
+  },
+
   // Mac-Fallback: bei unsigned-Build kann Squirrel.Mac den Update nicht validieren
   //  ("Code signature did not pass validation"). User bekommt stattdessen die
   //  GitHub-Release-Page geöffnet und installiert die DMG manuell.
