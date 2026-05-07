@@ -21,9 +21,11 @@ interface Notification {
   id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'error';
+  type: 'info' | 'success' | 'error' | 'update';
   ts: number;
   read: boolean;
+  /** Optional inline action (z.B. "Restart now" beim Update-Downloaded). */
+  action?: { label: string; handler: () => void };
 }
 
 export function TopBarActions({ searchPlaceholder }: Props) {
@@ -213,6 +215,42 @@ function NotificationButton() {
     }
   }, [currentJob, projects]);
 
+  // Listen auf Auto-Update Events vom electron-updater (siehe main/index.ts).
+  // - update.available  → "Update v0.x.x available, downloading..."
+  // - update.downloaded → "Update v0.x.x ready" + Inline-Button "Restart now"
+  // Beim Downloaded überschreibt der Eintrag den vorherigen "available" für die selbe Version.
+  useEffect(() => {
+    const off = window.api.onEvent((e) => {
+      if (e.type !== 'update.available' && e.type !== 'update.downloaded') return;
+      const version = e.version;
+      const isReady = e.type === 'update.downloaded';
+      setNotifications((prev) => {
+        // doppelte für die selbe version filtern
+        const filtered = prev.filter(
+          (n) => !(n.type === 'update' && n.message === `v${version}`),
+        );
+        return [
+          {
+            id: `update-${version}-${isReady ? 'ready' : 'avail'}`,
+            title: isReady ? `Update v${version} ready` : `Update v${version} available`,
+            message: `v${version}`,
+            type: 'update',
+            ts: Date.now(),
+            read: false,
+            action: isReady
+              ? {
+                  label: 'Restart now',
+                  handler: () => window.api.invoke('app.restartAndInstall', {}),
+                }
+              : undefined,
+          },
+          ...filtered.slice(0, 49),
+        ];
+      });
+    });
+    return () => { try { off?.(); } catch { /* ignore */ } };
+  }, []);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markAllRead = () => {
@@ -291,11 +329,21 @@ function NotificationButton() {
                       'shrink-0 w-1.5 h-1.5 rounded-full mt-1.5',
                       n.type === 'success' ? 'bg-emerald-400'
                         : n.type === 'error' ? 'bg-fiano-red'
+                        : n.type === 'update' ? 'bg-fiano-red shadow-[0_0_6px_rgba(255,16,57,0.6)]'
                         : 'bg-zinc-500',
                     )} />
                     <div className="flex-1 min-w-0">
                       <div className="text-[12px] font-medium text-zinc-200">{n.title}</div>
                       <div className="text-[11px] text-zinc-500 truncate">{n.message}</div>
+                      {n.action && (
+                        <button
+                          onClick={n.action.handler}
+                          className="mt-1.5 text-[10px] font-semibold text-white bg-fiano-red
+                                     hover:brightness-110 px-2.5 py-1 rounded-md transition"
+                        >
+                          {n.action.label}
+                        </button>
+                      )}
                       <div className="text-[9px] text-zinc-600 font-mono mt-1">
                         {fmtRelative(n.ts, t)}
                       </div>

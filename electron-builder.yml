@@ -51,6 +51,6 @@ nsis:
 # Setze GH_TOKEN env-var für CI-Publish, oder publish manuell mit `electron-builder --publish=always`.
 publish:
   provider: github
-  owner: garyfischer
+  owner: garymikefischer-art
   repo: fiano
   releaseType: release

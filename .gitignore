@@ -9,3 +9,5 @@ dist
 .idea
 build
 resources/bin
+.claude/
+*.tsbuildinfo

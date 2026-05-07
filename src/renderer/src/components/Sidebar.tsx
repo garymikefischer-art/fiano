@@ -93,7 +93,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 bg-fiano-black border-r border-white/[0.06] flex flex-col">
       {/* Drag region: enthält Window-Controls (Win/Linux) bzw. nur Drag-Space (Mac für Traffic-Lights) */}
-      <div className="h-9 flex items-center justify-end [-webkit-app-region:drag]">
+      <div className="h-9 flex items-center justify-start [-webkit-app-region:drag]">
         <WindowControls />
       </div>
 
