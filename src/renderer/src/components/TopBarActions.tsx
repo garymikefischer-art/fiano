@@ -24,8 +24,10 @@ interface Notification {
   type: 'info' | 'success' | 'error' | 'update';
   ts: number;
   read: boolean;
-  /** Optional inline action (z.B. "Restart now" beim Update-Downloaded). */
+  /** Primary inline action (z.B. "Restart now" / "Open release page"). */
   action?: { label: string; handler: () => void };
+  /** Optional secondary action als Text-Link daneben (z.B. "Learn more"). */
+  secondaryAction?: { label: string; handler: () => void };
 }
 
 export function TopBarActions({ searchPlaceholder }: Props) {
@@ -180,6 +182,7 @@ type CheckStatus =
   | { kind: 'error'; message: string };
 
 function NotificationButton() {
+  const navigate = useNavigate();
   const currentJob = useApp((s) => s.currentJob);
   const projects = useApp((s) => s.projects);
   const [open, setOpen] = useState(false);
@@ -266,6 +269,13 @@ function NotificationButton() {
                 action: {
                   label: 'Open release page',
                   handler: () => window.api.invoke('app.openReleasePage', {}),
+                },
+                secondaryAction: {
+                  label: 'Learn more',
+                  handler: () => {
+                    setOpen(false);
+                    navigate('/help?section=updates');
+                  },
                 },
               },
               ...filtered.slice(0, 49),
@@ -434,14 +444,27 @@ function NotificationButton() {
                     <div className="flex-1 min-w-0">
                       <div className="text-[12px] font-medium text-zinc-200">{n.title}</div>
                       <div className="text-[11px] text-zinc-500 truncate">{n.message}</div>
-                      {n.action && (
-                        <button
-                          onClick={n.action.handler}
-                          className="mt-1.5 text-[10px] font-semibold text-white bg-fiano-red
-                                     hover:brightness-110 px-2.5 py-1 rounded-md transition"
-                        >
-                          {n.action.label}
-                        </button>
+                      {(n.action || n.secondaryAction) && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          {n.action && (
+                            <button
+                              onClick={n.action.handler}
+                              className="text-[10px] font-semibold text-white bg-fiano-red
+                                         hover:brightness-110 px-2.5 py-1 rounded-md transition"
+                            >
+                              {n.action.label}
+                            </button>
+                          )}
+                          {n.secondaryAction && (
+                            <button
+                              onClick={n.secondaryAction.handler}
+                              className="text-[10px] text-zinc-400 hover:text-fiano-red
+                                         px-1.5 py-1 transition underline-offset-2 hover:underline"
+                            >
+                              {n.secondaryAction.label}
+                            </button>
+                          )}
+                        </div>
                       )}
                       <div className="text-[9px] text-zinc-600 font-mono mt-1">
                         {fmtRelative(n.ts, t)}

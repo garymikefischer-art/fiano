@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 
 /** Toast für Auto-Updater-Events (electron-updater).
@@ -14,6 +15,7 @@ type State =
   | { type: 'manual-fallback'; version: string };
 
 export function UpdateToast() {
+  const navigate = useNavigate();
   const [state, setState] = useState<State>({ type: 'idle' });
   const [dismissed, setDismissed] = useState(false);
   // Letzte bekannte Version für Progress-Events (die liefern keine Version mit).
@@ -114,7 +116,7 @@ export function UpdateToast() {
           </div>
         )}
         {isManual && (
-          <div className="flex gap-2 mt-2.5">
+          <div className="flex gap-2 mt-2.5 items-center">
             <button
               onClick={() => window.api.invoke('app.openReleasePage', { version: state.version })}
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-fiano-red text-white hover:brightness-110 transition"
@@ -122,8 +124,14 @@ export function UpdateToast() {
               Open release page
             </button>
             <button
+              onClick={() => { setDismissed(true); navigate('/help?section=updates'); }}
+              className="text-[11px] text-zinc-400 hover:text-fiano-red px-2 py-1.5 transition underline-offset-2 hover:underline"
+            >
+              Learn more
+            </button>
+            <button
               onClick={() => setDismissed(true)}
-              className="text-[11px] text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/[0.05] transition"
+              className="ml-auto text-[11px] text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/[0.05] transition"
             >
               Later
             </button>

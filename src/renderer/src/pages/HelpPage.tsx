@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { TopBarActions } from '../components/TopBarActions';
 import { FianoLogo } from '../components/FianoLogo';
 import { useT } from '../lib/i18n';
 
-type Section = 'getting-started' | 'features' | 'api-keys' | 'install' | 'shortcuts' | 'faq' | 'about';
+type Section = 'getting-started' | 'features' | 'api-keys' | 'install' | 'updates' | 'shortcuts' | 'faq' | 'about';
+
+const VALID_SECTIONS: Section[] = ['getting-started', 'features', 'api-keys', 'install', 'updates', 'shortcuts', 'faq', 'about'];
 
 function useHelpSections(): Array<{ key: Section; label: string; icon: React.ReactNode }> {
   const t = useT();
@@ -13,6 +16,7 @@ function useHelpSections(): Array<{ key: Section; label: string; icon: React.Rea
     { key: 'features',        label: t('help.features'),       icon: <IconStar /> },
     { key: 'api-keys',        label: t('help.apiKeys'),        icon: <IconKey /> },
     { key: 'install',         label: t('help.installTools'),   icon: <IconTerminal /> },
+    { key: 'updates',         label: t('help.updates'),        icon: <IconDownload /> },
     { key: 'shortcuts',       label: t('help.shortcuts'),      icon: <IconKeyboard /> },
     { key: 'faq',             label: t('help.faq'),            icon: <IconQuestion /> },
     { key: 'about',           label: t('help.about'),          icon: <IconInfo /> },
@@ -20,7 +24,19 @@ function useHelpSections(): Array<{ key: Section; label: string; icon: React.Rea
 }
 
 export function HelpPage() {
-  const [section, setSection] = useState<Section>('getting-started');
+  const [searchParams] = useSearchParams();
+  const initial = (searchParams.get('section') as Section);
+  const [section, setSection] = useState<Section>(
+    VALID_SECTIONS.includes(initial) ? initial : 'getting-started',
+  );
+
+  // Reactive: wenn URL-Param sich ändert (z.B. Notification-Klick "Learn more"),
+  // aktualisiere Section, auch wenn HelpPage schon offen ist.
+  useEffect(() => {
+    const s = searchParams.get('section') as Section;
+    if (s && VALID_SECTIONS.includes(s) && s !== section) setSection(s);
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const t = useT();
   const sections = useHelpSections();
 
@@ -75,6 +91,7 @@ export function HelpPage() {
               {section === 'features'        && <Features />}
               {section === 'api-keys'        && <ApiKeysGuide />}
               {section === 'install'         && <InstallGuide />}
+              {section === 'updates'         && <Updates />}
               {section === 'shortcuts'       && <Shortcuts />}
               {section === 'faq'             && <Faq />}
               {section === 'about'           && <About />}
@@ -360,6 +377,74 @@ function About() {
   );
 }
 
+/* ─── Updates ─────────────────────────────────────────────── */
+
+function Updates() {
+  const t = useT();
+  const releasesUrl = 'https://github.com/garymikefischer-art/fiano/releases/latest';
+  const openExternal = (url: string) => {
+    // shell.openExternal über das im preload registrierte api invoke (existing handler).
+    window.api.invoke('app.openReleasePage', {}).catch(() => window.open(url, '_blank'));
+  };
+
+  return (
+    <>
+      <SectionTitle title={t('help.updatesTitle')} subtitle={t('help.updatesSubtitle')} />
+
+      <Card>
+        <p className="text-[12px] text-zinc-400 leading-relaxed">{t('help.updatesIntro')}</p>
+      </Card>
+
+      <Card>
+        <h3 className="text-[14px] font-semibold text-zinc-100 mb-2">{t('help.updatesAutoTitle')}</h3>
+        <p className="text-[12px] text-zinc-400 leading-relaxed">{t('help.updatesAutoBody')}</p>
+      </Card>
+
+      <Card>
+        <h3 className="text-[14px] font-semibold text-zinc-100 mb-2">{t('help.updatesWinTitle')}</h3>
+        <p className="text-[12px] text-zinc-400 leading-relaxed">{t('help.updatesWinBody')}</p>
+      </Card>
+
+      <Card>
+        <h3 className="text-[14px] font-semibold text-zinc-100 mb-2">{t('help.updatesMacTitle')}</h3>
+        <p className="text-[12px] text-zinc-400 leading-relaxed mb-3">{t('help.updatesMacBody')}</p>
+
+        <div className="rounded-xl border border-fiano-red/20 bg-fiano-red/[0.05] p-4 mb-3">
+          <div className="text-[12px] font-semibold text-fiano-red mb-2">{t('help.updatesArchTitle')}</div>
+          <div className="space-y-2 text-[12px] text-zinc-300">
+            <div>
+              <span className="font-mono text-fiano-red">-arm64.dmg</span> — {t('help.updatesArchArm64')}
+            </div>
+            <div>
+              <span className="font-mono text-fiano-red">-x64.dmg</span> — {t('help.updatesArchX64')}
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/[0.06] text-[11px] text-zinc-500">
+            {t('help.updatesArchHowToCheck')}
+          </div>
+        </div>
+
+        <button
+          onClick={() => openExternal(releasesUrl)}
+          className="inline-flex items-center gap-2 text-[12px] font-semibold px-4 py-2 rounded-lg
+                     bg-fiano-red text-white hover:brightness-110 hover:shadow-[0_0_18px_rgba(255,16,57,0.45)]
+                     active:scale-[0.98] transition-all"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/>
+          </svg>
+          {t('help.updatesOpenReleases')}
+        </button>
+      </Card>
+
+      <Card>
+        <h3 className="text-[14px] font-semibold text-zinc-100 mb-2">{t('help.updatesFutureTitle')}</h3>
+        <p className="text-[12px] text-zinc-400 leading-relaxed">{t('help.updatesFutureBody')}</p>
+      </Card>
+    </>
+  );
+}
+
 /* ─── UI Helpers ──────────────────────────────────────────── */
 
 function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -496,4 +581,7 @@ function IconQuestion() {
 }
 function IconInfo() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01 M12 12v5"/></svg>;
+}
+function IconDownload() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M12 3v12 M7 11l5 5 5-5 M5 21h14"/></svg>;
 }
