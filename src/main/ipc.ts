@@ -1187,6 +1187,16 @@ const handlers: Record<string, Handler<any, any>> = {
     return { ok: true };
   },
 
+  // Mac-Fallback: bei unsigned-Build kann Squirrel.Mac den Update nicht validieren
+  //  ("Code signature did not pass validation"). User bekommt stattdessen die
+  //  GitHub-Release-Page geöffnet und installiert die DMG manuell.
+  'app.openReleasePage': async (i: { version?: string }) => {
+    const tag = i?.version ? `tag/v${i.version}` : 'latest';
+    const url = `https://github.com/garymikefischer-art/fiano/releases/${tag}`;
+    await shell.openExternal(url);
+    return { ok: true };
+  },
+
   // Auto-Updater: User klickt "Restart now" im UpdateToast → quitAndInstall
   // electron-updater ist CommonJS — durch electron-vite kann der Default-Export
   // unterschiedlich gewrappt sein. Wir versuchen alle gängigen Shapes (siehe

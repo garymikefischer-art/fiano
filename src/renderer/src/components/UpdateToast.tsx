@@ -9,7 +9,9 @@ type State =
   | { type: 'idle' }
   | { type: 'available'; version: string }
   | { type: 'progress'; version: string; percent: number; transferred: number; total: number; bytesPerSecond: number }
-  | { type: 'downloaded'; version: string };
+  | { type: 'downloaded'; version: string }
+  /** Mac-spezifischer Fallback: code-signature-Validation failed → User soll manuell laden. */
+  | { type: 'manual-fallback'; version: string };
 
 export function UpdateToast() {
   const [state, setState] = useState<State>({ type: 'idle' });
@@ -37,6 +39,13 @@ export function UpdateToast() {
         versionRef.current = e.version;
         setState({ type: 'downloaded', version: e.version });
         setDismissed(false);
+      } else if (e.type === 'update.error') {
+        // Code-signature-Fehler auf Mac → Manual-Fallback-State.
+        // Andere Fehler ignorieren wir hier (Bell-Status zeigt sie schon).
+        if (/code signat|signature|did not pass validation/i.test(e.message)) {
+          setState({ type: 'manual-fallback', version: versionRef.current || '' });
+          setDismissed(false);
+        }
       }
     });
     return () => { try { off?.(); } catch { /* ignore */ } };
@@ -46,6 +55,7 @@ export function UpdateToast() {
 
   const isReady = state.type === 'downloaded';
   const isProgress = state.type === 'progress';
+  const isManual = state.type === 'manual-fallback';
 
   return (
     <div className={clsx(
@@ -59,18 +69,22 @@ export function UpdateToast() {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-[12px] font-semibold text-zinc-100">
-          {isReady
-            ? `Update ${state.version} ready`
-            : isProgress
-              ? `Downloading update ${state.version}`
-              : `Update ${state.version} available`}
+          {isManual
+            ? `Update ${state.version} — manual download`
+            : isReady
+              ? `Update ${state.version} ready`
+              : isProgress
+                ? `Downloading update ${state.version}`
+                : `Update ${state.version} available`}
         </div>
         <div className="text-[11px] text-zinc-400 mt-0.5">
-          {isReady
-            ? 'Restart fiano to install the update.'
-            : isProgress
-              ? `${Math.round(state.percent)}% · ${formatBytes(state.transferred)} / ${formatBytes(state.total)} · ${formatBytes(state.bytesPerSecond)}/s`
-              : 'Downloading in background — you can keep working.'}
+          {isManual
+            ? 'Auto-update needs code-signing on macOS. Open the release page to download the new DMG manually.'
+            : isReady
+              ? 'Restart fiano to install the update.'
+              : isProgress
+                ? `${Math.round(state.percent)}% · ${formatBytes(state.transferred)} / ${formatBytes(state.total)} · ${formatBytes(state.bytesPerSecond)}/s`
+                : 'Downloading in background — you can keep working.'}
         </div>
 
         {/* Progress-Bar während Download */}
@@ -90,6 +104,22 @@ export function UpdateToast() {
               className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-fiano-red text-white hover:brightness-110 transition"
             >
               Restart now
+            </button>
+            <button
+              onClick={() => setDismissed(true)}
+              className="text-[11px] text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/[0.05] transition"
+            >
+              Later
+            </button>
+          </div>
+        )}
+        {isManual && (
+          <div className="flex gap-2 mt-2.5">
+            <button
+              onClick={() => window.api.invoke('app.openReleasePage', { version: state.version })}
+              className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-fiano-red text-white hover:brightness-110 transition"
+            >
+              Open release page
             </button>
             <button
               onClick={() => setDismissed(true)}

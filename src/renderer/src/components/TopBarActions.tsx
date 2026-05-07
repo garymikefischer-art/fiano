@@ -246,6 +246,32 @@ function NotificationButton() {
       }
       if (e.type === 'update.error') {
         setCheckStatus({ kind: 'error', message: e.message });
+        // Wenn der Fehler eine code-signature-Validation auf Mac ist (unsigned-Build),
+        // ist Auto-Update technisch unmöglich. Wir adden eine Bell-Notification mit
+        // einem "Download manually"-Button der die GitHub-Release-Page öffnet.
+        const isMacSigError = /code signat|signature|did not pass validation/i.test(e.message);
+        if (isMacSigError) {
+          setNotifications((prev) => {
+            const id = `update-manual-fallback`;
+            // Vorherigen Eintrag entfernen falls schon da, dann neu adden
+            const filtered = prev.filter((n) => n.id !== id);
+            return [
+              {
+                id,
+                title: 'Manual download required',
+                message: 'Auto-update needs code-signing on macOS. Download the new DMG.',
+                type: 'update',
+                ts: Date.now(),
+                read: false,
+                action: {
+                  label: 'Open release page',
+                  handler: () => window.api.invoke('app.openReleasePage', {}),
+                },
+              },
+              ...filtered.slice(0, 49),
+            ];
+          });
+        }
         return;
       }
       if (e.type === 'update.progress') {
