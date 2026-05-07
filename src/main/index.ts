@@ -274,22 +274,22 @@ app.whenReady().then(async () => {
         console.log('[updater] checking-for-update');
         broadcast({ type: 'update.checking' });
       });
-      autoUpdater.on('update-available', (info) => {
+      autoUpdater.on('update-available', (info: any) => {
         const v = String(info?.version ?? '');
         console.log(`[updater] update-available: version=${v}`);
         broadcast({ type: 'update.available', version: v || 'unknown' });
       });
-      autoUpdater.on('update-not-available', (info) => {
+      autoUpdater.on('update-not-available', (info: any) => {
         const v = String(info?.version ?? app.getVersion());
         console.log(`[updater] update-not-available: current=${v}`);
         broadcast({ type: 'update.not-available', currentVersion: v });
       });
-      autoUpdater.on('update-downloaded', (info) => {
+      autoUpdater.on('update-downloaded', (info: any) => {
         const v = String(info?.version ?? '');
         console.log(`[updater] update-downloaded: version=${v}`);
         broadcast({ type: 'update.downloaded', version: v || 'unknown' });
       });
-      autoUpdater.on('error', (err) => {
+      autoUpdater.on('error', (err: any) => {
         const msg = err?.message ?? (typeof err === 'object' ? JSON.stringify(err) : String(err));
         console.warn(`[updater] error:`, err);
         broadcast({ type: 'update.error', message: msg });
