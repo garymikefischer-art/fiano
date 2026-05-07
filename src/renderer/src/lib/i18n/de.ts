@@ -62,6 +62,12 @@ export const de: Record<string, string> = {
   'topBar.signOutAlert': 'Abmelden: in dieser Version nicht verfügbar (Desktop, keine Remote-Authentifizierung).',
   'topBar.profileAria':  'Profil',
   'topBar.notificationsAria': 'Benachrichtigungen',
+  'topBar.checkForUpdates':   'Auf Updates prüfen',
+  'topBar.checking':          'Prüfe…',
+  'topBar.updateChecking':    'Suche nach Updates…',
+  'topBar.updateUpToDate':    'Du bist auf dem neuesten Stand',
+  'topBar.updateAvailable':   'verfügbar — wird heruntergeladen…',
+  'topBar.updateCheckFailed': 'Update-Prüfung fehlgeschlagen',
 
   // Settings page header & sections
   'settings.title':              'Einstellungen',

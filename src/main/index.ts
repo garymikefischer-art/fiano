@@ -246,22 +246,31 @@ app.whenReady().then(async () => {
 
   // Auto-Updates — nur in Production. Check beim Start, dann periodisch.
   // Bei verfügbarem Update: download → broadcast event zur UI → User entscheidet ob er installiert.
+  // Manueller Check: über IPC 'app.checkForUpdates' (von der Notification-Bell aufgerufen).
+  const { broadcast } = await import('./core/events');
   if (app.isPackaged) {
     try {
       const { autoUpdater } = await import('electron-updater');
-      const { broadcast } = await import('./core/events');
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = true;
+      autoUpdater.on('checking-for-update', () => {
+        broadcast({ type: 'update.checking' });
+      });
       autoUpdater.on('update-available', (info) => {
         console.log(`[updater] update available: ${info.version}`);
         broadcast({ type: 'update.available', version: String(info.version) });
+      });
+      autoUpdater.on('update-not-available', (info) => {
+        broadcast({ type: 'update.not-available', currentVersion: String(info?.version ?? app.getVersion()) });
       });
       autoUpdater.on('update-downloaded', (info) => {
         console.log(`[updater] update downloaded: ${info.version}`);
         broadcast({ type: 'update.downloaded', version: String(info.version) });
       });
       autoUpdater.on('error', (err) => {
-        console.warn(`[updater] error: ${err?.message ?? err}`);
+        const msg = err?.message ?? String(err);
+        console.warn(`[updater] error: ${msg}`);
+        broadcast({ type: 'update.error', message: msg });
       });
       // Initial check 15s nach Start (App soll erst voll laden) + dann alle 6h
       setTimeout(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 15_000);
@@ -270,6 +279,24 @@ app.whenReady().then(async () => {
       console.warn('[updater] init failed:', err);
     }
   }
+
+  // IPC-Handler: manueller Update-Check aus der UI (Notification-Bell).
+  // Im Dev-Mode (nicht packaged) funktioniert electron-updater nicht — wir broadcasten
+  // einen klaren Hinweis statt einen kryptischen Fehler. In Production triggert er den
+  // autoUpdater, der dann checking/not-available/available-Events feuert.
+  ipcMain.handle('app.checkForUpdates', async () => {
+    if (!app.isPackaged) {
+      broadcast({ type: 'update.error', message: 'Updates are only available in the packaged build.' });
+      return;
+    }
+    try {
+      broadcast({ type: 'update.checking' });
+      const { autoUpdater } = await import('electron-updater');
+      await autoUpdater.checkForUpdates();
+    } catch (err: any) {
+      broadcast({ type: 'update.error', message: err?.message ?? String(err) });
+    }
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -168,11 +168,23 @@ function SearchInput({ placeholder }: { placeholder: string }) {
 
 /* ─── Notification-Button ───────────────────────────────── */
 
+/** Status des manuellen Update-Checks. Wird im Bell-Header gerendert,
+ *  verschwindet 4 Sekunden nach Endzustand (not-available/error). */
+type CheckStatus =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'available'; version: string }
+  | { kind: 'downloading'; version: string }
+  | { kind: 'ready'; version: string }
+  | { kind: 'not-available'; currentVersion: string }
+  | { kind: 'error'; message: string };
+
 function NotificationButton() {
   const currentJob = useApp((s) => s.currentJob);
   const projects = useApp((s) => s.projects);
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [checkStatus, setCheckStatus] = useState<CheckStatus>({ kind: 'idle' });
   const lastJobRef = useRef<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -216,14 +228,30 @@ function NotificationButton() {
   }, [currentJob, projects]);
 
   // Listen auf Auto-Update Events vom electron-updater (siehe main/index.ts).
-  // - update.available  → "Update v0.x.x available, downloading..."
-  // - update.downloaded → "Update v0.x.x ready" + Inline-Button "Restart now"
+  // - update.checking      → Status "Checking..." im Bell-Header
+  // - update.available     → Status "Update vX.Y.Z available, downloading..." + persistente Bell-Notif
+  // - update.not-available  → Status "You're up to date" (4s, dann auto-clear)
+  // - update.downloaded    → Status "Ready" + persistente Bell-Notif mit "Restart now"
+  // - update.error         → Status "Update check failed: ..." (4s, dann auto-clear)
   // Beim Downloaded überschreibt der Eintrag den vorherigen "available" für die selbe Version.
   useEffect(() => {
     const off = window.api.onEvent((e) => {
+      if (e.type === 'update.checking') {
+        setCheckStatus({ kind: 'checking' });
+        return;
+      }
+      if (e.type === 'update.not-available') {
+        setCheckStatus({ kind: 'not-available', currentVersion: e.currentVersion });
+        return;
+      }
+      if (e.type === 'update.error') {
+        setCheckStatus({ kind: 'error', message: e.message });
+        return;
+      }
       if (e.type !== 'update.available' && e.type !== 'update.downloaded') return;
       const version = e.version;
       const isReady = e.type === 'update.downloaded';
+      setCheckStatus(isReady ? { kind: 'ready', version } : { kind: 'downloading', version });
       setNotifications((prev) => {
         // doppelte für die selbe version filtern
         const filtered = prev.filter(
@@ -250,6 +278,19 @@ function NotificationButton() {
     });
     return () => { try { off?.(); } catch { /* ignore */ } };
   }, []);
+
+  // Auto-clear für end-states ohne Action (not-available, error). Available/downloading/ready
+  // bleiben bis der nächste Check sie überschreibt — sie haben einen Bell-Eintrag der eh persistiert.
+  useEffect(() => {
+    if (checkStatus.kind !== 'not-available' && checkStatus.kind !== 'error') return;
+    const t = setTimeout(() => setCheckStatus({ kind: 'idle' }), 4000);
+    return () => clearTimeout(t);
+  }, [checkStatus]);
+
+  const triggerCheck = () => {
+    setCheckStatus({ kind: 'checking' });
+    window.api.invoke('app.checkForUpdates', {}).catch(() => {/* error event übernimmt */});
+  };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -298,15 +339,25 @@ function NotificationButton() {
                         flex flex-col">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
             <div className="text-[12px] font-semibold text-zinc-200">{t('topBar.notifications')}</div>
-            {notifications.length > 0 && (
+            <div className="flex items-center gap-3">
               <button
-                onClick={clearAll}
-                className="text-[10px] text-zinc-500 hover:text-fiano-red transition"
+                onClick={triggerCheck}
+                disabled={checkStatus.kind === 'checking' || checkStatus.kind === 'downloading'}
+                className="text-[10px] text-zinc-400 hover:text-fiano-red transition disabled:opacity-40 disabled:hover:text-zinc-400"
               >
-                {t('topBar.clearAll')}
+                {checkStatus.kind === 'checking' ? t('topBar.checking') : t('topBar.checkForUpdates')}
               </button>
-            )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  className="text-[10px] text-zinc-500 hover:text-fiano-red transition"
+                >
+                  {t('topBar.clearAll')}
+                </button>
+              )}
+            </div>
           </div>
+          <UpdateStatusLine status={checkStatus} />
           <div className="flex-1 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="p-6 text-[11px] text-zinc-500 text-center">
@@ -355,6 +406,41 @@ function NotificationButton() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Inline-Status-Zeile für den manuellen Update-Check.
+ *  - idle              → nichts
+ *  - checking          → spinner + "Checking..."
+ *  - not-available     → grüner Tick + "You're on the latest version"
+ *  - available         → fiano-rot + "vX.Y.Z available, downloading..."
+ *  - downloading/ready → kein Inline-Status (die Bell-Notif übernimmt)
+ *  - error             → rot + Fehlermeldung */
+function UpdateStatusLine({ status }: { status: CheckStatus }) {
+  const t = useT();
+  if (status.kind === 'idle' || status.kind === 'downloading' || status.kind === 'ready') return null;
+
+  let dotColor = 'bg-zinc-500';
+  let text = '';
+  if (status.kind === 'checking') {
+    dotColor = 'bg-zinc-400 animate-pulse';
+    text = t('topBar.updateChecking');
+  } else if (status.kind === 'not-available') {
+    dotColor = 'bg-emerald-400';
+    text = `${t('topBar.updateUpToDate')} (v${status.currentVersion})`;
+  } else if (status.kind === 'available') {
+    dotColor = 'bg-fiano-red';
+    text = `v${status.version} ${t('topBar.updateAvailable')}`;
+  } else if (status.kind === 'error') {
+    dotColor = 'bg-fiano-red';
+    text = `${t('topBar.updateCheckFailed')}: ${status.message}`;
+  }
+
+  return (
+    <div className="px-4 py-2 flex items-center gap-2 border-b border-white/[0.06] bg-white/[0.02]">
+      <span className={clsx('shrink-0 w-1.5 h-1.5 rounded-full', dotColor)} />
+      <div className="text-[10px] text-zinc-300 truncate">{text}</div>
     </div>
   );
 }

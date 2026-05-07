@@ -53,6 +53,12 @@ export const pl: Record<string, string> = {
   'topBar.signOutAlert': 'Wyloguj: niedostępne w tej wersji (Desktop, brak zdalnej autoryzacji).',
   'topBar.profileAria':  'Profil',
   'topBar.notificationsAria': 'Powiadomienia',
+  'topBar.checkForUpdates':   'Sprawdź aktualizacje',
+  'topBar.checking':          'Sprawdzanie…',
+  'topBar.updateChecking':    'Szukanie aktualizacji…',
+  'topBar.updateUpToDate':    'Masz najnowszą wersję',
+  'topBar.updateAvailable':   'dostępna — pobieranie…',
+  'topBar.updateCheckFailed': 'Sprawdzanie aktualizacji nie powiodło się',
 
   'settings.title':              'Ustawienia',
   'settings.subtitle':           'Konfiguracja · Klucze API · Wygląd',

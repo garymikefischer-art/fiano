@@ -53,6 +53,12 @@ export const nl: Record<string, string> = {
   'topBar.signOutAlert': 'Uitloggen: niet beschikbaar in deze versie (Desktop, geen externe authenticatie).',
   'topBar.profileAria':  'Profiel',
   'topBar.notificationsAria': 'Meldingen',
+  'topBar.checkForUpdates':   'Controleer op updates',
+  'topBar.checking':          'Controleren…',
+  'topBar.updateChecking':    'Updates zoeken…',
+  'topBar.updateUpToDate':    'Je bent up-to-date',
+  'topBar.updateAvailable':   'beschikbaar — downloaden…',
+  'topBar.updateCheckFailed': 'Update-controle mislukt',
 
   'settings.title':              'Instellingen',
   'settings.subtitle':           'Configuratie · API-sleutels · Weergave',

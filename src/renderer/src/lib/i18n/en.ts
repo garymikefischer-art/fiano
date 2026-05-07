@@ -62,6 +62,12 @@ export const en: Record<string, string> = {
   'topBar.signOutAlert': 'Sign-Out: not applicable in this build (Desktop, no remote auth).',
   'topBar.profileAria':  'Profile',
   'topBar.notificationsAria': 'Notifications',
+  'topBar.checkForUpdates':   'Check for updates',
+  'topBar.checking':          'Checking…',
+  'topBar.updateChecking':    'Looking for updates…',
+  'topBar.updateUpToDate':    "You're up to date",
+  'topBar.updateAvailable':   'available — downloading…',
+  'topBar.updateCheckFailed': 'Update check failed',
 
   // Settings page header & sections
   'settings.title':              'Settings',

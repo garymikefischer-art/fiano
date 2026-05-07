@@ -53,6 +53,12 @@ export const fr: Record<string, string> = {
   'topBar.signOutAlert': 'Déconnexion : non disponible dans cette version (Desktop, sans authentification distante).',
   'topBar.profileAria':  'Profil',
   'topBar.notificationsAria': 'Notifications',
+  'topBar.checkForUpdates':   'Rechercher des mises à jour',
+  'topBar.checking':          'Recherche…',
+  'topBar.updateChecking':    'Recherche de mises à jour…',
+  'topBar.updateUpToDate':    'Vous êtes à jour',
+  'topBar.updateAvailable':   'disponible — téléchargement…',
+  'topBar.updateCheckFailed': 'Échec de la recherche de mises à jour',
 
   'settings.title':              'Paramètres',
   'settings.subtitle':           'Configuration · Clés API · Apparence',

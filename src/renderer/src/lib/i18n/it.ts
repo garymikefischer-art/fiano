@@ -53,6 +53,12 @@ export const it: Record<string, string> = {
   'topBar.signOutAlert': 'Esci: non disponibile in questa build (Desktop, nessuna autenticazione remota).',
   'topBar.profileAria':  'Profilo',
   'topBar.notificationsAria': 'Notifiche',
+  'topBar.checkForUpdates':   'Verifica aggiornamenti',
+  'topBar.checking':          'Verifica in corso…',
+  'topBar.updateChecking':    'Ricerca aggiornamenti…',
+  'topBar.updateUpToDate':    'Sei alla versione più recente',
+  'topBar.updateAvailable':   'disponibile — in download…',
+  'topBar.updateCheckFailed': 'Verifica aggiornamenti non riuscita',
 
   'settings.title':              'Impostazioni',
   'settings.subtitle':           'Configurazione · Chiavi API · Aspetto',

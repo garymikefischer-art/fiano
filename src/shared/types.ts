@@ -255,8 +255,11 @@ export type AppEvent =
   | { type: 'job.progress'; projectId: string; step: string; percent: number }
   | { type: 'job.log'; projectId: string; message: string }
   | { type: 'project.updated'; projectId: string }
+  | { type: 'update.checking' }
   | { type: 'update.available'; version: string }
-  | { type: 'update.downloaded'; version: string };
+  | { type: 'update.not-available'; currentVersion: string }
+  | { type: 'update.downloaded'; version: string }
+  | { type: 'update.error'; message: string };
 
 export const PIPELINE_STEPS = ['download', 'transcribe', 'highlights', 'render'] as const;
 export type PipelineStepName = (typeof PIPELINE_STEPS)[number];

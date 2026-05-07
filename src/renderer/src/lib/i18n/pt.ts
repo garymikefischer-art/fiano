@@ -53,6 +53,12 @@ export const pt: Record<string, string> = {
   'topBar.signOutAlert': 'Sair: não disponível nesta versão (Desktop, sem autenticação remota).',
   'topBar.profileAria':  'Perfil',
   'topBar.notificationsAria': 'Notificações',
+  'topBar.checkForUpdates':   'Verificar atualizações',
+  'topBar.checking':          'Verificando…',
+  'topBar.updateChecking':    'Procurando atualizações…',
+  'topBar.updateUpToDate':    'Você está atualizado',
+  'topBar.updateAvailable':   'disponível — baixando…',
+  'topBar.updateCheckFailed': 'Falha ao verificar atualizações',
 
   'settings.title':              'Configurações',
   'settings.subtitle':           'Configuração · Chaves API · Aparência',

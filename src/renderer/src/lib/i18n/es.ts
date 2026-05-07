@@ -53,6 +53,12 @@ export const es: Record<string, string> = {
   'topBar.signOutAlert': 'Cerrar sesión: no disponible en esta versión (Desktop, sin autenticación remota).',
   'topBar.profileAria':  'Perfil',
   'topBar.notificationsAria': 'Notificaciones',
+  'topBar.checkForUpdates':   'Buscar actualizaciones',
+  'topBar.checking':          'Comprobando…',
+  'topBar.updateChecking':    'Buscando actualizaciones…',
+  'topBar.updateUpToDate':    'Estás al día',
+  'topBar.updateAvailable':   'disponible — descargando…',
+  'topBar.updateCheckFailed': 'Error al buscar actualizaciones',
 
   'settings.title':              'Ajustes',
   'settings.subtitle':           'Configuración · Claves API · Apariencia',

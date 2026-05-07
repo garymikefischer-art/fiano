@@ -53,6 +53,12 @@ export const ru: Record<string, string> = {
   'topBar.signOutAlert': 'Выход: недоступно в этой сборке (Desktop, без удалённой авторизации).',
   'topBar.profileAria':  'Профиль',
   'topBar.notificationsAria': 'Уведомления',
+  'topBar.checkForUpdates':   'Проверить обновления',
+  'topBar.checking':          'Проверка…',
+  'topBar.updateChecking':    'Поиск обновлений…',
+  'topBar.updateUpToDate':    'У вас последняя версия',
+  'topBar.updateAvailable':   'доступно — загрузка…',
+  'topBar.updateCheckFailed': 'Не удалось проверить обновления',
 
   'settings.title':              'Настройки',
   'settings.subtitle':           'Конфигурация · API-ключи · Внешний вид',
