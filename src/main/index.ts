@@ -305,6 +305,26 @@ app.whenReady().then(async () => {
   const initialAuthUrl = process.argv.find((a) => a.startsWith('fiano://'));
   if (initialAuthUrl) pendingAuthUrl = initialAuthUrl;
 
+  // Persistenten Auth-Loopback-Server starten — fängt OAuth-Codes UND Email-
+  // Confirmation-Codes ab. Läuft solange fiano läuft.
+  try {
+    const { startPersistentLoopback, setLoopbackListener } = await import('./core/authLoopback');
+    await startPersistentLoopback();
+    setLoopbackListener((cb) => {
+      try {
+        BrowserWindow.getAllWindows().forEach((w) => {
+          w.webContents.send('auth.oauth-code', cb);
+          w.show();
+          w.focus();
+        });
+      } catch (err) {
+        console.warn('[auth-loopback] dispatch failed:', err);
+      }
+    });
+  } catch (err) {
+    console.warn('[auth-loopback] init failed:', err);
+  }
+
   // Window-Controls: globale Handler — operieren auf dem Sender-Window.
   ipcMain.handle('window:minimize', (e) => {
     BrowserWindow.fromWebContents(e.sender)?.minimize();

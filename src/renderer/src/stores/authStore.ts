@@ -193,7 +193,17 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   async signUpWithPassword(email, password) {
     set({ lastError: null });
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    // emailRedirectTo: Supabase ersetzt {{ .ConfirmationURL }} im Template so dass
+    // der finale Redirect zur Loopback-URL geht (statt zur Default-Site-URL).
+    // Damit landet der User nach Email-Klick auf unserer 127.0.0.1:PORT — wenn
+    // fiano dann läuft, wird der User automatisch eingeloggt.
+    const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
+    const emailRedirectTo = lp?.ok ? lp.data?.callbackUrl ?? undefined : undefined;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: emailRedirectTo ? { emailRedirectTo } : undefined,
+    });
     if (error) {
       set({ lastError: error.message });
       return { ok: false, error: error.message };
@@ -209,24 +219,18 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   // ─── Google OAuth ──────────────────────────────────────────────────────
-  // Loopback-Flow (Dev + Prod):
-  //  1. Main startet HTTP-Server auf 127.0.0.1:PORT
-  //  2. signInWithOAuth({ redirectTo: 'http://127.0.0.1:PORT/auth-callback' })
-  //  3. Browser → Google → Supabase → 127.0.0.1:PORT/?code=...
-  //  4. Server fängt code ab → IPC-Event → exchangeCodeForSession (siehe init)
+  // Persistenter Loopback (siehe authLoopback.ts) läuft schon beim App-Start.
+  // Wir holen die URL via IPC und nutzen sie als redirectTo.
   async signInWithGoogle() {
     set({ lastError: null });
     try {
-      // Loopback-Server starten (gibt freien Port + URL zurück)
-      const startRes = await window.api.invoke<{ callbackUrl: string; port: number }>(
-        'auth.startOauthLoopback',
-      );
-      if (!startRes?.ok || !startRes.data?.callbackUrl) {
-        const msg = (startRes as { error?: string })?.error ?? 'Failed to start auth loopback';
+      const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
+      const callbackUrl = lp?.ok ? lp.data?.callbackUrl : null;
+      if (!callbackUrl) {
+        const msg = 'Auth loopback not running — please restart fiano';
         set({ lastError: msg });
         return { ok: false, error: msg };
       }
-      const callbackUrl = startRes.data.callbackUrl;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -236,11 +240,9 @@ export const useAuth = create<AuthState>((set, get) => ({
         },
       });
       if (error || !data?.url) {
-        await window.api.invoke('auth.stopOauthLoopback');
         set({ lastError: error?.message ?? 'OAuth init failed' });
         return { ok: false, error: error?.message };
       }
-      // OAuth-URL extern öffnen — User wählt Google-Account, callback geht zum Loopback
       await window.api.invoke('shell.openExternal', { url: data.url });
       return { ok: true };
     } catch (err: any) {

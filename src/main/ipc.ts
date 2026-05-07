@@ -1206,31 +1206,12 @@ const handlers: Record<string, Handler<any, any>> = {
     return { ok: true };
   },
 
-  // OAuth-Loopback: startet einen lokalen HTTP-Server der die OAuth-Callback-URL
-  // empfängt. Funktioniert in Dev + Production (anders als fiano:// custom scheme).
-  // Renderer ruft startOauthLoopback → bekommt callbackUrl zurück → setzt in Supabase
-  // signInWithOAuth({ redirectTo }). Browser → Google → Supabase → 127.0.0.1:PORT.
-  // Server fängt ?code=... ab → broadcastet 'auth.oauth-code' Event an Renderer.
-  'auth.startOauthLoopback': async () => {
-    const { startAuthLoopback } = await import('./core/authLoopback');
-    const { BrowserWindow } = await import('electron');
-    const result = await startAuthLoopback((cb) => {
-      try {
-        BrowserWindow.getAllWindows().forEach((w) => {
-          w.webContents.send('auth.oauth-code', cb);
-          w.show();
-          w.focus();
-        });
-      } catch (err) {
-        console.warn('[auth-loopback] dispatch failed:', err);
-      }
-    });
-    return { callbackUrl: result.callbackUrl, port: result.port };
-  },
-  'auth.stopOauthLoopback': async () => {
-    const { stopAuthLoopback } = await import('./core/authLoopback');
-    await stopAuthLoopback();
-    return { ok: true };
+  // Persistenter OAuth-Loopback wird beim App-Start in main/index.ts gestartet.
+  // Renderer fragt hier die aktuelle Callback-URL ab (kann sich je nach Port-
+  // Verfügbarkeit zwischen 51999 und 52005 unterscheiden).
+  'auth.getLoopbackUrl': async () => {
+    const { getLoopbackUrl } = await import('./core/authLoopback');
+    return { callbackUrl: getLoopbackUrl() };
   },
 
   // Generic external-URL opener (für Stripe Checkout, Google OAuth, etc.)

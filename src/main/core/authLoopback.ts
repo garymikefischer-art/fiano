@@ -2,27 +2,27 @@ import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 /**
- * Auth-Loopback-Server für OAuth-Callbacks.
+ * Persistenter Auth-Loopback-Server für OAuth + Email-Confirmation.
  *
- * Hintergrund:
- *  Custom-URL-Schemes (fiano://) funktionieren in macOS Dev-Mode (`npm run dev`)
- *  unzuverlässig — macOS startet die Electron-Binary statt der laufenden Instanz.
- *  Loopback-Server (http://127.0.0.1:PORT) funktionieren überall: Browser
- *  redirected dorthin, wir fangen ?code=... ab und schicken ihn zur App.
+ * Startet einmal beim App-Start, läuft solange fiano läuft. Hört auf einen
+ * der Ports im Range FIXED_PORTS (erster freier wird genutzt). Wenn der
+ * Browser die App via http://127.0.0.1:PORT öffnet (egal ob direkt nach
+ * OAuth oder Stunden später beim Email-Confirmation-Klick), fängt der
+ * Server `?code=...` ab und schickt's an den Renderer.
  *
- * Flow (mit Supabase PKCE):
- *  1. Renderer ruft auth.startOauthLoopback → wir starten Server auf einem
- *     freien Port und geben die Callback-URL zurück.
- *  2. Renderer ruft supabase.signInWithOAuth({ redirectTo: <url> }) → bekommt
- *     auth-URL zurück → öffnet sie via shell.openExternal.
- *  3. Browser → Google → Supabase → 302 zu http://127.0.0.1:PORT/?code=...
- *  4. Server liest code aus Query → broadcastet an Renderer → returnt eine
- *     "Login successful — you can close this window"-HTML-Seite → Server self-closes.
- *  5. Renderer ruft supabase.auth.exchangeCodeForSession(code) → Session.
+ * Festes Port-Range (statt port:0) damit Supabase Site-URL stabil bleibt:
+ *   Site URL:       http://127.0.0.1:51999
+ *   Redirect URLs:  http://127.0.0.1:51999/**
+ *
+ * Falls 51999 belegt ist (anderer Service nutzt ihn): 52000–52010 als Fallback.
+ * Wir broadcasten immer nur die tatsächlich gebundene URL via IPC.
  */
 
-let activeServer: http.Server | null = null;
-let activeTimer: NodeJS.Timeout | null = null;
+const FIXED_PORTS = [51999, 52000, 52001, 52002, 52003, 52004, 52005];
+
+let server: http.Server | null = null;
+let activePort: number | null = null;
+let codeListener: ((p: { code?: string; error?: string }) => void) | null = null;
 
 const SUCCESS_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>fiano — Login successful</title>
@@ -37,7 +37,7 @@ const SUCCESS_HTML = `<!doctype html>
 <body>
   <div class="card">
     <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-    <h1>Login successful</h1>
+    <h1>You're signed in</h1>
     <p>You can close this window and return to fiano.</p>
   </div>
   <script>setTimeout(()=>{try{window.close();}catch(e){}},800);</script>
@@ -46,84 +46,131 @@ const SUCCESS_HTML = `<!doctype html>
 const FAILURE_HTML = (msg: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>fiano — Login failed</title>
 <style>html,body{margin:0;background:#0d0f10;color:#f1f2f2;font-family:-apple-system,sans-serif;padding:40px}
-.err{color:#ff1039;font-family:ui-monospace,monospace;font-size:13px;white-space:pre-wrap}</style></head>
+.err{color:#ff1039;font-family:ui-monospace,monospace;font-size:13px;white-space:pre-wrap;background:rgba(255,16,57,0.06);border:1px solid rgba(255,16,57,0.2);border-radius:10px;padding:16px}
+h1{font-size:18px}</style></head>
 <body><h1>Login failed</h1><div class="err">${msg.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!))}</div></body></html>`;
 
-export interface LoopbackResult {
-  callbackUrl: string;
-  port: number;
+const HASH_BRIDGE_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>fiano</title></head>
+<body>
+<script>
+  // Manche Supabase-Flows redirecten mit #fragment statt ?query.
+  // Browser sendet Hash nicht zum Server → wir bridgen es per JS zu /auth-callback?...
+  (function () {
+    var h = window.location.hash || '';
+    if (h.startsWith('#')) h = h.slice(1);
+    var search = window.location.search || '';
+    if (h) {
+      var url = '/auth-callback' + (search ? search + '&' : '?') + h;
+      window.location.replace(url);
+    }
+  })();
+</script>
+</body></html>`;
+
+/**
+ * Setzt den Listener-Callback. Kann mehrfach aufgerufen werden — überschreibt jedes Mal.
+ */
+export function setLoopbackListener(cb: ((p: { code?: string; error?: string }) => void) | null): void {
+  codeListener = cb;
 }
 
-/** Startet den Loopback-Server. onCode wird aufgerufen sobald ein Code ankommt (oder
- *  wenn der Server timeoutet ohne Code). Der Server schließt sich danach selbst. */
-export async function startAuthLoopback(
-  onCallback: (params: { code?: string; error?: string }) => void,
-  timeoutMs = 5 * 60 * 1000,
-): Promise<LoopbackResult> {
-  // Falls schon ein Server läuft (User klickt Google-Login zweimal): erst sauber schließen.
-  await stopAuthLoopback();
+/** Aktuelle Loopback-URL (null wenn Server nicht läuft). */
+export function getLoopbackUrl(): string | null {
+  if (!activePort) return null;
+  return `http://127.0.0.1:${activePort}/auth-callback`;
+}
 
-  return new Promise<LoopbackResult>((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      // Nur GET / akzeptieren
-      if (!req.url) {
-        res.writeHead(404).end();
-        return;
-      }
-      const url = new URL(req.url, 'http://127.0.0.1');
-      const code = url.searchParams.get('code');
-      const error = url.searchParams.get('error') ?? url.searchParams.get('error_description');
+export function getLoopbackBaseUrl(): string | null {
+  if (!activePort) return null;
+  return `http://127.0.0.1:${activePort}`;
+}
 
-      if (error) {
-        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' }).end(FAILURE_HTML(error));
-        onCallback({ error });
-      } else if (code) {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(SUCCESS_HTML);
-        onCallback({ code });
-      } else {
-        // Möglicherweise ein Hash-Fragment-Flow (legacy) — unser PKCE-Setup
-        // sollte das nicht treffen. Defensive: ignore + 200 zurück.
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(SUCCESS_HTML);
-      }
-      // Server nach kurzer Pause schließen — gibt der Response-Page Zeit.
-      setTimeout(() => stopAuthLoopback(), 1000);
-    });
+/** Server beim App-Start aufrufen — versucht Ports der Reihe nach. Idempotent. */
+export async function startPersistentLoopback(): Promise<void> {
+  if (server) return; // bereits läuft
 
-    server.on('error', (err) => {
-      console.warn('[auth-loopback] server error:', err);
+  for (const port of FIXED_PORTS) {
+    try {
+      await tryListen(port);
+      activePort = port;
+      console.log(`[auth-loopback] listening on http://127.0.0.1:${port}`);
+      return;
+    } catch (err: any) {
+      if (err?.code === 'EADDRINUSE') continue;
+      console.warn(`[auth-loopback] failed on port ${port}:`, err);
+    }
+  }
+  console.warn('[auth-loopback] all ports busy — auth callbacks will not work');
+}
+
+function tryListen(port: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const s = http.createServer(handleRequest);
+    s.once('error', (err) => {
       reject(err);
     });
-
-    // Port:0 → OS wählt freien Port. Bind nur an 127.0.0.1 (loopback, nie öffentlich).
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address() as AddressInfo;
-      activeServer = server;
-      // Timeout-Sicherung: wenn nach 5 Min keine Callback kommt, Server schließen
-      activeTimer = setTimeout(() => {
-        console.warn('[auth-loopback] timeout — closing server');
-        onCallback({ error: 'OAuth timeout (no callback received)' });
-        stopAuthLoopback();
-      }, timeoutMs);
-      resolve({
-        callbackUrl: `http://127.0.0.1:${addr.port}/auth-callback`,
-        port: addr.port,
-      });
+    s.listen(port, '127.0.0.1', () => {
+      s.removeAllListeners('error');
+      // Künftige Errors loggen, nicht abstürzen
+      s.on('error', (err) => console.warn('[auth-loopback] runtime error:', err));
+      server = s;
+      const addr = s.address() as AddressInfo;
+      activePort = addr.port;
+      resolve();
     });
   });
 }
 
-export async function stopAuthLoopback(): Promise<void> {
-  if (activeTimer) {
-    clearTimeout(activeTimer);
-    activeTimer = null;
+function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+  if (!req.url) {
+    res.writeHead(404).end();
+    return;
   }
-  if (activeServer) {
-    const s = activeServer;
-    activeServer = null;
-    return new Promise<void>((resolve) => {
-      s.close(() => resolve());
-      // Force-close nach 500ms falls hängt
-      setTimeout(() => resolve(), 500);
-    });
+  const url = new URL(req.url, 'http://127.0.0.1');
+
+  // Root-Path: Supabase nutzt manchmal Hash-Fragment-Flow (Email-Confirmation legacy).
+  // Wir senden ein winziges JS-Bridge das den Hash zu Query macht und auf /auth-callback weiterleitet.
+  if (url.pathname === '/' || url.pathname === '') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(HASH_BRIDGE_HTML);
+    return;
   }
+
+  if (url.pathname !== '/auth-callback') {
+    res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+    return;
+  }
+
+  const code = url.searchParams.get('code');
+  const error = url.searchParams.get('error') ?? url.searchParams.get('error_description');
+
+  if (error) {
+    res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' }).end(FAILURE_HTML(error));
+    if (codeListener) codeListener({ error });
+    return;
+  }
+
+  if (code) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(SUCCESS_HTML);
+    if (codeListener) codeListener({ code });
+    return;
+  }
+
+  // Kein code, kein error — wahrscheinlich nur ein Redirect ohne Auth-Daten.
+  // Show success-Page trotzdem damit User nicht verwirrt ist.
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(SUCCESS_HTML);
+}
+
+export function stopPersistentLoopback(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (!server) {
+      resolve();
+      return;
+    }
+    const s = server;
+    server = null;
+    activePort = null;
+    s.close(() => resolve());
+    setTimeout(resolve, 500);
+  });
 }
