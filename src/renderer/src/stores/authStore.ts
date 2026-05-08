@@ -27,6 +27,9 @@ export interface Subscription {
   status: SubStatus | string;
   lifetime: boolean;
   current_period_end: string | null;
+  /** Stripe-Flag: User hat im Customer Portal "cancel" gedrückt → Subscription
+   *  läuft noch bis current_period_end, dann beendet sich automatisch. */
+  cancel_at_period_end: boolean;
 }
 
 interface AuthState {
@@ -436,7 +439,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     if (!userId) { set({ subscription: null }); await unsubscribeRealtime(); return; }
     const { data, error } = await supabase
       .from('subscriptions')
-      .select('plan, status, lifetime, current_period_end')
+      .select('plan, status, lifetime, current_period_end, cancel_at_period_end')
       .eq('user_id', userId)
       .maybeSingle();
     if (error) {
@@ -449,6 +452,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       status: data.status,
       lifetime: !!data.lifetime,
       current_period_end: data.current_period_end,
+      cancel_at_period_end: !!data.cancel_at_period_end,
     } : null });
     // Realtime-Channel sicherstellen (idempotent)
     subscribeToOwnSubscription(userId, () => {

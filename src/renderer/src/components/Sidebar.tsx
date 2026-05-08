@@ -416,11 +416,15 @@ function ProPlanCard() {
     );
   }
 
-  // Pro — alle Features, kein Upgrade möglich
+  // Pro — alle Features, optionales Upgrade auf Lifetime
   if (subscription?.plan === 'pro') {
+    const cancelPending = subscription.cancel_at_period_end && subscription.status === 'active';
+    const cancelDate = cancelPending && subscription.current_period_end
+      ? new Date(subscription.current_period_end).toLocaleDateString()
+      : null;
     return (
       <div className="glass p-3 rounded-2xl">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 mb-2.5">
           <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
                           flex items-center justify-center shrink-0">
             <FianoLogo variant="mark" className="w-4 h-auto" />
@@ -432,9 +436,23 @@ function ProPlanCard() {
             </div>
           </div>
         </div>
-        <div className="mt-2.5 text-[10px] text-zinc-500">
-          {t('sidebar.proAllUnlocked')}
-        </div>
+
+        {cancelPending && cancelDate ? (
+          <div className="mb-2 px-2 py-1.5 rounded-lg bg-amber-500/[0.08] border border-amber-500/20 text-[10px] text-amber-300">
+            {t('sidebar.cancelPending').replace('{date}', cancelDate)}
+          </div>
+        ) : (
+          <div className="mb-2 text-[10px] text-zinc-500">{t('sidebar.proAllUnlocked')}</div>
+        )}
+
+        <button
+          onClick={goPricing}
+          className="w-full py-1.5 rounded-lg text-[11px] font-semibold
+                     bg-white/[0.04] border border-white/[0.10] text-zinc-300
+                     hover:bg-fiano-red/10 hover:border-fiano-red/40 hover:text-fiano-red transition-all"
+        >
+          {t('sidebar.upgradeToLifetime')}
+        </button>
       </div>
     );
   }
@@ -445,6 +463,10 @@ function ProPlanCard() {
     const used = projects.length;
     const pct = Math.min(100, (used / max) * 100);
     const nearLimit = used >= max - 3;
+    const cancelPending = subscription.cancel_at_period_end && subscription.status === 'active';
+    const cancelDate = cancelPending && subscription.current_period_end
+      ? new Date(subscription.current_period_end).toLocaleDateString()
+      : null;
 
     return (
       <div className="glass p-3 rounded-2xl">
@@ -458,6 +480,12 @@ function ProPlanCard() {
             <div className="text-[10px] text-fiano-red/90 font-medium">{t('sidebar.planCreator')}</div>
           </div>
         </div>
+
+        {cancelPending && cancelDate && (
+          <div className="mb-2 px-2 py-1.5 rounded-lg bg-amber-500/[0.08] border border-amber-500/20 text-[10px] text-amber-300">
+            {t('sidebar.cancelPending').replace('{date}', cancelDate)}
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-[10px]">

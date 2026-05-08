@@ -97,6 +97,7 @@ serve(async (req) => {
             status: sub.status,
             current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
             lifetime: false,
+            cancel_at_period_end: !!sub.cancel_at_period_end,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id' });
         }
@@ -122,13 +123,14 @@ serve(async (req) => {
           status: sub.status,
           current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
           lifetime: false,
+          cancel_at_period_end: !!sub.cancel_at_period_end,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
         break;
       }
 
       // ────────────────────────────────────────────────────────
-      // Subscription canceled
+      // Subscription canceled (period-end durch oder Sofort-Cancel)
       // ────────────────────────────────────────────────────────
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
@@ -138,6 +140,7 @@ serve(async (req) => {
         await supabase.from('subscriptions').update({
           status: 'canceled',
           current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: false,
           updated_at: new Date().toISOString(),
         }).eq('user_id', userId);
         break;

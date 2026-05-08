@@ -1274,16 +1274,19 @@ function AccountSection() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
+  // Plan-Hierarchie für Upgrade: Creator → Pro → Studio Lifetime
+  // Lifetime hat keinen weiteren Upgrade-Pfad.
+  const upgradeTarget: 'pro' | 'studio_lifetime' | null =
+    subscription?.lifetime ? null
+    : subscription?.plan === 'creator' ? 'pro'
+    : subscription?.plan === 'pro'     ? 'studio_lifetime'
+    : null;
+
   const handleUpgrade = async () => {
-    if (busy) return;
-    // Aktuell creator → upgrade pro. Sonst zur Pricing-Page.
-    if (subscription?.plan !== 'creator') {
-      navigate('/pricing');
-      return;
-    }
+    if (busy || !upgradeTarget) return;
     setBusy('upgrade');
     setErrorMsg(null);
-    const res = await createCheckoutSession('pro');
+    const res = await createCheckoutSession(upgradeTarget);
     if (res.url) await window.api.invoke('shell.openExternal', { url: res.url });
     else setErrorMsg(res.error ?? 'Failed');
     setTimeout(() => setBusy(null), 2000);
@@ -1324,10 +1327,18 @@ function AccountSection() {
   const renewLabel = (() => {
     if (!subscription) return null;
     if (subscription.lifetime) return t('settings.account.renewLifetime');
-    if (subscription.status === 'canceled') return t('settings.account.renewCanceled');
+    if (subscription.status === 'canceled') {
+      // Sub ist bereits beendet (period-end durch oder admin-cancel sofort)
+      return t('settings.account.renewCanceledEnded');
+    }
     if (!subscription.current_period_end) return null;
     const d = new Date(subscription.current_period_end);
-    return t('settings.account.renewsOn').replace('{date}', d.toLocaleDateString());
+    const dateStr = d.toLocaleDateString();
+    if (subscription.cancel_at_period_end) {
+      // Sub läuft noch — wird am period-end automatisch beendet
+      return t('settings.account.cancelEffectiveOn').replace('{date}', dateStr);
+    }
+    return t('settings.account.renewsOn').replace('{date}', dateStr);
   })();
 
   const initial = (user?.user_metadata?.full_name?.[0] ?? user?.email?.[0] ?? 'f').toUpperCase();
@@ -1369,13 +1380,19 @@ function AccountSection() {
             'px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider',
             subscription?.lifetime
               ? 'bg-fiano-red/15 text-fiano-red border border-fiano-red/30'
-              : subscription?.status === 'active' || subscription?.status === 'trialing'
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : subscription?.status === 'past_due'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                  : 'bg-zinc-700/30 text-zinc-400 border border-zinc-600/40',
+              : subscription?.cancel_at_period_end && subscription?.status === 'active'
+                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                : subscription?.status === 'active' || subscription?.status === 'trialing'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : subscription?.status === 'past_due'
+                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                    : 'bg-zinc-700/30 text-zinc-400 border border-zinc-600/40',
           )}>
-            {subscription?.lifetime ? '✦ Lifetime' : subscription?.status ?? t('settings.account.statusInactive')}
+            {subscription?.lifetime
+              ? '✦ Lifetime'
+              : subscription?.cancel_at_period_end && subscription?.status === 'active'
+                ? t('settings.account.statusCancelPending')
+                : subscription?.status ?? t('settings.account.statusInactive')}
           </div>
         </div>
 
@@ -1388,14 +1405,18 @@ function AccountSection() {
               </div>
             )}
             <div className="flex gap-2 pt-2 border-t border-zinc-800 flex-wrap">
-              {subscription?.plan === 'creator' && (
+              {upgradeTarget && (
                 <button
                   onClick={handleUpgrade}
                   disabled={busy !== null}
                   className="text-[12px] font-semibold px-4 py-2 rounded-lg
                              bg-fiano-red text-white hover:brightness-110 transition disabled:opacity-50"
                 >
-                  {busy === 'upgrade' ? t('settings.account.opening') : t('settings.account.upgradeToPro')}
+                  {busy === 'upgrade'
+                    ? t('settings.account.opening')
+                    : upgradeTarget === 'pro'
+                      ? t('settings.account.upgradeToPro')
+                      : t('settings.account.upgradeToLifetime')}
                 </button>
               )}
               <button
