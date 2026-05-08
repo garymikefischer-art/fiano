@@ -6,6 +6,8 @@ import { ImportDialog } from '../components/ImportDialog';
 import { ProjectCard } from '../components/ProjectCard';
 import { TopBarActions } from '../components/TopBarActions';
 import { useT } from '../lib/i18n';
+import { useProjectLimit } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 
 type SortKey = 'created' | 'updated' | 'name';
 
@@ -35,6 +37,11 @@ export function LibraryPage() {
   const [importing, setImporting] = useState(false);
   const [sortBy, setSortByState] = useState<SortKey>(readSortPref);
   const t = useT();
+  const projectLimit = useProjectLimit(projects.length);
+  const openUpgrade = useUpgradeModal((s) => s.open);
+  // Hint nur bei Plänen mit endlichem Limit (Creator) zeigen — Pro/Lifetime: limit = Infinity.
+  const showLimitHint = Number.isFinite(projectLimit.limit) && projectLimit.limit > 0;
+  const limitReached = showLimitHint && projects.length >= projectLimit.limit;
 
   const setSortBy = (k: SortKey) => {
     try { window.localStorage.setItem(SORT_STORAGE_KEY, k); } catch {}
@@ -76,7 +83,23 @@ export function LibraryPage() {
           <div className="flex items-baseline gap-3 shrink-0">
             <h1 className="text-[20px] font-semibold tracking-tight">{t('library.title')}</h1>
             <span className="text-[11px] font-mono text-zinc-600">
-              {projects.length} {projects.length === 1 ? t('library.projectSingular') : t('library.projectPlural')}
+              {showLimitHint ? (
+                <button
+                  onClick={() => openUpgrade('unlimited_projects')}
+                  className={clsx(
+                    'transition hover:underline underline-offset-2',
+                    limitReached ? 'text-fiano-red font-semibold' : 'text-zinc-600 hover:text-zinc-400',
+                  )}
+                  title={limitReached ? t('projectLimit.reachedHint') : t('projectLimit.usageHint')}
+                >
+                  {projects.length} / {projectLimit.limit} {projects.length === 1 ? t('library.projectSingular') : t('library.projectPlural')}
+                  {limitReached && <> · {t('projectLimit.reachedShort')}</>}
+                </button>
+              ) : (
+                <>
+                  {projects.length} {projects.length === 1 ? t('library.projectSingular') : t('library.projectPlural')}
+                </>
+              )}
               {totalHighlights > 0 && <> · {totalHighlights} {t('library.clipsLabel')}</>}
             </span>
           </div>
@@ -84,7 +107,13 @@ export function LibraryPage() {
           <div className="flex items-center gap-3 shrink-0">
             <TopBarActions searchPlaceholder={t('library.searchPlaceholder')} />
             <button
-              onClick={() => setImporting(true)}
+              onClick={() => {
+                if (!projectLimit.canCreate) {
+                  openUpgrade('unlimited_projects');
+                  return;
+                }
+                setImporting(true);
+              }}
               className="group flex items-center gap-2 bg-fiano-red text-white text-[12px] font-semibold
                          px-4 py-2 rounded-lg
                          hover:brightness-110 hover:shadow-[0_0_24px_rgba(255,16,57,0.45)]

@@ -862,4 +862,10 @@ export const en: Record<string, string> = {
   'features.quality_render_mode':     'Quality Render Mode',
   'features.priority_queue':          'Priority Queue',
   'features.early_access':            'Early Access',
+  'features.unlimited_projects':      'Unlimited Projects',
+
+  // Project-Limit hints (Phase 6.3 Sub-Phase 4)
+  'projectLimit.usageHint':    'Click to upgrade to Pro — unlimited projects',
+  'projectLimit.reachedHint':  'Limit reached — upgrade to Pro for unlimited projects',
+  'projectLimit.reachedShort': 'Limit reached',
 };

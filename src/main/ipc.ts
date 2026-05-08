@@ -1223,6 +1223,14 @@ const handlers: Record<string, Handler<any, any>> = {
     return { ok: true };
   },
 
+  // App-Version aus Electron's `app.getVersion()` — ist im Dev gleich der
+  // package.json-Version und in Production die im electron-builder-Bundle
+  // eingefrorene Version. Wir nutzen das für die StatusBar-Anzeige.
+  'app.getVersion': async () => {
+    const { app } = await import('electron');
+    return { version: app.getVersion() };
+  },
+
   // Mac-Fallback: bei unsigned-Build kann Squirrel.Mac den Update nicht validieren
   //  ("Code signature did not pass validation"). User bekommt stattdessen die
   //  GitHub-Release-Page geöffnet und installiert die DMG manuell.

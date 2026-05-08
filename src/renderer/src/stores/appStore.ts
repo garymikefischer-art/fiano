@@ -18,6 +18,8 @@ import type {
   TikTokLayout,
 } from '@shared/types';
 import { DEFAULT_EFFECTS, DEFAULT_FACECAM, DEFAULT_GAMEPLAY, DEFAULT_SPLIT_RATIO } from '@shared/types';
+import { useAuth } from './authStore';
+import { canCreateProject } from '../lib/features';
 import type { LanguageCode } from '../lib/i18n';
 
 export interface EditorExportDefaults {
@@ -211,6 +213,22 @@ async function call<T>(channel: string, payload?: unknown): Promise<T | null> {
     return null;
   }
   return r.data ?? null;
+}
+
+/**
+ * Defense-in-Depth Helper für Phase 6.3 Project-Limit (Creator: max 25).
+ * UI-Layer prüft via useProjectLimit() Hook und triggert UpgradeModal — dieser
+ * Check hier ist Fallback falls eine Stelle vergessen wurde. Loggt warn ohne
+ * Modal-Trigger (Stores haben keinen direkten Modal-Zugriff).
+ */
+function checkProjectLimitOrWarn(currentCount: number): boolean {
+  const plan = useAuth.getState().subscription?.plan ?? null;
+  if (canCreateProject(plan, currentCount)) return true;
+  console.warn(
+    `[appStore] project limit reached (${currentCount}). Plan: ${plan ?? 'none'}. ` +
+    `Skipping create — UI should have intercepted via useProjectLimit hook.`,
+  );
+  return false;
 }
 
 /** localStorage-Key für last-visited Persistence. */
@@ -519,6 +537,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   createFromUrl: async (url, videoType) => {
+    if (!checkProjectLimitOrWarn(get().projects.length)) return null;
     const source: ProjectSource = { kind: 'url', value: url };
     const p = await call<Project>('project.create', { source, videoType });
     if (p) await get().loadProjects();
@@ -526,6 +545,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   createFromFile: async (videoType) => {
+    if (!checkProjectLimitOrWarn(get().projects.length)) return null;
     const picked = await call<{ path: string } | null>('dialog.openVideo');
     if (!picked) return null;
     const source: ProjectSource = { kind: 'file', value: picked.path };
@@ -535,6 +555,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   createFromMultipleFiles: async () => {
+    if (!checkProjectLimitOrWarn(get().projects.length)) return null;
     const picked = await call<{ paths: string[] } | null>('dialog.openMultipleVideos');
     if (!picked || picked.paths.length === 0) return null;
     const p = await call<Project>('project.createManual', { paths: picked.paths });
@@ -543,6 +564,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   createQuickTikTok: async () => {
+    if (!checkProjectLimitOrWarn(get().projects.length)) return null;
     const picked = await call<{ path: string } | null>('dialog.openVideo');
     if (!picked) return null;
     const p = await call<Project>('project.createQuickTikTok', { path: picked.path });
@@ -551,6 +573,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   createEmptyProject: async () => {
+    if (!checkProjectLimitOrWarn(get().projects.length)) return null;
     const p = await call<Project>('project.createEmpty', {});
     if (p) await get().loadProjects();
     return p;

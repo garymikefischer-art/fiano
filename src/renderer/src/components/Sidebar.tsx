@@ -6,7 +6,7 @@ import { WindowControls } from './WindowControls';
 import { useApp } from '../stores/appStore';
 import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
-import { useFeature, type FeatureId } from '../lib/features';
+import { useFeature, useProjectLimit, type FeatureId } from '../lib/features';
 import { useUpgradeModal } from '../stores/upgradeModalStore';
 
 /* ─── Sidebar ─────────────────────────────────────────────────── */
@@ -23,6 +23,16 @@ export function Sidebar() {
   const createFromUrl = useApp((s) => s.createFromUrl);
 
   const [showUrlModal, setShowUrlModal] = useState(false);
+  const projectLimit = useProjectLimit(projects.length);
+  const openUpgrade = useUpgradeModal((s) => s.open);
+
+  /** Limit-Gate: Wenn Creator-User schon das Maximum erreicht hat → UpgradeModal
+   *  öffnen statt Create-Flow zu starten. Returnt true wenn der Caller weitermachen darf. */
+  const guardCreate = (): boolean => {
+    if (projectLimit.canCreate) return true;
+    openUpgrade('unlimited_projects');
+    return false;
+  };
 
   // Aktiver Project-Context aus URL ableiten (/project/:id?tab=…)
   const ctx = useMemo(() => {
@@ -56,6 +66,7 @@ export function Sidebar() {
   const onEditClick = async (e: React.MouseEvent) => {
     if (inProject) return;  // NavLink übernimmt
     e.preventDefault();
+    if (!guardCreate()) return;
     const p = await createEmpty();
     if (p) navigate(`/project/${p.id}?tab=editor`);
   };
@@ -63,21 +74,25 @@ export function Sidebar() {
   /** Tools-Actions — alle starten Import-Workflows. */
   const onSingleFileImport = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!guardCreate()) return;
     const p = await createFromFile();
     if (p) navigate(`/project/${p.id}`);
   };
   const onMultiFileImport = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!guardCreate()) return;
     const p = await createFromMultipleFiles();
     if (p) navigate(`/project/${p.id}`);
   };
   const onQuickTikTokImport = async (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!guardCreate()) return;
     const p = await createQuickTikTok();
     if (p) navigate(`/project/${p.id}?tab=tiktok`);
   };
   const onUrlImport = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!guardCreate()) return;
     setShowUrlModal(true);
   };
   const onUrlSubmit = async (url: string) => {

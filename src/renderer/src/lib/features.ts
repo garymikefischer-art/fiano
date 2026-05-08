@@ -44,7 +44,8 @@ export type FeatureId =
   | 'export_high_bitrate'
   | 'quality_render_mode'
   | 'priority_queue'
-  | 'early_access';
+  | 'early_access'
+  | 'unlimited_projects';
 
 /**
  * i18n-Keys für die User-facing Feature-Namen.
@@ -74,6 +75,7 @@ export const FEATURE_LABEL_KEY: Record<FeatureId, string> = {
   quality_render_mode: 'features.quality_render_mode',
   priority_queue: 'features.priority_queue',
   early_access: 'features.early_access',
+  unlimited_projects: 'features.unlimited_projects',
 };
 
 /** Map: Feature-ID → benötigter Mindest-Plan. */
@@ -103,6 +105,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureId, Plan> = {
   quality_render_mode: 'pro',
   priority_queue: 'pro',
   early_access: 'pro',
+  unlimited_projects: 'pro',
 };
 
 /* ─── Project-Limit (numerisch, separat von Boolean-Features) ─────────── */
