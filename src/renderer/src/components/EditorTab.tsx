@@ -562,10 +562,12 @@ interface ExportSettings {
   height: number;
   fps: number;
   bitrate: string;
+  /** Phase 9.3: Encoder-Mode pro Export — 'fast' = Hardware, 'quality' = Software/libx264. */
+  qualityMode?: 'fast' | 'quality';
 }
 
 const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
-  width: 1920, height: 1080, fps: 30, bitrate: '30M',
+  width: 1920, height: 1080, fps: 30, bitrate: '30M', qualityMode: 'fast',
 };
 
 const RESOLUTION_PRESETS: Array<{ label: string; w: number; h: number }> = [
@@ -578,11 +580,14 @@ const RESOLUTION_PRESETS: Array<{ label: string; w: number; h: number }> = [
 
 const FPS_PRESETS = [24, 30, 60];
 const BITRATE_PRESETS = [
-  { label: 'Lossless (50 Mbps)', value: '50M' },
-  { label: 'Maximum (30 Mbps)',  value: '30M' },
-  { label: 'High (20 Mbps)',     value: '20M' },
-  { label: 'Standard (15 Mbps)', value: '15M' },
+  { label: 'Lossless (50 Mbps)',   value: '50M' },
+  { label: 'Maximum (30 Mbps)',    value: '30M' },
+  { label: 'High (20 Mbps)',       value: '20M' },
+  { label: 'Standard (15 Mbps)',   value: '15M' },
   { label: 'Compressed (10 Mbps)', value: '10M' },
+  // Phase 9.3: Creator-Optionen (≤5 Mbps = kein Pro-Lock)
+  { label: 'Eco (5 Mbps)',         value: '5M' },
+  { label: 'Mobile (3 Mbps)',      value: '3M' },
 ];
 
 interface Track {
@@ -665,10 +670,14 @@ export function EditorTab({ project }: { project: Project }) {
   const [snapEnabled, setSnapEnabled] = useState(true);
   // Initialer Export-Default kommt aus appDefaults.editorExport (in Settings änderbar).
   // Saved-state pro Project überschreibt das später (siehe state-load).
+  // Phase 9.3: qualityMode aus appDefaults — Encoder-Picker zeigt aktiven Default-Wert.
   const editorExportDefaults = useApp((s) => s.appDefaults.editorExport);
-  const [exportSettings, setExportSettings] = useState<ExportSettings>(
-    editorExportDefaults ?? DEFAULT_EXPORT_SETTINGS,
-  );
+  const defaultQualityMode = useApp((s) => s.appDefaults.qualityMode ?? 'fast');
+  const [exportSettings, setExportSettings] = useState<ExportSettings>({
+    ...DEFAULT_EXPORT_SETTINGS,
+    ...(editorExportDefaults ?? {}),
+    qualityMode: defaultQualityMode,
+  });
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showTtsModal, setShowTtsModal] = useState(false);
@@ -1324,6 +1333,7 @@ export function EditorTab({ project }: { project: Project }) {
           fps: exportSettings.fps,
           bitrate: exportSettings.bitrate,
         },
+        qualityMode: exportSettings.qualityMode,
       });
       if (!res.ok) throw new Error(res.error ?? 'export failed');
       console.log(`[editor export] done → ${res.data?.path}`);
@@ -5141,11 +5151,13 @@ function ExportDialog({
   const fourKFeature = useFeature('export_4k');
   const highBitrateFeature = useFeature('export_high_bitrate');
   const openUpgrade = useUpgradeModal((s) => s.open);
-  // Pro-only Resolutions/Bitrates — bei locked-Pick → revert + UpgradeModal.
+  // Phase 9.3: Plan-Limits einheitlich — Creator max 1080p + 5M, Pro alles offen.
   const isResolutionLocked = (w: number, h: number) =>
-    w === 3840 && h === 2160 && !fourKFeature.unlocked;
-  const isBitrateLocked = (val: string) =>
-    (val === '50M' || val === '30M') && !highBitrateFeature.unlocked;
+    Math.min(w, h) > 1080 && !fourKFeature.unlocked;
+  const isBitrateLocked = (val: string) => {
+    const mbps = parseInt(val.replace(/M$/i, ''), 10);
+    return mbps > 5 && !highBitrateFeature.unlocked;
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in"
@@ -5244,6 +5256,27 @@ function ExportDialog({
                 );
               })}
             </select>
+          </div>
+
+          {/* Phase 9.3: Encoder-Picker — Hardware/Software, gleicher Toggle-Style wie FPS. */}
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-500 mb-1.5">{t('exportDialog.encoder')}</div>
+            <div className="grid grid-cols-2 gap-1 p-1 bg-white/[0.04] border border-white/[0.06] rounded-lg">
+              {(['fast', 'quality'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => onChange({ ...settings, qualityMode: mode })}
+                  className={clsx(
+                    'text-[11px] py-1.5 rounded-md font-medium transition',
+                    (settings.qualityMode ?? 'fast') === mode
+                      ? 'bg-white/[0.08] text-white'
+                      : 'text-zinc-500 hover:text-zinc-300',
+                  )}
+                >
+                  {mode === 'fast' ? t('exportDialog.encoderHardware') : t('exportDialog.encoderSoftware')}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

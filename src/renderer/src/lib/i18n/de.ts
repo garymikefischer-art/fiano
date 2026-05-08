@@ -697,9 +697,9 @@ export const de: Record<string, string> = {
   // ─── Encoder Quality ─────────────────────────────────────
   'settings.qualityModeLabel':     'Encoder-Qualität',
   'settings.qualityModeDesc':      'Wähle zwischen schneller Hardware-Codierung und langsamerer Software-Codierung für beste Qualität.',
-  'settings.qualityModeFast':      'Schnell (Hardware)',
+  'settings.qualityModeFast':      'Hardware',
   'settings.qualityModeFastHint':  'Hardware-Encoder (videotoolbox/NVENC). 5–10× schneller, leichter Quality-Verlust.',
-  'settings.qualityModeQuality':   'Beste Qualität',
+  'settings.qualityModeQuality':   'Software',
   'settings.qualityModeQualityHint': 'Software-Encoder (libx264, slow). Schärferes Bild, längerer Export.',
   'builder.qualityDialogTitle':    'Export-Qualität',
   'builder.qualityDialogDesc':     'Wähle Encoder-Modus für diesen Export.',

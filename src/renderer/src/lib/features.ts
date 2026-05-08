@@ -102,7 +102,9 @@ export const FEATURE_MIN_PLAN: Record<FeatureId, Plan> = {
   custom_subtitle_presets: 'pro',
   export_4k: 'pro',
   export_high_bitrate: 'pro',
-  quality_render_mode: 'pro',
+  // Phase 9.3: Encoder-Picker (Hardware/Software) ist jetzt für ALLE Plans verfügbar.
+  // Plan-Lock greift nur noch bei 4K-Auflösung + Bitrate >5M (= export_4k / export_high_bitrate).
+  quality_render_mode: 'creator',
   priority_queue: 'pro',
   early_access: 'pro',
   unlimited_projects: 'pro',

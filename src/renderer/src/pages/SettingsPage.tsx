@@ -1096,21 +1096,23 @@ function ExportSection() {
   const highBitrateFeature = useFeature('export_high_bitrate');
   const openUpgrade = useUpgradeModal((s) => s.open);
 
-  // Pro-only Auflösungen + Bitraten — Creator wird beim Click auf Upgrade geleitet.
+  // Phase 9.3: Plan-Limits — Creator max 1080p + 5M, Pro alles offen.
   const RESOLUTIONS: Array<{ label: string; w: number; h: number; pro?: boolean }> = [
-    { label: '4K · 2160p',  w: 3840, h: 2160, pro: true },
-    { label: '1440p',       w: 2560, h: 1440 },
+    { label: '4K · 2160p',      w: 3840, h: 2160, pro: true },
+    { label: '1440p',           w: 2560, h: 1440, pro: true },
     { label: 'Full HD · 1080p', w: 1920, h: 1080 },
-    { label: 'HD · 720p',   w: 1280, h: 720 },
-    { label: '480p',        w: 854,  h: 480 },
+    { label: 'HD · 720p',       w: 1280, h: 720 },
+    { label: '480p',            w: 854,  h: 480 },
   ];
   const FPS_OPTIONS = [24, 30, 60];
   const BITRATES: Array<{ label: string; value: string; pro?: boolean }> = [
     { label: 'Lossless · 50M',   value: '50M', pro: true },
     { label: 'Maximum · 30M',    value: '30M', pro: true },
-    { label: 'High · 20M',       value: '20M' },
-    { label: 'Standard · 15M',   value: '15M' },
-    { label: 'Compressed · 10M', value: '10M' },
+    { label: 'High · 20M',       value: '20M', pro: true },
+    { label: 'Standard · 15M',   value: '15M', pro: true },
+    { label: 'Compressed · 10M', value: '10M', pro: true },
+    { label: 'Eco · 5M',         value: '5M' },
+    { label: 'Mobile · 3M',      value: '3M' },
   ];
 
   const currentResLabel = RESOLUTIONS.find((r) => r.w === editorExport.width && r.h === editorExport.height)?.label

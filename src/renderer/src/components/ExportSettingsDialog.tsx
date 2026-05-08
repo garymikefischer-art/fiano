@@ -50,6 +50,9 @@ const BITRATE_PRESETS = [
   { label: 'High (20 Mbps)',       value: '20M' },
   { label: 'Standard (15 Mbps)',   value: '15M' },
   { label: 'Compressed (10 Mbps)', value: '10M' },
+  // Phase 9.3: Creator-Optionen (≤5 Mbps = kein Pro-Lock)
+  { label: 'Eco (5 Mbps)',         value: '5M' },
+  { label: 'Mobile (3 Mbps)',      value: '3M' },
 ];
 
 export function defaultExportSettings(format: 'youtube' | 'tiktok'): ExportSettings {
@@ -78,11 +81,16 @@ export function ExportSettingsDialog({
   const matchingPreset = presets.find((p) => p.w === settings.width && p.h === settings.height);
   const matchingBitrate = BITRATE_PRESETS.find((b) => b.value === settings.bitrate);
 
-  // Lock: 4K (egal welche Aspect-Ratio) erfordert Pro
+  // Phase 9.3: Plan-Limits — Creator max 1080p + max 5M, Pro/Lifetime alles offen.
+  // Resolution: kurze Seite >1080 (also >1080p, 1440p+, 4K+) = Pro.
   const isResolutionLocked = (w: number, h: number) =>
-    Math.max(w, h) >= 3840 && !fourKFeature.unlocked;
-  const isBitrateLocked = (val: string) =>
-    (val === '50M' || val === '30M') && !highBitrateFeature.unlocked;
+    Math.min(w, h) > 1080 && !fourKFeature.unlocked;
+  // Bitrate: alles >5M = Pro. Werte als Mbps-Zahl parsen.
+  const isBitrateLocked = (val: string) => {
+    const mbps = parseInt(val.replace(/M$/i, ''), 10);
+    return mbps > 5 && !highBitrateFeature.unlocked;
+  };
+  // Encoder ist seit Phase 9.3 für alle Plans offen.
   const isQualityModeLocked = (mode: 'fast' | 'quality') =>
     mode === 'quality' && !qualityFeature.unlocked;
 
