@@ -38,6 +38,7 @@ export type FeatureId =
   | 'stabilizer'
   | 'lut_filters'
   | 'subtitle_layered_style'
+  | 'subtitle_advanced_effects'
   | 'custom_subtitle_presets'
   | 'export_4k'
   | 'export_high_bitrate'
@@ -66,6 +67,7 @@ export const FEATURE_LABEL_KEY: Record<FeatureId, string> = {
   stabilizer: 'features.stabilizer',
   lut_filters: 'features.lut_filters',
   subtitle_layered_style: 'features.subtitle_layered_style',
+  subtitle_advanced_effects: 'features.subtitle_advanced_effects',
   custom_subtitle_presets: 'features.custom_subtitle_presets',
   export_4k: 'features.export_4k',
   export_high_bitrate: 'features.export_high_bitrate',
@@ -94,6 +96,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureId, Plan> = {
   stabilizer: 'pro',
   lut_filters: 'pro',
   subtitle_layered_style: 'pro',
+  subtitle_advanced_effects: 'pro',
   custom_subtitle_presets: 'pro',
   export_4k: 'pro',
   export_high_bitrate: 'pro',

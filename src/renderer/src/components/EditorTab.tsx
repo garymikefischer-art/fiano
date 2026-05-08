@@ -5138,6 +5138,14 @@ function ExportDialog({
   const matchingPreset = RESOLUTION_PRESETS.find((p) => p.w === settings.width && p.h === settings.height);
   const matchingBitrate = BITRATE_PRESETS.find((b) => b.value === settings.bitrate);
   const t = useT();
+  const fourKFeature = useFeature('export_4k');
+  const highBitrateFeature = useFeature('export_high_bitrate');
+  const openUpgrade = useUpgradeModal((s) => s.open);
+  // Pro-only Resolutions/Bitrates — bei locked-Pick → revert + UpgradeModal.
+  const isResolutionLocked = (w: number, h: number) =>
+    w === 3840 && h === 2160 && !fourKFeature.unlocked;
+  const isBitrateLocked = (val: string) =>
+    (val === '50M' || val === '30M') && !highBitrateFeature.unlocked;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in"
@@ -5158,13 +5166,23 @@ function ExportDialog({
               value={matchingPreset ? `${matchingPreset.w}x${matchingPreset.h}` : 'custom'}
               onChange={(e) => {
                 const [w, h] = e.target.value.split('x').map(Number);
-                if (w && h) onChange({ ...settings, width: w, height: h });
+                if (!w || !h) return;
+                if (isResolutionLocked(w, h)) {
+                  openUpgrade('export_4k');
+                  return;
+                }
+                onChange({ ...settings, width: w, height: h });
               }}
               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] text-zinc-200 focus:outline-none focus:border-fiano-red/40"
             >
-              {RESOLUTION_PRESETS.map((p) => (
-                <option key={`${p.w}x${p.h}`} value={`${p.w}x${p.h}`}>{p.label}</option>
-              ))}
+              {RESOLUTION_PRESETS.map((p) => {
+                const locked = isResolutionLocked(p.w, p.h);
+                return (
+                  <option key={`${p.w}x${p.h}`} value={`${p.w}x${p.h}`}>
+                    {locked ? `${p.label} 🔒` : p.label}
+                  </option>
+                );
+              })}
             </select>
             <div className="grid grid-cols-2 gap-2 mt-1.5">
               <input
@@ -5208,12 +5226,23 @@ function ExportDialog({
             <div className="text-[9px] uppercase tracking-[0.16em] text-zinc-500 mb-1.5">{t('editor.bitrate')}</div>
             <select
               value={matchingBitrate ? matchingBitrate.value : 'custom'}
-              onChange={(e) => onChange({ ...settings, bitrate: e.target.value })}
+              onChange={(e) => {
+                if (isBitrateLocked(e.target.value)) {
+                  openUpgrade('export_high_bitrate');
+                  return;
+                }
+                onChange({ ...settings, bitrate: e.target.value });
+              }}
               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] text-zinc-200 focus:outline-none focus:border-fiano-red/40"
             >
-              {BITRATE_PRESETS.map((b) => (
-                <option key={b.value} value={b.value}>{b.label}</option>
-              ))}
+              {BITRATE_PRESETS.map((b) => {
+                const locked = isBitrateLocked(b.value);
+                return (
+                  <option key={b.value} value={b.value}>
+                    {locked ? `${b.label} 🔒` : b.label}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>

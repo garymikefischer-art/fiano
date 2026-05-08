@@ -855,6 +855,7 @@ export const en: Record<string, string> = {
   'features.stabilizer':              'Video Stabilizer',
   'features.lut_filters':             'LUT Filters',
   'features.subtitle_layered_style':  'Layered Subtitle Style',
+  'features.subtitle_advanced_effects': 'Subtitle Effects (Glow + Drop Shadow)',
   'features.custom_subtitle_presets': 'Custom Subtitle Presets',
   'features.export_4k':               '4K Export',
   'features.export_high_bitrate':     'High Bitrate (up to 50 Mbps)',

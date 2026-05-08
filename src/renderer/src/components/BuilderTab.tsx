@@ -8,6 +8,9 @@ import { IntroSection } from './sections/IntroSection';
 import { VoiceOversSection } from './sections/VoiceOversSection';
 import { mediaUrl } from '../lib/mediaUrl';
 import { useT } from '../lib/i18n';
+import { useFeature } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
+import { LockBadge } from './FeatureLock';
 
 interface Props {
   project: Project;
@@ -259,9 +262,11 @@ export function BuildQualityDialog({
   onConfirm: () => void;
 }) {
   const t = useT();
-  const opts: Array<{ value: 'fast' | 'quality'; label: string; hint: string }> = [
+  const qualityFeature = useFeature('quality_render_mode');
+  const openUpgrade = useUpgradeModal((s) => s.open);
+  const opts: Array<{ value: 'fast' | 'quality'; label: string; hint: string; pro?: boolean }> = [
     { value: 'fast',    label: t('settings.qualityModeFast'),    hint: t('settings.qualityModeFastHint') },
-    { value: 'quality', label: t('settings.qualityModeQuality'), hint: t('settings.qualityModeQualityHint') },
+    { value: 'quality', label: t('settings.qualityModeQuality'), hint: t('settings.qualityModeQualityHint'), pro: true },
   ];
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-md animate-fade-in"
@@ -274,16 +279,23 @@ export function BuildQualityDialog({
         <div className="space-y-1.5">
           {opts.map((o) => {
             const active = mode === o.value;
+            const locked = o.pro && !qualityFeature.unlocked;
             return (
               <button key={o.value}
-                onClick={() => onChange(o.value)}
+                onClick={() => {
+                  if (locked) { openUpgrade('quality_render_mode'); return; }
+                  onChange(o.value);
+                }}
                 className={clsx(
-                  'w-full text-left rounded-lg px-4 py-3 border transition',
+                  'relative w-full text-left rounded-lg px-4 py-3 border transition',
                   active
                     ? 'bg-fiano-red/15 border-fiano-red/45 text-white shadow-[0_0_18px_rgba(255,16,57,0.18)]'
-                    : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]',
+                    : locked
+                      ? 'bg-white/[0.02] border-white/[0.06] text-zinc-400 opacity-70 hover:opacity-90'
+                      : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]',
                 )}
               >
+                {locked && <span className="absolute top-2.5 right-2.5"><LockBadge /></span>}
                 <div className="text-[12px] font-semibold">{o.label}</div>
                 <div className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">{o.hint}</div>
               </button>

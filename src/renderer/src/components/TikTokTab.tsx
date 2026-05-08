@@ -23,6 +23,7 @@ import type { ClipSegment } from '@shared/types';
 import { useT } from '../lib/i18n';
 import { useFeature } from '../lib/features';
 import { useUpgradeModal } from '../stores/upgradeModalStore';
+import { LockBadge } from './FeatureLock';
 
 function defaultFontSize(style: SubtitleStyle): number {
   switch (style) {
@@ -1553,6 +1554,7 @@ function SubtitleControls({ values: v, write }: SubtitleControlsProps) {
   const t = useT();
   const layeredFeature = useFeature('subtitle_layered_style');
   const presetsFeature = useFeature('custom_subtitle_presets');
+  const advFxFeature = useFeature('subtitle_advanced_effects');
   const openUpgrade = useUpgradeModal((s) => s.open);
   const p = {
     ...v,
@@ -1879,12 +1881,22 @@ function SubtitleControls({ values: v, write }: SubtitleControlsProps) {
 
           <Section title={t('tiktok.glow')}>
             <label className="flex items-center justify-between gap-2 cursor-pointer mb-2">
-              <span className="text-[11px] text-zinc-300 font-medium">Enable Glow</span>
+              <span className="text-[11px] text-zinc-300 font-medium flex items-center gap-1.5">
+                Enable Glow
+                {!advFxFeature.unlocked && <LockBadge />}
+              </span>
               <span
-                onClick={() => p.onGlowEnabled(!p.glowEnabled)}
+                onClick={() => {
+                  if (!advFxFeature.unlocked && !p.glowEnabled) {
+                    openUpgrade('subtitle_advanced_effects');
+                    return;
+                  }
+                  p.onGlowEnabled(!p.glowEnabled);
+                }}
                 className={clsx(
                   'relative w-9 h-5 rounded-full transition-colors',
                   p.glowEnabled ? 'bg-fiano-red' : 'bg-white/[0.08]',
+                  !advFxFeature.unlocked && !p.glowEnabled && 'opacity-60',
                 )}
               >
                 <span className={clsx(
@@ -1912,12 +1924,22 @@ function SubtitleControls({ values: v, write }: SubtitleControlsProps) {
 
           <Section title="Drop Shadow">
             <label className="flex items-center justify-between gap-2 cursor-pointer mb-2">
-              <span className="text-[11px] text-zinc-300 font-medium">Enable Drop Shadow</span>
+              <span className="text-[11px] text-zinc-300 font-medium flex items-center gap-1.5">
+                Enable Drop Shadow
+                {!advFxFeature.unlocked && <LockBadge />}
+              </span>
               <span
-                onClick={() => p.onShadowEnabled(!p.shadowEnabled)}
+                onClick={() => {
+                  if (!advFxFeature.unlocked && !p.shadowEnabled) {
+                    openUpgrade('subtitle_advanced_effects');
+                    return;
+                  }
+                  p.onShadowEnabled(!p.shadowEnabled);
+                }}
                 className={clsx(
                   'relative w-9 h-5 rounded-full transition-colors',
                   p.shadowEnabled ? 'bg-fiano-red' : 'bg-white/[0.08]',
+                  !advFxFeature.unlocked && !p.shadowEnabled && 'opacity-60',
                 )}
               >
                 <span className={clsx(
