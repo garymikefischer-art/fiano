@@ -110,6 +110,8 @@ interface BinaryStatus {
   name: 'ffmpeg' | 'ffprobe' | 'yt-dlp';
   path: string | null;
   installHint: string;
+  /** Phase 8: true wenn Binary aus extraResources/ stammt (oder yt-dlp aus userData). */
+  isBundled: boolean;
 }
 
 interface AppState {

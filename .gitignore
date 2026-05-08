@@ -7,6 +7,10 @@ dist
 .env.local
 .vscode
 .idea
-resources/bin
+# Bundled-Binary-Ordner: alles ignorieren AUSSER der Lizenz-Datei (electron-builder
+# braucht sie beim Build). Wildcard-Pattern + Re-Include ist nötig, weil git ein
+# komplettes Directory-Ignore (resources/bin) nicht via ! umgehen lässt.
+resources/bin/*
+!resources/bin/LICENSE-BUNDLED.txt
 .claude/
 *.tsbuildinfo

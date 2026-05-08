@@ -1,0 +1,49 @@
+Bundled Binaries — Licenses & Source
+====================================
+
+fiano ships with the following pre-compiled third-party binaries for
+out-of-the-box video processing and download support. The binaries are
+distributed as-is per their respective licenses. fiano itself is the
+proprietary product of Werbeagentur FIANO e.U. (see Settings → Legal).
+
+----------------------------------------------------------------------
+
+1. FFmpeg + FFprobe
+   ---------------
+   License:   GPL v2 / v3 (depending on enabled libraries)
+   Build src: https://github.com/BtbN/FFmpeg-Builds  (Windows)
+              https://evermeet.cx/ffmpeg/             (macOS, Universal)
+   Source:    https://ffmpeg.org/download.html
+   Notice:    "This software uses code of FFmpeg licensed under the
+              LGPLv2.1/GPLv3 and its source can be downloaded from
+              https://ffmpeg.org/."
+
+   Bundled because libass + libfreetype + drawtext are needed for
+   subtitle burn-in and text overlay rendering — features that are not
+   available in pure-LGPL FFmpeg distributions.
+
+----------------------------------------------------------------------
+
+2. yt-dlp
+   ------
+   License:   Unlicense (Public Domain)
+   Source:    https://github.com/yt-dlp/yt-dlp
+   Notice:    "This is free and unencumbered software released into the
+              public domain."
+
+   Bundled for YouTube/Twitch video import. yt-dlp is permitted in your
+   jurisdiction at your own discretion — fiano is not responsible for
+   how the user uses it. See yt-dlp's README for legal context.
+
+----------------------------------------------------------------------
+
+3. Where to find these notices in the running app
+   -----------------------------------------------
+   Settings → Legal → Lizenzen / Licenses (Phase 6.4)
+   Same notices are shown there in 9 languages.
+
+----------------------------------------------------------------------
+
+If you redistribute fiano, you redistribute these binaries unchanged
+under the terms above. Source code for FFmpeg is publicly available at
+the FFmpeg.org URL above (we do not modify the FFmpeg sources).

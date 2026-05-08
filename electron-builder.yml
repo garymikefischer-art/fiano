@@ -10,10 +10,16 @@ files:
 asarUnpack:
   - "resources/**"
 extraResources:
+  # Phase 8: bundled FFmpeg + FFprobe + yt-dlp — pro Platform vor jedem Build via
+  # `npm run binaries:download -- --only {mac|win}`. resources/bin/{mac,win}/ ist
+  # in .gitignore — Binaries werden automatisch beim Build geladen.
   - from: "resources/bin/${os}"
     to: "bin"
     filter:
       - "**/*"
+  # Bundled-Binary Lizenz-Hinweis für Endnutzer (FFmpeg GPL + yt-dlp Unlicense)
+  - from: "resources/bin/LICENSE-BUNDLED.txt"
+    to: "LICENSE-BUNDLED.txt"
 mac:
   category: public.app-category.video
   target:

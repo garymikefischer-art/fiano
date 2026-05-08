@@ -659,7 +659,7 @@ function FfmpegDiagnosticSection() {
   const refreshHealth = useApp((s) => s.refreshHealth);
   const currentOverride = useApp((s) => s.appDefaults.ffmpegPath);
 
-  const [installs, setInstalls] = useState<Array<{ path: string; libass: boolean; drawtext: boolean; version: string; isActive: boolean }>>([]);
+  const [installs, setInstalls] = useState<Array<{ path: string; libass: boolean; drawtext: boolean; version: string; isActive: boolean; isBundled?: boolean }>>([]);
   const [overrideInput, setOverrideInput] = useState('');
   const [scanning, setScanning] = useState(false);
 
@@ -724,6 +724,13 @@ function FfmpegDiagnosticSection() {
                   <div className="font-mono text-zinc-200 truncate" title={inst.path}>
                     {inst.path}
                     {inst.isActive && <span className="ml-2 text-brand text-[10px] font-bold">ACTIVE</span>}
+                    {inst.isBundled && (
+                      <span className="ml-2 inline-flex items-center gap-1 text-emerald-400 text-[10px] font-bold uppercase tracking-wider"
+                            title="Mit fiano gebundelt — keine Homebrew/Manuell-Installation nötig">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        BUNDLED
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-zinc-500">{inst.version || '?'}</span>
