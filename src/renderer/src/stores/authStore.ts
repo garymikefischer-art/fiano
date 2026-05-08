@@ -184,6 +184,30 @@ export const useAuth = create<AuthState>((set, get) => ({
       });
     }
 
+    // Stripe Checkout-Success: Realtime-Channel ist langsam/unzuverlässig wenn
+    // Replication für die subscriptions-Tabelle nicht aktiviert ist. Plus es
+    // gibt eine Race-Condition zwischen Webhook (Stripe → Edge → DB-Write) und
+    // unserer Realtime-Subscribe. Robust: aktives Polling für ~20s alle 1.5s.
+    if (window.api.onCheckoutSuccess) {
+      window.api.onCheckoutSuccess(async () => {
+        const userId = get().user?.id;
+        if (!userId) return;
+        // Erstmal sofort fetchen (vielleicht ist Webhook schon durch)
+        await get().fetchSubscription();
+        // Dann ~20s lang alle 1.5s neu fetchen, bis active oder lifetime kommt
+        const start = Date.now();
+        const tick = async () => {
+          const sub = get().subscription;
+          if (sub && (sub.status === 'active' || sub.status === 'trialing' || sub.lifetime)) return;
+          if (Date.now() - start > 20_000) return;
+          await new Promise((r) => setTimeout(r, 1500));
+          await get().fetchSubscription();
+          await tick();
+        };
+        tick().catch((err) => console.warn('[auth] checkout poll failed:', err));
+      });
+    }
+
     // Legacy fiano://-Hash-Callback (Production-Path falls Loopback nicht greift).
     if (window.api.onAuthCallback) {
       window.api.onAuthCallback(async (url: string) => {

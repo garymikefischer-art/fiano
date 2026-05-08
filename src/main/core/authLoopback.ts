@@ -23,6 +23,7 @@ const FIXED_PORTS = [51999, 52000, 52001, 52002, 52003, 52004, 52005];
 let server: http.Server | null = null;
 let activePort: number | null = null;
 let codeListener: ((p: { code?: string; error?: string; type?: string }) => void) | null = null;
+let checkoutSuccessListener: ((p: { plan?: string }) => void) | null = null;
 
 // Wiederverwendbare HTML-Page für Auth/Checkout-Erfolg.
 // Title + Heading + Body als Argumente, damit wir verschiedene Use-Cases einfach abdecken.
@@ -93,6 +94,10 @@ export function setLoopbackListener(cb: ((p: { code?: string; error?: string; ty
   codeListener = cb;
 }
 
+export function setCheckoutSuccessListener(cb: ((p: { plan?: string }) => void) | null): void {
+  checkoutSuccessListener = cb;
+}
+
 /** Aktuelle Loopback-URL (null wenn Server nicht läuft). */
 export function getLoopbackUrl(): string | null {
   if (!activePort) return null;
@@ -160,8 +165,9 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): voi
   // detected die neue Subscription dann automatisch und routet weiter.
   if (url.pathname === '/checkout-success') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(CHECKOUT_OK_HTML);
-    // App in Vordergrund holen
-    if (codeListener) codeListener({ /* nichts spezifisches — focus only */ });
+    const plan = url.searchParams.get('plan') ?? undefined;
+    if (checkoutSuccessListener) checkoutSuccessListener({ plan });
+    if (codeListener) codeListener({ /* focus only */ });
     return;
   }
 

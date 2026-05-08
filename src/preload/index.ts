@@ -48,6 +48,15 @@ const api = {
       ipcRenderer.off('auth.oauth-code', handler);
     };
   },
+
+  /** Stripe-Checkout-Success Event (vom Loopback-Server, nach erfolgreicher Zahlung). */
+  onCheckoutSuccess: (cb: (payload: { plan?: string }) => void): (() => void) => {
+    const handler = (_: unknown, payload: { plan?: string }) => cb(payload);
+    ipcRenderer.on('auth.checkout-success', handler);
+    return () => {
+      ipcRenderer.off('auth.checkout-success', handler);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld('api', api);

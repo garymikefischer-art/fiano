@@ -308,7 +308,7 @@ app.whenReady().then(async () => {
   // Persistenten Auth-Loopback-Server starten — fängt OAuth-Codes UND Email-
   // Confirmation-Codes ab. Läuft solange fiano läuft.
   try {
-    const { startPersistentLoopback, setLoopbackListener } = await import('./core/authLoopback');
+    const { startPersistentLoopback, setLoopbackListener, setCheckoutSuccessListener } = await import('./core/authLoopback');
     await startPersistentLoopback();
     setLoopbackListener((cb) => {
       try {
@@ -319,6 +319,17 @@ app.whenReady().then(async () => {
         });
       } catch (err) {
         console.warn('[auth-loopback] dispatch failed:', err);
+      }
+    });
+    setCheckoutSuccessListener((payload) => {
+      try {
+        BrowserWindow.getAllWindows().forEach((w) => {
+          w.webContents.send('auth.checkout-success', payload);
+          w.show();
+          w.focus();
+        });
+      } catch (err) {
+        console.warn('[auth-loopback] checkout dispatch failed:', err);
       }
     });
   } catch (err) {
