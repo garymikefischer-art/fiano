@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { FianoLogo } from '../components/FianoLogo';
-import { useAuth } from '../stores/authStore';
+import { useAuth, hasActiveAccess } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import { useT } from '../lib/i18n';
 
@@ -34,12 +35,22 @@ interface PlanDef {
 
 export function PricingPage() {
   const t = useT();
+  const navigate = useNavigate();
   const user = useAuth((s) => s.user);
   const signOut = useAuth((s) => s.signOut);
   const session = useAuth((s) => s.session);
+  const subscription = useAuth((s) => s.subscription);
 
   const [busy, setBusy] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Wenn User mit aktivem Plan diese Seite besucht (z.B. nach Stripe-Checkout-Success
+  // bevor das Polling fertig ist, oder durch Browser-back) → direkt zu Home.
+  useEffect(() => {
+    if (hasActiveAccess(subscription)) {
+      navigate('/', { replace: true });
+    }
+  }, [subscription, navigate]);
 
   const plans: PlanDef[] = [
     {

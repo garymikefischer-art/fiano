@@ -196,10 +196,25 @@ export const useAuth = create<AuthState>((set, get) => ({
         await get().fetchSubscription();
         // Dann ~20s lang alle 1.5s neu fetchen, bis active oder lifetime kommt
         const start = Date.now();
-        const tick = async () => {
+        const navigateHome = () => {
+          // Wenn der User noch auf /pricing oder /reset-password hängt → ab nach Home.
+          // HashRouter — wir setzen hash direkt (Store hat keinen Router-Context).
+          const h = window.location.hash;
+          if (h.includes('/pricing') || h.startsWith('#/pricing') || !h || h === '#/') {
+            window.location.hash = '#/';
+          }
+        };
+        const tick = async (): Promise<void> => {
           const sub = get().subscription;
-          if (sub && (sub.status === 'active' || sub.status === 'trialing' || sub.lifetime)) return;
-          if (Date.now() - start > 20_000) return;
+          if (sub && (sub.status === 'active' || sub.status === 'trialing' || sub.lifetime)) {
+            navigateHome();
+            return;
+          }
+          if (Date.now() - start > 20_000) {
+            // Timeout — versuchen wir trotzdem zu navigieren falls eine Sub da ist
+            if (sub) navigateHome();
+            return;
+          }
           await new Promise((r) => setTimeout(r, 1500));
           await get().fetchSubscription();
           await tick();
