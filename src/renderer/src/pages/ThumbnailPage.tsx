@@ -58,178 +58,153 @@ const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
   custom:           { background: 'Describe the scene or environment',                          effects: 'particles, lighting, mood',                   weaponsSkins: 'objects in hand / weapons' },
 };
 
-const VISUAL_DIRECTIVES = `
-VISUAL DIRECTIVES (high-CTR):
-Face glow, sharp eye highlights with cinematic catchlights, strong rim light, depth of field with weapon/object focus, motion blur on action elements, particles, clean background-subject separation.`;
-
 /**
- * Generische Prompts ohne Markennamen. User-eingegebene Spielnamen über
- * `customGameName` werden in den Custom-Prompt eingebettet — User trägt
- * eigene markenrechtliche Verantwortung für eingegebene Marken-Begriffe.
+ * Generische Prompts ohne Markennamen. Format orientiert sich am alten,
+ * kompakten Pattern (kurze Sektionen, keine VISUAL DIRECTIVES Liste).
+ * User-eingegebene Spielnamen über `customGameName` werden in den
+ * Custom-Prompt eingebettet — User trägt eigene markenrechtliche
+ * Verantwortung für eingegebene Marken-Begriffe.
  */
 const PROMPTS: Record<Genre, (f: FormFields) => string> = {
   battle_royale: (f) => `Create a highly realistic YouTube thumbnail in a Battle Royale game style.
-Stylized esport sweat operator with cartoon-influenced outfit. Ultra close-up (Dutch tilt).
+Elite operator with esport sweat outfit, cartoon-influenced gear, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.battle_royale.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.battle_royale.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.battle_royale.weaponsSkins}
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
 Identity 100%, pores, sweat, strong glow.
-EYES: Sharp, cinematic catchlights.
-HANDS: Visible, correct anatomy.
-${VISUAL_DIRECTIVES}
-
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.battle_royale.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.battle_royale.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.battle_royale.weaponsSkins}
 STYLE:
-Ultra-realistic, NO TEXT, thumbnail optimized.`,
+Ultra-realistic, NO TEXT.`,
 
   modern_combat: (f) => `Create a highly realistic YouTube thumbnail in a Modern Combat / military shooter game style.
-
-Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (side angle profile shot), face dominant, slightly off-center, aggressive forward-leaning pose.
-
+Elite special forces operator, dark tactical gear, no helmet. Ultra close-up, face dominant, aggressive forward-leaning pose.
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same, no changes, realistic relighting only.
-
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture, pores, slight dirt + sweat, intense expression, slightly open mouth or clenched teeth.
-
-EYES: Sharp, strong contrast, cinematic catchlights, focused squint.
-
-HANDS: Visible, correct anatomy, natural, slight motion blur.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.modern_combat.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.modern_combat.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.modern_combat.weaponsSkins}
-${VISUAL_DIRECTIVES}
-
+Identity 100%, pores, slight dirt + sweat, intense expression.
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.modern_combat.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.modern_combat.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.modern_combat.weaponsSkins}
 STYLE:
-Ultra-realistic, high contrast, cinematic, NO TEXT, thumbnail optimized.`,
+Ultra-realistic, NO TEXT.`,
 
   tactical_shooter: (f) => `Create a highly realistic YouTube thumbnail in a Tactical Hero Shooter game style.
-
-Operator styled as a hero-shooter agent with sci-fi outfit, no helmet. Ultra close-up, face dominant, slightly off-center, aggressive forward-leaning pose.
-
+Hero-shooter agent with sci-fi outfit, no helmet. Ultra close-up, face dominant, aggressive forward-leaning pose.
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same, ultra-realistic relighting only.
-
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, very realistic skin texture, pores, sweat, stronger facial glow, intense expression.
-
-EYES: Sharp, cinematic catchlights, focused squint.
-
-HANDS: Visible, holding glowing ability orb.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.tactical_shooter.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.tactical_shooter.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.tactical_shooter.weaponsSkins}
-${VISUAL_DIRECTIVES}
-
+Identity 100%, pores, sweat, stronger facial glow, intense expression.
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.tactical_shooter.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.tactical_shooter.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.tactical_shooter.weaponsSkins}
 STYLE:
-Ultra-realistic, strong glow on face, NO TEXT, thumbnail optimized.`,
+Ultra-realistic, NO TEXT.`,
 
   competitive_fps: (f) => `Create a highly realistic YouTube thumbnail in a Competitive Tactical FPS game style.
-
-Pro player operator, attacker or defender team outfit, focused tactical pose. Ultra close-up, face dominant, intense aiming expression.
-
+Pro player operator, focused tactical pose. Ultra close-up, face dominant, intense aiming expression.
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
-
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, realistic skin, sweat, focused stare, slight tension in jaw.
-
-EYES: Sharp, intense, narrow focus.
-
-HANDS: Visible, gripping weapon with correct anatomy.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.competitive_fps.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.competitive_fps.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.competitive_fps.weaponsSkins}
-${VISUAL_DIRECTIVES}
-
+Identity 100%, realistic skin, sweat, focused stare.
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.competitive_fps.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.competitive_fps.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.competitive_fps.weaponsSkins}
 STYLE:
-Ultra-realistic, dark contrast, smoke + muzzle flash, cinematic pro-player look, NO TEXT, thumbnail optimized.`,
+Ultra-realistic, NO TEXT.`,
 
   blocky_sandbox: (f) => `Create a vibrant cinematic YouTube thumbnail in a Blocky Sandbox / pixel-style game.
-
-Player character with exaggerated emotional expression (shock / triumph / fear). Ultra close-up portrait blending realistic facial features with stylized blocky world.
-
+Player character with exaggerated emotional expression. Ultra close-up portrait blending realistic facial features with stylized blocky world.
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
-
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, vibrant lighting, exaggerated emotion, mouth open in shock or wide grin.
-
-EYES: Bright, large, dramatic.
-
-HANDS: Visible, holding diamond pickaxe / sword / enchanted item.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.blocky_sandbox.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.blocky_sandbox.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.blocky_sandbox.weaponsSkins}
-${VISUAL_DIRECTIVES}
-
+Identity 100%, vibrant lighting, exaggerated emotion.
+EYES:
+Bright, large, dramatic.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.blocky_sandbox.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.blocky_sandbox.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.blocky_sandbox.weaponsSkins}
 STYLE:
-Vibrant colors, exaggerated emotions, shaders, giant mobs, cinematic survival scene, NO TEXT, thumbnail optimized.`,
+Vibrant colors, exaggerated emotions, NO TEXT.`,
 
   open_world_crime: (f) => `Create a cinematic YouTube thumbnail in an Open-World Crime / heist game style.
-
-Stylish character with dramatic expression (shock, anger, smug). Neon city atmosphere, dramatic lighting. Ultra close-up.
-
+Stylish character with dramatic expression. Neon city atmosphere, dramatic lighting. Ultra close-up.
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
-
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, realistic skin, dramatic expression, sweat or tension.
-
-EYES: Sharp, intense, cinematic catchlights.
-
-HANDS: Visible, holding gold pistol / cash / steering wheel.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.open_world_crime.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.open_world_crime.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.open_world_crime.weaponsSkins}
-${VISUAL_DIRECTIVES}
-
+Identity 100%, realistic skin, dramatic expression.
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.open_world_crime.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.open_world_crime.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.open_world_crime.weaponsSkins}
 STYLE:
-Cinematic realism, police lights, money stacks, dramatic expressions, luxury cars, NO TEXT, thumbnail optimized.`,
+Cinematic realism, NO TEXT.`,
 
   moba: (f) => `Create a cinematic YouTube thumbnail in a MOBA / splash-art-style game.
-
 Champion-styled portrait blending splash-art aesthetic with realistic features. Dramatic expression of focus or victory. Ultra close-up.
-
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
-
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, splash-art-style highlights, magical glow on face.
-
-EYES: Glowing, intense, magical catchlights.
-
-HANDS: Visible, channeling ability / holding weapon.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.moba.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.moba.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.moba.weaponsSkins}
-${VISUAL_DIRECTIVES}
-
+Identity 100%, splash-art-style highlights, magical glow.
+EYES:
+Glowing, intense.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.moba.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.moba.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.moba.weaponsSkins}
 STYLE:
-Cinematic splash-art realism, magical glow, ability particles, dramatic lighting, NO TEXT, thumbnail optimized.`,
+Cinematic splash-art realism, NO TEXT.`,
 
   /**
    * Custom-Mode: User tippt selber Spielname/Genre. Eingabe wird unverändert
@@ -237,27 +212,24 @@ Cinematic splash-art realism, magical glow, ability particles, dramatic lighting
    * eingegebenen Begriffe (Disclaimer in Legal-Page).
    */
   custom: (f) => `Create a highly realistic YouTube thumbnail inspired by ${f.customGameName || 'a video game of your choice'}.
-
-Stylized character/operator from the game in a dramatic close-up pose. Ultra close-up portrait.
+Stylized character/operator from the game in a dramatic close-up pose.
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
-Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
-
+Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
 Identity 100%, realistic skin, intense expression matching the game's mood.
-
-EYES: Sharp, cinematic catchlights.
-
-HANDS: Visible, holding game-appropriate weapon or item.
-
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.custom.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.custom.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.custom.weaponsSkins}
-${VISUAL_DIRECTIVES}
-
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.custom.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.custom.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.custom.weaponsSkins}
 STYLE:
-Ultra-realistic, dramatic lighting matching the game, NO TEXT, thumbnail optimized.`,
+Ultra-realistic, NO TEXT.`,
 };
 
 export function ThumbnailPage() {
@@ -359,7 +331,13 @@ export function ThumbnailPage() {
   const isCustom = genre === 'custom';
 
   return (
-    <div className="h-full flex flex-col bg-fiano-black">
+    <div className="relative h-full flex flex-col bg-fiano-black overflow-hidden">
+      {/* Background-Gradient (konsistent mit Library/Pricing/Settings) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+        <div className="fiano-bg-tint" />
+        <div className="fiano-bg-glow" />
+      </div>
+
       <header className="relative shrink-0">
         <div className="flex items-center justify-between gap-6 px-8 py-4">
           <div>
@@ -371,7 +349,7 @@ export function ThumbnailPage() {
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="relative flex-1 overflow-y-auto">
         <div className="p-8 max-w-5xl mx-auto pb-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
           <div className="space-y-5 lg:sticky lg:top-0 lg:self-start">
