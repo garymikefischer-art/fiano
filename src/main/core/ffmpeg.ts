@@ -468,8 +468,9 @@ export async function applySubtitles(
     '-i', baseVideo,
     '-vf', filter,
     '-c:v', videoEncoder(), ...encoderExtraArgs(),
-    // 2nd-pass-encode (input ist schon gen-1 H.264) → höhere Bitrate reduziert Generation-Loss
-    '-b:v', '20M',
+    // 2nd-pass-encode (input ist schon gen-1 H.264) → 30M = Master-Bitrate, kein
+    // zusätzlicher Generation-Loss durch das 9:16-Re-encoding. Vorher 20M.
+    '-b:v', '30M',
     '-c:a', 'copy',
     '-pix_fmt', 'yuv420p',
     // KEIN '-r' fest — Source-fps preserved (60fps bleibt 60fps)
@@ -587,7 +588,8 @@ async function renderOneSegment(
     // -fps_mode cfr stellt Constant Frame Rate sicher anhand der Input-Rate, nötig für sauberen Concat.
     '-fps_mode', 'cfr',
     '-c:v', videoEncoder(), ...encoderExtraArgs(),
-    '-b:v', format === 'youtube' ? '30M' : '20M',
+    // Beide formats nutzen jetzt 30M — 9:16 verliert keine Qualität gegenüber Master.
+    '-b:v', '30M',
     '-c:a', 'aac',
     '-b:a', '192k',
     '-ar', '48000',
@@ -901,7 +903,8 @@ async function applyIntroOverlay(
     '-map', '[v]',
     '-map', '0:a?',
     '-c:v', videoEncoder(), ...encoderExtraArgs(),
-    '-b:v', format === 'youtube' ? '30M' : '20M',
+    // Beide formats jetzt 30M (vorher 9:16 = 20M) — höhere Detail-Erhaltung
+    '-b:v', '30M',
     '-c:a', 'copy',
     '-pix_fmt', 'yuv420p',
     // KEIN '-r' fest — Source-fps preserved (60fps bleibt 60fps)
