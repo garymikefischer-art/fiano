@@ -617,9 +617,28 @@ const handlers: Record<string, Handler<any, any>> = {
       }
     }
 
+    // Phase 9.4: Progress + Cancel für Editor-Export — analog shell.exportClip.
+    // setShellBroadcastStep aktiviert runFfmpeg-Progress an StatusBar (step='editor-export'),
+    // AbortController erlaubt User-Cancel via shell.cancelActiveJob.
+    const abort = new AbortController();
+    setShellAbortController(abort);
+    setShellBroadcastStep('editor-export');
+    broadcast({ type: 'job.progress', projectId: 'shell', step: 'editor-export', percent: 0 });
     try {
-      await renderEditorTimeline(cleanedClips, i.outputPath, i.options);
+      try {
+        await renderEditorTimeline(cleanedClips, i.outputPath, i.options);
+        broadcast({ type: 'job.progress', projectId: 'shell', step: 'editor-export', percent: 100 });
+      } catch (err: any) {
+        // Cancel via AbortController → silent canceled-Result statt Error
+        if (abort.signal.aborted || err?.message === 'aborted') {
+          await fs.rm(i.outputPath, { force: true }).catch(() => {});
+          return { path: '', canceled: true };
+        }
+        throw err;
+      }
     } finally {
+      setShellBroadcastStep(null);
+      setShellAbortController(null);
       // tmp masks + text-PNGs + stabilize-trfs aufräumen
       try { await fs.rm(tmpMaskDir, { recursive: true, force: true }); } catch { /* ignore */ }
       try { await fs.rm(tmpTextDir, { recursive: true, force: true }); } catch { /* ignore */ }

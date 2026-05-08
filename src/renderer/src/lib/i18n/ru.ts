@@ -882,6 +882,7 @@ export const ru: Record<string, string> = {
   'thumbnail.fieldCustomGamePlaceholderRealistic': 'пусто = Call of Duty: Warzone (по умолчанию), или PUBG, Battlefield …',
   'status.exporting':           'Экспорт 9:16',
   'status.building':            'Создание видео',
+  'status.exportingEditor':     'Экспорт монтажа',
   'status.cancel':              'Отмена',
   'status.canceling':           'Отмена…',
   'exportDialog.title':         'Настройки экспорта',

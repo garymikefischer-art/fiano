@@ -881,6 +881,7 @@ export const nl: Record<string, string> = {
   'thumbnail.fieldCustomGamePlaceholderRealistic': 'leeg = Call of Duty: Warzone (default), of bijv. PUBG, Battlefield …',
   'status.exporting':           'Exporteren 9:16',
   'status.building':            'Video bouwen',
+  'status.exportingEditor':     'Edit exporteren',
   'status.cancel':              'Annuleren',
   'status.canceling':           'Annuleren…',
   'exportDialog.title':         'Export-instellingen',

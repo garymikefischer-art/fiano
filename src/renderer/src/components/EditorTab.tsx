@@ -1324,7 +1324,12 @@ export function EditorTab({ project }: { project: Project }) {
           blendMode: c.blendMode,
         };
       });
-      const res = await window.api.invoke<{ path: string }>('editor.renderTimeline', {
+      // Phase 9.4: StatusBar SOFORT zeigen damit User Cancel-Button hat
+      // (auch während FFmpeg noch nicht den ersten time-Frame ausgegeben hat).
+      // Wird beim ersten progress-event vom main process überschrieben + bei
+      // Erfolg/Fehler im finally gecleared.
+      useApp.setState({ currentJob: { projectId: 'shell', step: 'editor-export', percent: 0 } });
+      const res = await window.api.invoke<{ path: string; canceled?: boolean }>('editor.renderTimeline', {
         outputPath: saveRes.data.path,
         clips: editorClips,
         options: {
@@ -1336,6 +1341,10 @@ export function EditorTab({ project }: { project: Project }) {
         qualityMode: exportSettings.qualityMode,
       });
       if (!res.ok) throw new Error(res.error ?? 'export failed');
+      if (res.data?.canceled) {
+        console.log('[editor export] canceled by user');
+        return;
+      }
       console.log(`[editor export] done → ${res.data?.path}`);
       try { sounds.exportDone(); } catch {}
       // Reveal in Finder/Explorer
@@ -1346,6 +1355,7 @@ export function EditorTab({ project }: { project: Project }) {
       window.alert('Export failed: ' + (err?.message ?? err));
     } finally {
       setExporting(false);
+      useApp.setState({ currentJob: null });
     }
   };
 

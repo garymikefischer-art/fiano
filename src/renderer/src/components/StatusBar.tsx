@@ -33,6 +33,7 @@ export function StatusBar() {
     render:          t('status.renderingClips'),
     'shell-export':  t('status.exporting'),
     'shell-build':   t('status.building'),
+    'editor-export': t('status.exportingEditor'),
   };
 
   // Phase 9.1: Cancel nur für Shell-Jobs (9:16/Builder Export).

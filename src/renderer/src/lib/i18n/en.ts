@@ -914,6 +914,7 @@ export const en: Record<string, string> = {
   'thumbnail.fieldCustomGamePlaceholderRealistic': 'empty = Call of Duty: Warzone (default), or e.g. PUBG, Battlefield …',
   'status.exporting':           'Exporting 9:16',
   'status.building':            'Building video',
+  'status.exportingEditor':     'Exporting edit',
   'status.cancel':              'Cancel',
   'status.canceling':           'Canceling…',
   'exportDialog.title':         'Export Settings',

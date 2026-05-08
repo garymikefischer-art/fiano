@@ -1,6 +1,6 @@
 {
   "name": "video-app",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "AI-powered video clipping desktop app",
   "main": "./out/main/index.js",
   "author": "Gary Fischer",
