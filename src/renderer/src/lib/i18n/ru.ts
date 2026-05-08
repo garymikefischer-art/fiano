@@ -746,6 +746,10 @@ export const ru: Record<string, string> = {
   'auth.notConfirmedHint':   'Этот email ещё не подтверждён. Нажмите ниже чтобы получить новое письмо подтверждения.',
   // ─── Pricing (Phase 6.2) ────────────────────────────
   'pricing.headline':         'Выберите план',
+  'pricing.headlineUpgrade':  'Улучшить план',
+  'pricing.subheadUpgrade':   'Переключитесь на более высокий план — счёт при следующем продлении.',
+  'pricing.currentPlan':      'Текущий план',
+  'pricing.notAvailable':     'Ниже текущего плана',
   'pricing.subhead':          'Мгновенный доступ — без trial, отмена в любой момент.',
   'pricing.signedInAs':       'Вошли как {email}',
   'pricing.perMonth':         '/ месяц',

@@ -746,6 +746,10 @@ export const nl: Record<string, string> = {
   'auth.notConfirmedHint':   'Deze e-mail is nog niet bevestigd. Klik hieronder voor een nieuwe bevestigingsmail.',
   // ─── Pricing (Phase 6.2) ────────────────────────────
   'pricing.headline':         'Kies je plan',
+  'pricing.headlineUpgrade':  'Upgrade je plan',
+  'pricing.subheadUpgrade':   'Schakel over naar een hoger plan — gefactureerd bij volgende verlenging.',
+  'pricing.currentPlan':      'Huidig plan',
+  'pricing.notAvailable':     'Lager dan huidig plan',
   'pricing.subhead':          'Direct toegang — geen trial, altijd opzegbaar.',
   'pricing.signedInAs':       'Ingelogd als {email}',
   'pricing.perMonth':         '/ maand',

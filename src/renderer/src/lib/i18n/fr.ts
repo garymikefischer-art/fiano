@@ -746,6 +746,10 @@ export const fr: Record<string, string> = {
   'auth.notConfirmedHint':   "Cette e-mail n\'est pas encore confirmée. Clique ci-dessous pour recevoir un nouvel e-mail de confirmation.",
   // ─── Pricing (Phase 6.2) ────────────────────────────
   'pricing.headline':         'Choisis ton plan',
+  'pricing.headlineUpgrade':  'Mets à niveau ton plan',
+  'pricing.subheadUpgrade':   "Passe à un plan supérieur — facturé au prochain renouvellement.",
+  'pricing.currentPlan':      'Plan actuel',
+  'pricing.notAvailable':     'Inférieur au plan actuel',
   'pricing.subhead':          "Accès instantané — pas d\'essai, annule à tout moment.",
   'pricing.signedInAs':       'Connecté en tant que {email}',
   'pricing.perMonth':         '/ mois',

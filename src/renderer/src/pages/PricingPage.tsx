@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { FianoLogo } from '../components/FianoLogo';
-import { useAuth, hasActiveAccess } from '../stores/authStore';
+import { useAuth } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import { useT } from '../lib/i18n';
 
@@ -44,13 +44,15 @@ export function PricingPage() {
   const [busy, setBusy] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Wenn User mit aktivem Plan diese Seite besucht (z.B. nach Stripe-Checkout-Success
-  // bevor das Polling fertig ist, oder durch Browser-back) → direkt zu Home.
-  useEffect(() => {
-    if (hasActiveAccess(subscription)) {
-      navigate('/', { replace: true });
-    }
-  }, [subscription, navigate]);
+  // Bewusst KEIN useEffect-Redirect bei active subscription — Pro-User soll
+  // diese Seite besuchen können um auf Lifetime upzugraden, Creator auf Pro etc.
+  // Auto-Navigate-zu-Home nach Checkout-Success läuft im AuthStore-Polling.
+
+  // Aktueller Plan: bestimmt welche Card "Current plan" zeigt + welche Karten
+  // disabled sind (man kann nicht zu einem niedrigeren Tier wechseln).
+  const currentPlan = subscription?.lifetime ? 'studio_lifetime' : subscription?.plan;
+  const planRank: Record<PlanId, number> = { creator: 1, pro: 2, studio_lifetime: 3 };
+  const currentRank = currentPlan ? planRank[currentPlan as PlanId] : 0;
 
   const plans: PlanDef[] = [
     {
@@ -181,8 +183,12 @@ export function PricingPage() {
           {/* Header */}
           <div className="flex flex-col items-center text-center mb-10">
             <FianoLogo className="h-16 w-auto mb-4" />
-            <h1 className="text-[28px] font-semibold tracking-tight">{t('pricing.headline')}</h1>
-            <p className="text-[13px] text-zinc-400 mt-2 max-w-md">{t('pricing.subhead')}</p>
+            <h1 className="text-[28px] font-semibold tracking-tight">
+              {currentPlan ? t('pricing.headlineUpgrade') : t('pricing.headline')}
+            </h1>
+            <p className="text-[13px] text-zinc-400 mt-2 max-w-md">
+              {currentPlan ? t('pricing.subheadUpgrade') : t('pricing.subhead')}
+            </p>
             {user?.email && (
               <div className="text-[11px] text-zinc-500 mt-3">
                 {t('pricing.signedInAs').replace('{email}', user.email)}
@@ -202,15 +208,21 @@ export function PricingPage() {
 
           {/* 3 Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {plans.map((plan) => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                busy={busy === plan.id}
-                disabled={busy !== null && busy !== plan.id}
-                onSelect={() => startCheckout(plan.id)}
-              />
-            ))}
+            {plans.map((plan) => {
+              const isCurrent = currentPlan === plan.id;
+              const isLowerTier = currentRank > 0 && planRank[plan.id] <= currentRank;
+              return (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  busy={busy === plan.id}
+                  disabled={busy !== null && busy !== plan.id}
+                  current={isCurrent}
+                  lowerTier={isLowerTier && !isCurrent}
+                  onSelect={() => startCheckout(plan.id)}
+                />
+              );
+            })}
           </div>
 
           <div className="text-center mt-8 text-[11px] text-zinc-600 max-w-md mx-auto">
@@ -223,24 +235,44 @@ export function PricingPage() {
 }
 
 function PlanCard({
-  plan, busy, disabled, onSelect,
+  plan, busy, disabled, current, lowerTier, onSelect,
 }: {
   plan: PlanDef;
   busy: boolean;
   disabled: boolean;
+  current: boolean;
+  lowerTier: boolean;
   onSelect: () => void;
 }) {
   const t = useT();
+
+  // Button disabled wenn: gerade busy, anderer Plan busy, current plan, oder lower tier
+  const buttonDisabled = busy || disabled || current || lowerTier;
+  const buttonLabel = busy
+    ? t('pricing.opening')
+    : current
+      ? t('pricing.currentPlan')
+      : lowerTier
+        ? t('pricing.notAvailable')
+        : plan.cta;
 
   return (
     <div className={clsx(
       'relative rounded-3xl p-7 transition-all flex flex-col',
       'backdrop-blur-xl',
-      plan.highlight
-        ? 'bg-gradient-to-b from-fiano-red/[0.12] to-fiano-red/[0.02] border-2 border-fiano-red/40 shadow-[0_0_60px_rgba(255,16,57,0.18)]'
-        : 'bg-white/[0.03] border border-white/[0.08]',
+      current
+        ? 'bg-gradient-to-b from-emerald-500/[0.10] to-emerald-500/[0.02] border-2 border-emerald-500/40'
+        : plan.highlight
+          ? 'bg-gradient-to-b from-fiano-red/[0.12] to-fiano-red/[0.02] border-2 border-fiano-red/40 shadow-[0_0_60px_rgba(255,16,57,0.18)]'
+          : 'bg-white/[0.03] border border-white/[0.08]',
     )}>
-      {plan.highlight && (
+      {current && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full
+                        bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider">
+          {t('pricing.currentPlan')}
+        </div>
+      )}
+      {!current && plan.highlight && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full
                         bg-fiano-red text-white text-[10px] font-bold uppercase tracking-wider
                         shadow-[0_0_20px_rgba(255,16,57,0.6)]">
@@ -261,19 +293,23 @@ function PlanCard({
 
       <button
         onClick={onSelect}
-        disabled={disabled || busy}
+        disabled={buttonDisabled}
         className={clsx(
           'w-full py-3 rounded-xl text-[13px] font-semibold transition-all',
-          plan.highlight
-            ? busy || disabled
-              ? 'bg-fiano-red/40 text-white/50 cursor-not-allowed'
-              : 'bg-fiano-red text-white hover:brightness-110 hover:shadow-[0_0_24px_rgba(255,16,57,0.5)] active:scale-[0.98]'
-            : busy || disabled
-              ? 'bg-white/[0.04] border border-white/[0.06] text-zinc-500 cursor-not-allowed'
-              : 'bg-white/[0.06] border border-white/[0.12] text-white hover:bg-white/[0.10] hover:border-fiano-red/40',
+          current
+            ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 cursor-default'
+            : lowerTier
+              ? 'bg-white/[0.02] border border-white/[0.05] text-zinc-600 cursor-not-allowed'
+              : plan.highlight
+                ? busy || disabled
+                  ? 'bg-fiano-red/40 text-white/50 cursor-not-allowed'
+                  : 'bg-fiano-red text-white hover:brightness-110 hover:shadow-[0_0_24px_rgba(255,16,57,0.5)] active:scale-[0.98]'
+                : busy || disabled
+                  ? 'bg-white/[0.04] border border-white/[0.06] text-zinc-500 cursor-not-allowed'
+                  : 'bg-white/[0.06] border border-white/[0.12] text-white hover:bg-white/[0.10] hover:border-fiano-red/40',
         )}
       >
-        {busy ? t('pricing.opening') : plan.cta}
+        {buttonLabel}
       </button>
 
       {/* Features */}

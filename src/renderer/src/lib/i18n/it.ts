@@ -746,6 +746,10 @@ export const it: Record<string, string> = {
   'auth.notConfirmedHint':   'Questa email non è ancora confermata. Clicca sotto per ricevere una nuova email di conferma.',
   // ─── Pricing (Phase 6.2) ────────────────────────────
   'pricing.headline':         'Scegli il tuo piano',
+  'pricing.headlineUpgrade':  'Aggiorna il piano',
+  'pricing.subheadUpgrade':   'Passa a un piano superiore — fatturato al prossimo rinnovo.',
+  'pricing.currentPlan':      'Piano attuale',
+  'pricing.notAvailable':     'Inferiore al piano attuale',
   'pricing.subhead':          'Accesso immediato — niente trial, cancella quando vuoi.',
   'pricing.signedInAs':       'Connesso come {email}',
   'pricing.perMonth':         '/ mese',

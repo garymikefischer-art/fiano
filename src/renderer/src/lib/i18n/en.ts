@@ -777,6 +777,10 @@ export const en: Record<string, string> = {
   'auth.notConfirmedHint':   "This email isn't confirmed yet. Click below to get a new confirmation email.",
   // ─── Pricing (Phase 6.2) ────────────────────────────
   'pricing.headline':         'Choose your plan',
+  'pricing.headlineUpgrade':  'Upgrade your plan',
+  'pricing.subheadUpgrade':   'Switch to a higher plan — billed on the next renewal.',
+  'pricing.currentPlan':      'Current plan',
+  'pricing.notAvailable':     'Lower than current plan',
   'pricing.subhead':          "Instant access — no trial, cancel anytime.",
   'pricing.signedInAs':       'Signed in as {email}',
   'pricing.perMonth':         '/ month',
