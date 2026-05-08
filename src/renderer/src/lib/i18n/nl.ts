@@ -870,8 +870,11 @@ export const nl: Record<string, string> = {
   'settings.account.dataExporting':    'Exporteren…',
   'settings.account.dataExportSaved':  'Opgeslagen',
 
-  // Thumbnail style presets (Phase 6.4 follow-up)
-  'thumbnail.genreCatStyle':           'Stijl',
-  'thumbnail.genre.comic_style':       'Comic-stijl',
-  'thumbnail.genre.realistic_style':   'Realistische stijl',
+  // Thumbnail custom-style dropdown (Phase 6.4 follow-up)
+  'thumbnail.fieldCustomStyle':       'Stijl',
+  'thumbnail.customStyle.default':    'Eigen stijl',
+  'thumbnail.customStyle.comic':      'Comic-stijl (Battle Royale)',
+  'thumbnail.customStyle.realistic':  'Realistische stijl (Military Shooter)',
+  'thumbnail.customStyle.defaultHint':'Typ je eigen gamenaam — de prompt wordt daaruit gebouwd.',
+  'thumbnail.customStyle.presetHint': 'Voorinstelling met referentie-prompt. De velden hieronder overschrijven de standaardwaarden. Je draagt de verantwoordelijkheid voor handelsmerk-gebruik.',
 };

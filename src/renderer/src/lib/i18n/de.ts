@@ -887,8 +887,11 @@ export const de: Record<string, string> = {
   'settings.account.dataExporting':    'Exportiere…',
   'settings.account.dataExportSaved':  'Gespeichert',
 
-  // Thumbnail style presets (Phase 6.4 follow-up)
-  'thumbnail.genreCatStyle':           'Stil',
-  'thumbnail.genre.comic_style':       'Comic-Stil',
-  'thumbnail.genre.realistic_style':   'Realistic-Stil',
+  // Thumbnail custom-style dropdown (Phase 6.4 follow-up)
+  'thumbnail.fieldCustomStyle':       'Stil',
+  'thumbnail.customStyle.default':    'Eigener Stil',
+  'thumbnail.customStyle.comic':      'Comic-Stil (Battle Royale)',
+  'thumbnail.customStyle.realistic':  'Realistic-Stil (Military Shooter)',
+  'thumbnail.customStyle.defaultHint':'Tippe deinen eigenen Spielnamen — Prompt wird daraus gebaut.',
+  'thumbnail.customStyle.presetHint': 'Voreingestellter Stil mit referenzbasiertem Prompt. Felder unten überschreiben Defaults. Du trägst die markenrechtliche Verantwortung für die Verwendung.',
 };

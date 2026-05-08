@@ -871,8 +871,11 @@ export const ru: Record<string, string> = {
   'settings.account.dataExporting':    'Экспорт…',
   'settings.account.dataExportSaved':  'Сохранено',
 
-  // Thumbnail style presets (Phase 6.4 follow-up)
-  'thumbnail.genreCatStyle':           'Стиль',
-  'thumbnail.genre.comic_style':       'Комикс-стиль',
-  'thumbnail.genre.realistic_style':   'Реалистичный стиль',
+  // Thumbnail custom-style dropdown (Phase 6.4 follow-up)
+  'thumbnail.fieldCustomStyle':       'Стиль',
+  'thumbnail.customStyle.default':    'Свой стиль',
+  'thumbnail.customStyle.comic':      'Комикс-стиль (Battle Royale)',
+  'thumbnail.customStyle.realistic':  'Реалистичный стиль (Military Shooter)',
+  'thumbnail.customStyle.defaultHint':'Введите название своей игры — промпт построится на его основе.',
+  'thumbnail.customStyle.presetHint': 'Готовый стиль с эталонным промптом. Поля ниже переопределяют значения по умолчанию. Вы несёте ответственность за использование товарных знаков.',
 };

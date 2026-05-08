@@ -13,8 +13,6 @@ import { useT } from '../lib/i18n';
  */
 type Genre =
   | 'custom'
-  | 'comic_style'
-  | 'realistic_style'
   | 'battle_royale'
   | 'modern_combat'
   | 'tactical_shooter'
@@ -23,27 +21,35 @@ type Genre =
   | 'open_world_crime'
   | 'moba';
 
+/**
+ * Style-Variante innerhalb des Custom-Modes:
+ *  - 'default'   = User tippt eigenen Spielnamen + freie Felder (Standard)
+ *  - 'comic'     = Hartkodierter Comic-Stil-Prompt (Fortnite-Reference, mit Markennamen)
+ *  - 'realistic' = Hartkodierter Realistic-Stil-Prompt (Warzone-Reference, mit Markennamen)
+ * User trägt mit der Auswahl die markenrechtliche Verantwortung — Disclaimer
+ * im UI + Lizenzen-Page.
+ */
+type CustomStyle = 'default' | 'comic' | 'realistic';
+
 interface FormFields {
   background: string;
   effects: string;
   weaponsSkins: string;
-  /** Frei eingegebener Spielname/Genre für 'custom' — kommt direkt vom User. */
+  /** Frei eingegebener Spielname/Genre für 'custom' + 'default' style. */
   customGameName: string;
+  /** Style-Preset für Custom-Mode. */
+  customStyle: CustomStyle;
 }
 
 const GENRE_CATEGORIES: Array<{ labelKey: string; genres: Genre[] }> = [
-  // Style-Kategorie zuerst — die zwei "Mega-Presets" (Comic + Realistic) plus
-  // Custom-Mode sind die häufigsten Wahlen.
-  { labelKey: 'thumbnail.genreCatStyle',   genres: ['custom', 'comic_style', 'realistic_style'] },
-  { labelKey: 'thumbnail.genreCatShooter', genres: ['battle_royale', 'modern_combat', 'tactical_shooter', 'competitive_fps'] },
+  // Custom-Game zuerst — User-Input-Modus mit Style-Dropdown.
+  { labelKey: 'thumbnail.genreCatShooter', genres: ['custom', 'battle_royale', 'modern_combat', 'tactical_shooter', 'competitive_fps'] },
   { labelKey: 'thumbnail.genreCatOther',   genres: ['blocky_sandbox', 'open_world_crime', 'moba'] },
 ];
 
 /** Genre-Label kommt aus i18n — siehe i18n-Files: thumbnail.genre.<id> */
 const GENRE_LABEL_KEY: Record<Genre, string> = {
   custom:           'thumbnail.genre.custom',
-  comic_style:      'thumbnail.genre.comic_style',
-  realistic_style:  'thumbnail.genre.realistic_style',
   battle_royale:    'thumbnail.genre.battle_royale',
   modern_combat:    'thumbnail.genre.modern_combat',
   tactical_shooter: 'thumbnail.genre.tactical_shooter',
@@ -53,14 +59,9 @@ const GENRE_LABEL_KEY: Record<Genre, string> = {
   moba:             'thumbnail.genre.moba',
 };
 
-/** Field-Placeholders pro Genre — generische Beispiele OHNE Markennamen,
- *  orientiert am Fortnite-Style-Reference des Users (daylight + depth of
- *  field im Background, "Strong rim light, [color] glow, volumetric gas,
- *  cinematic" für Effects). */
-const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
+/** Field-Placeholders pro Genre — orientiert am Fortnite-Reference des Users. */
+const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName' | 'customStyle'>> = {
   custom:           { background: 'daylight, describe the scene, depth of field',                                                          effects: 'Strong rim light, [color] glow, volumetric gas, cinematic',        weaponsSkins: 'objects in hand / weapons' },
-  comic_style:      { background: 'daylight, desert buildings, stink bomb explosion, yellow gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic',   weaponsSkins: 'futuristic rifle with skin' },
-  realistic_style:  { background: 'war-torn urban hospital exterior, daylight, smoke grenade explosion, green gas cloud, scattered debris, gunfire streaks, depth of field', effects: 'Strong rim light, sunlight + toxic green glow, cool shadows, volumetric gas smoke, particles, high contrast, cinematic', weaponsSkins: 'tactical assault rifle in hand' },
   battle_royale:    { background: 'daylight, desert buildings, stink bomb explosion, yellow gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic', weaponsSkins: 'futuristic rifle with skin' },
   modern_combat:    { background: 'daylight, war-torn urban hospital, smoke grenade, green gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic green glow, volumetric smoke, cinematic', weaponsSkins: 'tactical assault rifle in hand' },
   tactical_shooter: { background: 'daylight, sci-fi map control point, ability burst, particles, depth of field',                          effects: 'Strong rim light, teal ability glow, volumetric light, cinematic', weaponsSkins: 'glowing ability orb' },
@@ -70,6 +71,19 @@ const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
   moba:             { background: 'splash-art arena baron pit, ability splashes, depth of field',                                          effects: 'Strong rim light, splash-art glow, particles, cinematic',          weaponsSkins: 'champion ability animation' },
 };
 
+/** Hardkodierte Style-Defaults für Custom-Mode (mit Markennamen — User-
+ *  bewusste Wahl, Disclaimer wird im UI angezeigt). */
+const COMIC_STYLE_DEFAULTS = {
+  background:   'Painted Palms, daylight, stink bomb explosion, yellow gas clouds spreading through desert buildings, debris, depth of field.',
+  effects:      'Strong rim light, toxic yellow glow, volumetric gas, cinematic.',
+  weaponsSkins: 'futuristic rifle with skin',
+};
+const REALISTIC_STYLE_DEFAULTS = {
+  background:   'Verdansk Hospital exterior, daylight, smoke grenade explosion, green gas cloud, scattered debris, gunfire streaks, depth of field.',
+  effects:      'Strong rim light, sunlight + toxic green glow, cool shadows, volumetric gas smoke, particles, high contrast, cinematic.',
+  weaponsSkins: 'tactical assault rifle in hand',
+};
+
 /**
  * Generische Prompts ohne Markennamen. Format = User-Reference-Prompt
  * (kompakt, kurze Sektionen, "strong glow"/"Sharp"/"Visible"-Wording).
@@ -77,14 +91,14 @@ const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
  * passenden Stellen eingesetzt — Custom-Mode lässt zusätzlich den Spielnamen
  * vom User eingeben (Markenrechts-Verantwortung beim User, siehe Legal-Page).
  */
-const PROMPTS: Record<Genre, (f: FormFields) => string> = {
-  /**
-   * Comic-Stil — cartoon-influenced battle-royale-style preset. Markenneutralisiert
-   * (kein "Fortnite", kein "Painted Palms", kein "Siren skin") — Wording aber
-   * 1:1 am User-Reference-Prompt orientiert.
-   */
-  comic_style: (f) => `Create a highly realistic YouTube thumbnail in a comic / cartoon-influenced game style.
-Elite operator (esport sweat), comic-style outfit, no helmet. Ultra close-up (Dutch tilt).
+/**
+ * Comic-Stil-Prompt: User-Reference EXAKT übernommen (mit Markennamen
+ * "Fortnite", "Painted Palms", "Siren skin"). Nur Background/Effects/
+ * Weapons-Skins werden via User-Input ersetzbar gemacht.
+ * User-bewusste Wahl im Custom-Mode-Dropdown.
+ */
+const COMIC_STYLE_PROMPT = (f: FormFields) => `Create a highly realistic YouTube thumbnail inspired by Fortnite.
+Elite operator styled as Siren skin (esport sweat), Fortnite outfit, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
@@ -95,20 +109,20 @@ Sharp.
 HANDS:
 Visible.
 BACKGROUND:
-${f.background || FIELD_PLACEHOLDERS.comic_style.background}
+${f.background || COMIC_STYLE_DEFAULTS.background}
 EFFECTS:
-${f.effects || FIELD_PLACEHOLDERS.comic_style.effects}
+${f.effects || COMIC_STYLE_DEFAULTS.effects}
 WEAPONS/SKINS:
-${f.weaponsSkins || FIELD_PLACEHOLDERS.comic_style.weaponsSkins}
+${f.weaponsSkins || COMIC_STYLE_DEFAULTS.weaponsSkins}
 STYLE:
-Ultra-realistic, NO TEXT.`,
+Ultra-realistic, NO TEXT.`;
 
-  /**
-   * Realistic-Stil — military-shooter cinematic preset. Markenneutralisiert
-   * (kein "Call of Duty: Warzone", kein "Verdansk Hospital") — Wording 1:1
-   * am User-Reference-Prompt orientiert.
-   */
-  realistic_style: (f) => `Create a highly realistic YouTube thumbnail in a realistic military-shooter game style.
+/**
+ * Realistic-Stil-Prompt: User-Reference EXAKT übernommen (mit Markennamen
+ * "Call of Duty: Warzone", "Verdansk Hospital"). Nur Background/Effects/
+ * Weapons-Skins werden via User-Input ersetzbar gemacht.
+ */
+const REALISTIC_STYLE_PROMPT = (f: FormFields) => `Create a highly realistic YouTube thumbnail inspired by Call of Duty: Warzone (Verdansk).
 
 Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (side angle profile shot), face dominant, slightly off-center, aggressive forward-leaning pose.
 
@@ -127,17 +141,18 @@ HANDS:
 Visible, correct anatomy, natural, slight motion blur.
 
 BACKGROUND:
-${f.background || FIELD_PLACEHOLDERS.realistic_style.background}
+${f.background || REALISTIC_STYLE_DEFAULTS.background}
 
 EFFECTS:
-${f.effects || FIELD_PLACEHOLDERS.realistic_style.effects}
+${f.effects || REALISTIC_STYLE_DEFAULTS.effects}
 
 WEAPONS/SKINS:
-${f.weaponsSkins || FIELD_PLACEHOLDERS.realistic_style.weaponsSkins}
+${f.weaponsSkins || REALISTIC_STYLE_DEFAULTS.weaponsSkins}
 
 STYLE:
-Ultra-realistic, high contrast, NO TEXT.`,
+Ultra-realistic, high contrast, NO TEXT.`;
 
+const PROMPTS: Record<Genre, (f: FormFields) => string> = {
   battle_royale: (f) => `Create a highly realistic YouTube thumbnail in a Battle Royale game style.
 Elite operator (esport sweat), Battle Royale outfit, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
@@ -279,11 +294,14 @@ STYLE:
 Cinematic splash-art realism, NO TEXT.`,
 
   /**
-   * Custom-Mode: User tippt selber Spielname/Genre. Eingabe wird unverändert
-   * in Prompt eingebaut — User trägt markenrechtliche Verantwortung für die
-   * eingegebenen Begriffe (Disclaimer in Legal-Page).
+   * Custom-Mode: Style-Dropdown (Default / Comic / Realistic) bestimmt welcher
+   * Prompt rendert. Default → User tippt eigenen Spielnamen. Comic/Realistic →
+   * Hardcoded-Reference-Prompts mit Markennamen (User-bewusste Wahl mit Disclaimer).
    */
-  custom: (f) => `Create a highly realistic YouTube thumbnail inspired by ${f.customGameName || 'a video game of your choice'}.
+  custom: (f) => {
+    if (f.customStyle === 'comic')     return COMIC_STYLE_PROMPT(f);
+    if (f.customStyle === 'realistic') return REALISTIC_STYLE_PROMPT(f);
+    return `Create a highly realistic YouTube thumbnail inspired by ${f.customGameName || 'a video game of your choice'}.
 Stylized character/operator from the game (esport sweat), no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 FACE & HAIR (STRICT):
@@ -301,7 +319,8 @@ ${f.effects || FIELD_PLACEHOLDERS.custom.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.custom.weaponsSkins}
 STYLE:
-Ultra-realistic, NO TEXT.`,
+Ultra-realistic, NO TEXT.`;
+  },
 };
 
 export function ThumbnailPage() {
@@ -310,8 +329,8 @@ export function ThumbnailPage() {
     pickImageFile, listThumbnails, deleteThumbnail,
   } = useApp();
 
-  const [genre, setGenre] = useState<Genre>('battle_royale');
-  const [fields, setFields] = useState<FormFields>({ background: '', effects: '', weaponsSkins: '', customGameName: '' });
+  const [genre, setGenre] = useState<Genre>('custom');
+  const [fields, setFields] = useState<FormFields>({ background: '', effects: '', weaponsSkins: '', customGameName: '', customStyle: 'default' });
   const [referencePath, setReferencePath] = useState<string | null>(null);
   const [resultPath, setResultPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -451,29 +470,68 @@ export function ThumbnailPage() {
 
             <section className="glass p-5 space-y-3">
               {isCustom && (
-                <FormField
-                  label={t('thumbnail.fieldCustomGame')}
-                  placeholder={t('thumbnail.fieldCustomGamePlaceholder')}
-                  value={fields.customGameName}
-                  onChange={(v) => setFields((s) => ({ ...s, customGameName: v }))}
-                  hint={t('thumbnail.fieldCustomGameHint')}
-                />
+                <>
+                  {/* Style-Dropdown: Default / Comic / Realistic */}
+                  <div>
+                    <label className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500 mb-1.5 block">
+                      {t('thumbnail.fieldCustomStyle')}
+                    </label>
+                    <select
+                      value={fields.customStyle}
+                      onChange={(e) => setFields((s) => ({ ...s, customStyle: e.target.value as CustomStyle }))}
+                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] text-zinc-200
+                                 focus:outline-none focus:bg-white/[0.06] focus:border-fiano-red/40 transition-colors"
+                    >
+                      <option value="default">{t('thumbnail.customStyle.default')}</option>
+                      <option value="comic">{t('thumbnail.customStyle.comic')}</option>
+                      <option value="realistic">{t('thumbnail.customStyle.realistic')}</option>
+                    </select>
+                    <div className="text-[9px] text-zinc-600 mt-1 leading-relaxed">
+                      {fields.customStyle === 'default'
+                        ? t('thumbnail.customStyle.defaultHint')
+                        : t('thumbnail.customStyle.presetHint')}
+                    </div>
+                  </div>
+                  {/* Spielname nur im Default-Style — bei Comic/Realistic ist der
+                      Spielname Hardcoded im Prompt */}
+                  {fields.customStyle === 'default' && (
+                    <FormField
+                      label={t('thumbnail.fieldCustomGame')}
+                      placeholder={t('thumbnail.fieldCustomGamePlaceholder')}
+                      value={fields.customGameName}
+                      onChange={(v) => setFields((s) => ({ ...s, customGameName: v }))}
+                      hint={t('thumbnail.fieldCustomGameHint')}
+                    />
+                  )}
+                </>
               )}
               <FormField
                 label={t('thumbnail.fieldBackground')}
-                placeholder={FIELD_PLACEHOLDERS[genre].background}
+                placeholder={
+                  isCustom && fields.customStyle === 'comic'     ? COMIC_STYLE_DEFAULTS.background :
+                  isCustom && fields.customStyle === 'realistic' ? REALISTIC_STYLE_DEFAULTS.background :
+                  FIELD_PLACEHOLDERS[genre].background
+                }
                 value={fields.background}
                 onChange={(v) => setFields((s) => ({ ...s, background: v }))}
               />
               <FormField
                 label={t('thumbnail.fieldEffects')}
-                placeholder={FIELD_PLACEHOLDERS[genre].effects}
+                placeholder={
+                  isCustom && fields.customStyle === 'comic'     ? COMIC_STYLE_DEFAULTS.effects :
+                  isCustom && fields.customStyle === 'realistic' ? REALISTIC_STYLE_DEFAULTS.effects :
+                  FIELD_PLACEHOLDERS[genre].effects
+                }
                 value={fields.effects}
                 onChange={(v) => setFields((s) => ({ ...s, effects: v }))}
               />
               <FormField
                 label={t('thumbnail.fieldWeapons')}
-                placeholder={FIELD_PLACEHOLDERS[genre].weaponsSkins}
+                placeholder={
+                  isCustom && fields.customStyle === 'comic'     ? COMIC_STYLE_DEFAULTS.weaponsSkins :
+                  isCustom && fields.customStyle === 'realistic' ? REALISTIC_STYLE_DEFAULTS.weaponsSkins :
+                  FIELD_PLACEHOLDERS[genre].weaponsSkins
+                }
                 value={fields.weaponsSkins}
                 onChange={(v) => setFields((s) => ({ ...s, weaponsSkins: v }))}
               />
@@ -513,7 +571,7 @@ export function ThumbnailPage() {
 
             <button
               onClick={onGenerate}
-              disabled={busy || (isCustom && !fields.customGameName.trim())}
+              disabled={busy || (isCustom && fields.customStyle === 'default' && !fields.customGameName.trim())}
               className="w-full bg-fiano-red text-white py-3 rounded-xl font-semibold text-[13px]
                          hover:brightness-110 hover:shadow-[0_0_28px_rgba(255,16,57,0.45)]
                          active:scale-[0.99] disabled:opacity-50 transition-all

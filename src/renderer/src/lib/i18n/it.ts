@@ -870,8 +870,11 @@ export const it: Record<string, string> = {
   'settings.account.dataExporting':    'Esportazione…',
   'settings.account.dataExportSaved':  'Salvato',
 
-  // Thumbnail style presets (Phase 6.4 follow-up)
-  'thumbnail.genreCatStyle':           'Stile',
-  'thumbnail.genre.comic_style':       'Stile Comic',
-  'thumbnail.genre.realistic_style':   'Stile Realistico',
+  // Thumbnail custom-style dropdown (Phase 6.4 follow-up)
+  'thumbnail.fieldCustomStyle':       'Stile',
+  'thumbnail.customStyle.default':    'Stile personalizzato',
+  'thumbnail.customStyle.comic':      'Stile Comic (Battle Royale)',
+  'thumbnail.customStyle.realistic':  'Stile Realistico (Military Shooter)',
+  'thumbnail.customStyle.defaultHint':'Inserisci il nome del tuo gioco — il prompt verrà costruito da esso.',
+  'thumbnail.customStyle.presetHint': "Stile preimpostato con prompt di riferimento. I campi sotto sovrascrivono i default. Sei responsabile per l\'uso dei marchi.",
 };
