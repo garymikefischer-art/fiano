@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import type { FacecamRegion } from '@shared/types';
 import { useApp } from '../stores/appStore';
 import { useAuth } from '../stores/authStore';
-import { createCheckoutSession, createPortalSession } from '../lib/stripe';
+import { createCheckoutSession, createPortalSession, deleteAccount } from '../lib/stripe';
 import { mediaUrl } from '../lib/mediaUrl';
 import { TopBarActions } from '../components/TopBarActions';
 import * as sounds from '../lib/sounds';
@@ -1269,8 +1269,10 @@ function AccountSection() {
   const signOut = useAuth((s) => s.signOut);
   const fetchSubscription = useAuth((s) => s.fetchSubscription);
   const navigate = useNavigate();
-  const [busy, setBusy] = useState<'upgrade' | 'portal' | null>(null);
+  const [busy, setBusy] = useState<'upgrade' | 'portal' | 'delete' | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   const handleUpgrade = async () => {
     if (busy) return;
@@ -1295,6 +1297,20 @@ function AccountSection() {
     if (res.url) await window.api.invoke('shell.openExternal', { url: res.url });
     else setErrorMsg(res.error ?? 'Failed');
     setTimeout(() => setBusy(null), 2000);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (busy) return;
+    setBusy('delete');
+    setErrorMsg(null);
+    const res = await deleteAccount();
+    if (res.ok) {
+      // signOut räumt Session + Realtime auf, Routing-Gate wirft auf LoginPage
+      await signOut();
+    } else {
+      setErrorMsg(res.error ?? 'Delete failed');
+      setBusy(null);
+    }
   };
 
   const planLabel = subscription?.lifetime
@@ -1420,6 +1436,96 @@ function AccountSection() {
           </button>
         </div>
       </section>
+
+      {/* Danger Zone — Account löschen */}
+      <section className="bg-panel rounded-xl p-6 border border-fiano-red/30">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-[12px] font-semibold text-fiano-red">{t('settings.account.deleteTitle')}</div>
+            <div className="text-[11px] text-zinc-500 mt-1 max-w-md">{t('settings.account.deleteBody')}</div>
+          </div>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            disabled={busy !== null}
+            className="text-[12px] font-medium px-4 py-2 rounded-lg shrink-0
+                       text-white bg-fiano-red/80 hover:bg-fiano-red transition disabled:opacity-50"
+          >
+            {t('settings.account.deleteButton')}
+          </button>
+        </div>
+      </section>
+
+      {/* Delete-Konfirmations-Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm">
+          <div className="bg-zinc-950 border border-fiano-red/40 rounded-2xl p-7 max-w-md w-full shadow-[0_30px_80px_rgba(0,0,0,0.8)]">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="shrink-0 w-10 h-10 rounded-xl bg-fiano-red/15 border border-fiano-red/40 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 text-fiano-red" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <div className="text-[15px] font-semibold text-zinc-100">{t('settings.account.deleteConfirmTitle')}</div>
+                <div className="text-[12px] text-zinc-400 mt-1 leading-relaxed">{t('settings.account.deleteConfirmBody')}</div>
+              </div>
+            </div>
+
+            <ul className="text-[12px] text-zinc-400 space-y-1.5 mb-4 pl-3">
+              <li>• {t('settings.account.deleteBullet1')}</li>
+              <li>• {t('settings.account.deleteBullet2')}</li>
+              <li>• {t('settings.account.deleteBullet3')}</li>
+            </ul>
+
+            <div className="space-y-2 mb-4">
+              <label className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+                {t('settings.account.deleteConfirmInstruction')}
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                disabled={busy !== null}
+                className="w-full px-3 py-2 rounded-lg text-[13px]
+                           bg-white/[0.04] border border-white/[0.08] text-white
+                           placeholder:text-zinc-600 font-mono
+                           focus:outline-none focus:bg-white/[0.06] focus:border-fiano-red/50 transition-colors"
+              />
+            </div>
+
+            {errorMsg && (
+              <div className="text-[11px] text-fiano-red bg-fiano-red/[0.08] border border-fiano-red/20 rounded-md px-3 py-2 mb-3">
+                {errorMsg}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(''); setErrorMsg(null); }}
+                disabled={busy !== null}
+                className="text-[12px] font-medium px-4 py-2 rounded-lg
+                           bg-white/[0.04] border border-white/[0.10] text-zinc-300
+                           hover:bg-white/[0.08] transition disabled:opacity-50"
+              >
+                {t('settings.account.deleteCancel')}
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'DELETE' || busy !== null}
+                className={clsx(
+                  'text-[12px] font-semibold px-4 py-2 rounded-lg transition',
+                  deleteConfirmText !== 'DELETE' || busy !== null
+                    ? 'bg-fiano-red/30 text-white/50 cursor-not-allowed'
+                    : 'bg-fiano-red text-white hover:brightness-110',
+                )}
+              >
+                {busy === 'delete' ? t('settings.account.deleting') : t('settings.account.deleteFinal')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -126,6 +126,7 @@ function RouteFader() {
         <Route path="/thumbnail"      element={<ThumbnailPage />} />
         <Route path="/settings"       element={<SettingsPage />} />
         <Route path="/help"           element={<HelpPage />} />
+        <Route path="/pricing"        element={<PricingPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*"               element={<Navigate to="/" replace />} />
       </Routes>

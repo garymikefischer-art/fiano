@@ -62,6 +62,25 @@ export async function createCheckoutSession(plan: 'creator' | 'pro' | 'studio_li
   }
 }
 
+/** Account komplett löschen — Stripe-Customer + Supabase-User.
+ *  Caller sollte signOut + Routing zur LoginPage selbst handhaben. */
+export async function deleteAccount(): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await getAuthHeader();
+  if (!auth) return { error: 'Not authenticated' };
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: auth },
+      body: '{}',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) return { error: data?.error ?? `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (err: any) {
+    return { error: err?.message ?? String(err) };
+  }
+}
+
 /** Erzeugt eine Customer-Portal-Session (Cancel, Card-Update, Rechnungen). */
 export async function createPortalSession(): Promise<{ url?: string; error?: string }> {
   const auth = await getAuthHeader();
