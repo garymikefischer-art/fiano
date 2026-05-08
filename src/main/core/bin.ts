@@ -26,7 +26,16 @@ import { execSync, spawnSync } from 'node:child_process';
 export type BinName = 'ffmpeg' | 'ffprobe' | 'yt-dlp';
 
 const ext = process.platform === 'win32' ? '.exe' : '';
-const platformDir = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : 'linux';
+/**
+ * Per-arch Subfolder unter resources/bin/. Production: electron-builder packt
+ * den passenden Arch-Folder als ${os}-${arch} via extraResources nach
+ * Resources/bin/ — die arch-Logik ist also dev-only relevant.
+ */
+const platformDir = (() => {
+  if (process.platform === 'darwin') return process.arch === 'arm64' ? 'mac-arm64' : 'mac-x64';
+  if (process.platform === 'win32')  return 'win-x64';
+  return 'linux-x64';
+})();
 
 /* ─── Quarantine + Permissions (macOS) ────────────────────────────────── */
 

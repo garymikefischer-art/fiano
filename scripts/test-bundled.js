@@ -21,7 +21,11 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const PLATFORM = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'win' : 'linux';
+const PLATFORM = (() => {
+  if (process.platform === 'darwin') return process.arch === 'arm64' ? 'mac-arm64' : 'mac-x64';
+  if (process.platform === 'win32')  return 'win-x64';
+  return 'linux-x64';
+})();
 const EXT = process.platform === 'win32' ? '.exe' : '';
 const BIN_DIR = path.join(ROOT, 'resources', 'bin', PLATFORM);
 
@@ -33,7 +37,9 @@ const bad = (msg) => { failed++; console.log(`  \x1b[31m✗\x1b[0m ${msg}`); };
 function run(bin, args, opts = {}) {
   return spawnSync(bin, args, {
     encoding: 'utf8',
-    timeout: 15_000,
+    // yt-dlp ist ein PyInstaller-Bundle — beim ersten Run extracted das nach
+    // /tmp und kann 5-25s dauern. 60s timeout deckt das ab.
+    timeout: 60_000,
     stdio: ['ignore', 'pipe', 'pipe'],
     ...opts,
   });

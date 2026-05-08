@@ -10,10 +10,12 @@ files:
 asarUnpack:
   - "resources/**"
 extraResources:
-  # Phase 8: bundled FFmpeg + FFprobe + yt-dlp — pro Platform vor jedem Build via
-  # `npm run binaries:download -- --only {mac|win}`. resources/bin/{mac,win}/ ist
-  # in .gitignore — Binaries werden automatisch beim Build geladen.
-  - from: "resources/bin/${os}"
+  # Phase 8 / 8.7: bundled FFmpeg + FFprobe + yt-dlp pro PLATFORM-und-ARCH.
+  # mac-arm64 = arm64-native (osxexperts), mac-x64 = x86_64 (evermeet),
+  # win-x64 = BtbN gpl-build. resources/bin/* ist in .gitignore — Binaries
+  # werden via `npm run binaries:download -- --only mac-arm64|mac-x64|win-x64`
+  # vor jedem Build automatisch geladen.
+  - from: "resources/bin/${os}-${arch}"
     to: "bin"
     filter:
       - "**/*"
