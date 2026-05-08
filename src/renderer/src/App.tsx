@@ -18,6 +18,7 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { PricingPage } from './pages/PricingPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { LegalPage } from './pages/LegalPage';
 import * as sounds from './lib/sounds';
 
 const SPLASH_MS = 1200;
@@ -57,6 +58,9 @@ export default function App() {
                 <Route path="/signup"         element={<SignupPage />} />
                 <Route path="/login"          element={<LoginPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
+                {/* Legal-Pages sind ohne Login zugänglich (DSGVO-Pflicht) */}
+                <Route path="/legal/:doc"     element={<LegalPage />} />
+                <Route path="/legal"          element={<LegalPage />} />
                 <Route path="*"               element={<Navigate to="/login" replace />} />
               </Routes>
             );
@@ -66,6 +70,8 @@ export default function App() {
               <Routes>
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/pricing"        element={<PricingPage />} />
+                <Route path="/legal/:doc"     element={<LegalPage />} />
+                <Route path="/legal"          element={<LegalPage />} />
                 <Route path="*"               element={<Navigate to="/pricing" replace />} />
               </Routes>
             );
@@ -130,6 +136,8 @@ function RouteFader() {
         <Route path="/help"           element={<HelpPage />} />
         <Route path="/pricing"        element={<PricingPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/legal/:doc"     element={<LegalPage />} />
+        <Route path="/legal"          element={<LegalPage />} />
         <Route path="*"               element={<Navigate to="/" replace />} />
       </Routes>
     </div>

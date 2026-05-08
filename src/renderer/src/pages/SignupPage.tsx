@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
 import { checkPasswordStrength, strengthLabel, strengthColor } from '../lib/passwordStrength';
+import { LegalFooter } from '../components/LegalFooter';
 
 /**
  * SignupPage — Email/Password Sign-up.
@@ -269,6 +270,7 @@ export function SignupPage() {
           </div>
         </div>
       </div>
+      <LegalFooter />
     </div>
   );
 }

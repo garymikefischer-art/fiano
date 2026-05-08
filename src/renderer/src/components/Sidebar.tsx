@@ -201,6 +201,8 @@ export function Sidebar() {
                 isActive={({ pathname, search }) => pathname === '/settings' && new URLSearchParams(search).get('section') === 'appearance'} />
           <Item to="/settings?section=api-keys" icon={<IconKeys />} label={t('sidebar.settingsApiKeys')}
                 isActive={({ pathname, search }) => pathname === '/settings' && new URLSearchParams(search).get('section') === 'api-keys'} />
+          <Item to="/legal" icon={<IconLegal />} label={t('legal.title')}
+                isActive={({ pathname }) => pathname.startsWith('/legal')} />
         </Section>
 
         {/* Subtle Hinweis welches Project gerade als „Context" gilt */}
@@ -747,6 +749,14 @@ function IconKeys() {
     <svg {...svgProps()}>
       <circle cx="8" cy="14" r="3.5" />
       <path d="M11 12l9-9 M16 7l3 3 M14 9l3 3" />
+    </svg>
+  );
+}
+function IconLegal() {
+  return (
+    <svg {...svgProps()}>
+      <path d="M4 5h16M6 5v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5" />
+      <path d="M9 9h6M9 13h6M9 17h4" />
     </svg>
   );
 }

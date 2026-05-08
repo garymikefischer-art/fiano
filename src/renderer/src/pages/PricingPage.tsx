@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { FianoLogo } from '../components/FianoLogo';
+import { LegalFooter } from '../components/LegalFooter';
 import { useAuth } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import { useT } from '../lib/i18n';
@@ -248,6 +249,7 @@ export function PricingPage() {
             {t('pricing.footnote')}
           </div>
         </div>
+        <LegalFooter />
       </div>
     </div>
   );

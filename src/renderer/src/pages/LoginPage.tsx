@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
+import { LegalFooter } from '../components/LegalFooter';
 
 /**
  * LoginPage — Email/Password + Google OAuth.
@@ -215,6 +216,7 @@ export function LoginPage() {
           </div>
         </div>
       </div>
+      <LegalFooter />
     </div>
   );
 }

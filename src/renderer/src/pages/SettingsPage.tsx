@@ -5,6 +5,7 @@ import type { FacecamRegion } from '@shared/types';
 import { useApp } from '../stores/appStore';
 import { useAuth } from '../stores/authStore';
 import { createCheckoutSession, createPortalSession, deleteAccount } from '../lib/stripe';
+import { supabase } from '../lib/supabase';
 import { mediaUrl } from '../lib/mediaUrl';
 import { TopBarActions } from '../components/TopBarActions';
 import * as sounds from '../lib/sounds';
@@ -1472,6 +1473,9 @@ function AccountSection() {
         )}
       </section>
 
+      {/* GDPR Data Export — Art. 20 Datenportabilität */}
+      <DataExportSection />
+
       {/* Sign-Out */}
       <section className="bg-panel rounded-xl p-6 border border-zinc-800">
         <div className="flex items-center justify-between">
@@ -1583,6 +1587,101 @@ function AccountSection() {
 }
 
 /* ─── Language Section (i18n) ────────────────────────────── */
+
+/**
+ * GDPR Art. 20 — Datenexport. User kann seine kompletten App-Daten als
+ * strukturierte JSON-Datei herunterladen. Sammelt:
+ *  - User + Profile + Subscription (Supabase)
+ *  - Alle Projekte (lokaler appStore)
+ *  - Metadata (Export-Datum, App-Version, GDPR-Hinweis)
+ */
+function DataExportSection() {
+  const t = useT();
+  const user = useAuth((s) => s.user);
+  const subscription = useAuth((s) => s.subscription);
+  const projects = useApp((s) => s.projects);
+  const [busy, setBusy] = useState(false);
+  const [lastPath, setLastPath] = useState<string | null>(null);
+
+  const onExport = async () => {
+    if (busy || !user) return;
+    setBusy(true);
+    setLastPath(null);
+    try {
+      // Profile + Subscription via Supabase
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const exportObj = {
+        meta: {
+          exportDate:        new Date().toISOString(),
+          fianoVersion:      'data-export-v1',
+          gdprArticle:       'Art. 20 GDPR — Right to Data Portability',
+          notice:            'This export contains all personal data fiano stores about you. Local files (videos, clips, thumbnails) are not included — they remain on your device.',
+          contact:           'office@fiano.at',
+        },
+        account: {
+          id:                user.id,
+          email:             user.email,
+          createdAt:         user.created_at,
+          lastSignInAt:      user.last_sign_in_at,
+          provider:          user.app_metadata?.provider ?? 'email',
+        },
+        profile: profile ?? null,
+        subscription: subscription ?? null,
+        projects: projects.map((p) => ({
+          id:           p.id,
+          name:         p.name,
+          mode:         p.mode,
+          status:       p.status,
+          videoType:    p.videoType,
+          createdAt:    p.createdAt,
+          updatedAt:    p.updatedAt,
+          highlightCount: p.highlights?.length ?? 0,
+        })),
+      };
+      const json = JSON.stringify(exportObj, null, 2);
+      const r = await window.api.invoke<{ path: string } | null>('account.exportData', {
+        json,
+        suggestedName: `fiano-data-export-${new Date().toISOString().slice(0, 10)}.json`,
+      });
+      if (r?.ok && r.data?.path) setLastPath(r.data.path);
+    } catch (err: any) {
+      console.warn('[settings] data export failed:', err);
+      window.alert(`Export failed: ${err?.message ?? String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="bg-panel rounded-xl p-6 border border-zinc-800">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[12px] font-semibold text-zinc-200">{t('settings.account.dataExportTitle')}</div>
+          <div className="text-[11px] text-zinc-500 mt-1 max-w-md">{t('settings.account.dataExportBody')}</div>
+        </div>
+        <button
+          onClick={onExport}
+          disabled={busy || !user}
+          className="text-[12px] font-medium px-4 py-2 rounded-lg shrink-0
+                     text-zinc-300 border border-zinc-700 hover:border-fiano-red/40 hover:text-white hover:bg-white/[0.04]
+                     transition disabled:opacity-50"
+        >
+          {busy ? t('settings.account.dataExporting') : t('settings.account.dataExportButton')}
+        </button>
+      </div>
+      {lastPath && (
+        <div className="mt-3 text-[10px] text-emerald-400/80 bg-emerald-500/[0.06] border border-emerald-500/20 rounded-lg px-3 py-2">
+          {t('settings.account.dataExportSaved')}: <span className="font-mono">{lastPath}</span>
+        </div>
+      )}
+    </section>
+  );
+}
 
 function LanguageSection() {
   const t = useT();

@@ -5,54 +5,76 @@ import { mediaUrl } from '../lib/mediaUrl';
 import { TopBarActions } from '../components/TopBarActions';
 import { useT } from '../lib/i18n';
 
-type Game = 'fortnite' | 'warzone' | 'valorant' | 'cs2' | 'minecraft' | 'gta' | 'lol';
+/**
+ * Genre-IDs sind generisch und referenzieren KEINE eingetragenen Marken.
+ * Phase 6.4: Spielnamen wurden durch Genre-Beschreibungen ersetzt — User kann
+ * über das Custom-Genre-Feld einen eigenen Spielnamen tippen, dann übernimmt er
+ * selbst die markenrechtliche Verantwortung für die Eingabe.
+ */
+type Genre =
+  | 'battle_royale'
+  | 'modern_combat'
+  | 'tactical_shooter'
+  | 'competitive_fps'
+  | 'blocky_sandbox'
+  | 'open_world_crime'
+  | 'moba'
+  | 'custom';
 
 interface FormFields {
   background: string;
   effects: string;
   weaponsSkins: string;
+  /** Frei eingegebener Spielname/Genre für 'custom' — kommt direkt vom User. */
+  customGameName: string;
 }
 
-/** Game-Kategorien für das UI-Picker. Shooter zuerst (häufigster Use-Case), dann Other. */
-const GAME_CATEGORIES: Array<{ label: string; games: Game[] }> = [
-  { label: 'Shooter', games: ['warzone', 'valorant', 'cs2', 'fortnite'] },
-  { label: 'Other',   games: ['minecraft', 'gta', 'lol'] },
+const GENRE_CATEGORIES: Array<{ labelKey: string; genres: Genre[] }> = [
+  { labelKey: 'thumbnail.genreCatShooter', genres: ['battle_royale', 'modern_combat', 'tactical_shooter', 'competitive_fps'] },
+  { labelKey: 'thumbnail.genreCatOther',   genres: ['blocky_sandbox', 'open_world_crime', 'moba', 'custom'] },
 ];
 
-const GAME_LABELS: Record<Game, string> = {
-  fortnite: 'Fortnite',
-  warzone: 'Warzone',
-  valorant: 'Valorant',
-  cs2: 'CS2',
-  minecraft: 'Minecraft',
-  gta: 'GTA',
-  lol: 'LoL',
+/** Genre-Label kommt aus i18n — siehe i18n-Files: thumbnail.genre.<id> */
+const GENRE_LABEL_KEY: Record<Genre, string> = {
+  battle_royale:    'thumbnail.genre.battle_royale',
+  modern_combat:    'thumbnail.genre.modern_combat',
+  tactical_shooter: 'thumbnail.genre.tactical_shooter',
+  competitive_fps:  'thumbnail.genre.competitive_fps',
+  blocky_sandbox:   'thumbnail.genre.blocky_sandbox',
+  open_world_crime: 'thumbnail.genre.open_world_crime',
+  moba:             'thumbnail.genre.moba',
+  custom:           'thumbnail.genre.custom',
 };
 
-/** Field-Placeholders pro Spiel — relevante Beispiele für besseres Prompting. */
-const FIELD_PLACEHOLDERS: Record<Game, FormFields> = {
-  warzone:   { background: 'Verdansk Hospital, smoke grenade, green gas',  effects: 'sunlight + toxic green glow, debris, gunfire', weaponsSkins: 'AK-47 with skin in hand' },
-  fortnite:  { background: 'Painted Palms, desert buildings, yellow gas',  effects: 'stink bomb explosion, debris, neon glow',     weaponsSkins: 'Storm Scout Rifle' },
-  valorant:  { background: 'Haven map Heaven, ability burst, particles',   effects: 'teal ability glow, sparks, volumetric light', weaponsSkins: 'Glowing Sage ability orb' },
-  cs2:       { background: 'Mirage A-site, smoke + muzzle flash',          effects: 'dark contrast, sparks, dust',                 weaponsSkins: 'Deagle / AWP Dragon Lore' },
-  minecraft: { background: 'Vibrant biome, lush shaders, giant Ender Dragon', effects: 'blocky particles, exaggerated emotions',   weaponsSkins: 'Diamond sword, enchanted glow' },
-  gta:       { background: 'Los Santos at night, police chase, neon lights', effects: 'police lights, money stacks, dramatic',    weaponsSkins: 'Luxury car, gold pistol' },
-  lol:       { background: 'Summoner\'s Rift baron pit, ability splashes',  effects: 'cinematic splash art glow, particles',       weaponsSkins: 'Champion ability animation' },
+/** Field-Placeholders pro Genre — generische Beispiele OHNE Markennamen. */
+const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
+  battle_royale:    { background: 'Tropical island, palm trees, storm circle, yellow toxic gas', effects: 'explosion, debris, neon glow',                weaponsSkins: 'futuristic rifle with skin' },
+  modern_combat:    { background: 'War-torn urban hospital, smoke grenade, green gas',          effects: 'sunlight + toxic green glow, debris, gunfire',weaponsSkins: 'tactical assault rifle in hand' },
+  tactical_shooter: { background: 'Sci-fi map control point, ability burst, particles',         effects: 'teal ability glow, sparks, volumetric light', weaponsSkins: 'glowing ability orb' },
+  competitive_fps:  { background: 'Desert site, smoke + muzzle flash',                          effects: 'dark contrast, sparks, dust',                 weaponsSkins: 'iconic sniper rifle / pistol' },
+  blocky_sandbox:   { background: 'Vibrant biome, lush shaders, giant pixel-style boss',        effects: 'blocky particles, exaggerated emotions',      weaponsSkins: 'enchanted sword, glowing pickaxe' },
+  open_world_crime: { background: 'Neon city at night, police chase',                           effects: 'police lights, money stacks, dramatic',       weaponsSkins: 'luxury car, gold pistol' },
+  moba:             { background: 'Splash-art arena baron pit, ability splashes',               effects: 'cinematic splash art glow, particles',        weaponsSkins: 'champion ability animation' },
+  custom:           { background: 'Describe the scene or environment',                          effects: 'particles, lighting, mood',                   weaponsSkins: 'objects in hand / weapons' },
 };
 
-/** Common-Suffix für alle prompts — high-CTR-relevante visual elements. */
 const VISUAL_DIRECTIVES = `
 VISUAL DIRECTIVES (high-CTR):
 Face glow, sharp eye highlights with cinematic catchlights, strong rim light, depth of field with weapon/object focus, motion blur on action elements, particles, clean background-subject separation.`;
 
-const PROMPTS: Record<Game, (f: FormFields) => string> = {
-  fortnite: (f) => `Create a highly realistic YouTube thumbnail inspired by Fortnite.
-Elite operator styled as Siren skin (esport sweat), Fortnite outfit, no helmet. Ultra close-up (Dutch tilt).
+/**
+ * Generische Prompts ohne Markennamen. User-eingegebene Spielnamen über
+ * `customGameName` werden in den Custom-Prompt eingebettet — User trägt
+ * eigene markenrechtliche Verantwortung für eingegebene Marken-Begriffe.
+ */
+const PROMPTS: Record<Genre, (f: FormFields) => string> = {
+  battle_royale: (f) => `Create a highly realistic YouTube thumbnail in a Battle Royale game style.
+Stylized esport sweat operator with cartoon-influenced outfit. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.fortnite.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.fortnite.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.fortnite.weaponsSkins}
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.battle_royale.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.battle_royale.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.battle_royale.weaponsSkins}
 
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
@@ -65,7 +87,7 @@ ${VISUAL_DIRECTIVES}
 STYLE:
 Ultra-realistic, NO TEXT, thumbnail optimized.`,
 
-  warzone: (f) => `Create a highly realistic YouTube thumbnail inspired by Call of Duty: Warzone (Verdansk).
+  modern_combat: (f) => `Create a highly realistic YouTube thumbnail in a Modern Combat / military shooter game style.
 
 Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (side angle profile shot), face dominant, slightly off-center, aggressive forward-leaning pose.
 
@@ -81,17 +103,17 @@ EYES: Sharp, strong contrast, cinematic catchlights, focused squint.
 
 HANDS: Visible, correct anatomy, natural, slight motion blur.
 
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.warzone.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.warzone.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.warzone.weaponsSkins}
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.modern_combat.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.modern_combat.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.modern_combat.weaponsSkins}
 ${VISUAL_DIRECTIVES}
 
 STYLE:
 Ultra-realistic, high contrast, cinematic, NO TEXT, thumbnail optimized.`,
 
-  valorant: (f) => `Create a highly realistic YouTube thumbnail inspired by Valorant.
+  tactical_shooter: (f) => `Create a highly realistic YouTube thumbnail in a Tactical Hero Shooter game style.
 
-Operator styled as Sage agent, Valorant esports tryhard skin, no helmet. Ultra close-up, face dominant, slightly off-center, aggressive forward-leaning pose.
+Operator styled as a hero-shooter agent with sci-fi outfit, no helmet. Ultra close-up, face dominant, slightly off-center, aggressive forward-leaning pose.
 
 Replace face with provided photo.
 
@@ -105,17 +127,17 @@ EYES: Sharp, cinematic catchlights, focused squint.
 
 HANDS: Visible, holding glowing ability orb.
 
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.valorant.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.valorant.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.valorant.weaponsSkins}
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.tactical_shooter.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.tactical_shooter.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.tactical_shooter.weaponsSkins}
 ${VISUAL_DIRECTIVES}
 
 STYLE:
 Ultra-realistic, strong glow on face, NO TEXT, thumbnail optimized.`,
 
-  cs2: (f) => `Create a highly realistic YouTube thumbnail inspired by Counter-Strike 2.
+  competitive_fps: (f) => `Create a highly realistic YouTube thumbnail in a Competitive Tactical FPS game style.
 
-Pro player operator, T-side or CT-side outfit, focused tactical pose. Ultra close-up, face dominant, intense aiming expression.
+Pro player operator, attacker or defender team outfit, focused tactical pose. Ultra close-up, face dominant, intense aiming expression.
 
 Replace face with provided photo.
 
@@ -129,17 +151,17 @@ EYES: Sharp, intense, narrow focus.
 
 HANDS: Visible, gripping weapon with correct anatomy.
 
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.cs2.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.cs2.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.cs2.weaponsSkins}
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.competitive_fps.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.competitive_fps.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.competitive_fps.weaponsSkins}
 ${VISUAL_DIRECTIVES}
 
 STYLE:
 Ultra-realistic, dark contrast, smoke + muzzle flash, cinematic pro-player look, NO TEXT, thumbnail optimized.`,
 
-  minecraft: (f) => `Create a vibrant cinematic YouTube thumbnail inspired by Minecraft.
+  blocky_sandbox: (f) => `Create a vibrant cinematic YouTube thumbnail in a Blocky Sandbox / pixel-style game.
 
-Player character with exaggerated emotional expression (shock / triumph / fear). Ultra close-up portrait blending realistic facial features with stylized Minecraft world.
+Player character with exaggerated emotional expression (shock / triumph / fear). Ultra close-up portrait blending realistic facial features with stylized blocky world.
 
 Replace face with provided photo.
 
@@ -153,17 +175,17 @@ EYES: Bright, large, dramatic.
 
 HANDS: Visible, holding diamond pickaxe / sword / enchanted item.
 
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.minecraft.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.minecraft.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.minecraft.weaponsSkins}
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.blocky_sandbox.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.blocky_sandbox.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.blocky_sandbox.weaponsSkins}
 ${VISUAL_DIRECTIVES}
 
 STYLE:
 Vibrant colors, exaggerated emotions, shaders, giant mobs, cinematic survival scene, NO TEXT, thumbnail optimized.`,
 
-  gta: (f) => `Create a cinematic YouTube thumbnail inspired by Grand Theft Auto V (GTA RP style).
+  open_world_crime: (f) => `Create a cinematic YouTube thumbnail in an Open-World Crime / heist game style.
 
-Stylish character with dramatic expression (shock, anger, smug). Los Santos atmosphere — neon city, dramatic lighting. Ultra close-up.
+Stylish character with dramatic expression (shock, anger, smug). Neon city atmosphere, dramatic lighting. Ultra close-up.
 
 Replace face with provided photo.
 
@@ -177,15 +199,15 @@ EYES: Sharp, intense, cinematic catchlights.
 
 HANDS: Visible, holding gold pistol / cash / steering wheel.
 
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.gta.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.gta.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.gta.weaponsSkins}
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.open_world_crime.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.open_world_crime.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.open_world_crime.weaponsSkins}
 ${VISUAL_DIRECTIVES}
 
 STYLE:
 Cinematic realism, police lights, money stacks, dramatic expressions, luxury cars, NO TEXT, thumbnail optimized.`,
 
-  lol: (f) => `Create a cinematic YouTube thumbnail inspired by League of Legends (splash-art style).
+  moba: (f) => `Create a cinematic YouTube thumbnail in a MOBA / splash-art-style game.
 
 Champion-styled portrait blending splash-art aesthetic with realistic features. Dramatic expression of focus or victory. Ultra close-up.
 
@@ -201,13 +223,41 @@ EYES: Glowing, intense, magical catchlights.
 
 HANDS: Visible, channeling ability / holding weapon.
 
-BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.lol.background}
-EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.lol.effects}
-WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.lol.weaponsSkins}
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.moba.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.moba.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.moba.weaponsSkins}
 ${VISUAL_DIRECTIVES}
 
 STYLE:
 Cinematic splash-art realism, magical glow, ability particles, dramatic lighting, NO TEXT, thumbnail optimized.`,
+
+  /**
+   * Custom-Mode: User tippt selber Spielname/Genre. Eingabe wird unverändert
+   * in Prompt eingebaut — User trägt markenrechtliche Verantwortung für die
+   * eingegebenen Begriffe (Disclaimer in Legal-Page).
+   */
+  custom: (f) => `Create a highly realistic YouTube thumbnail inspired by ${f.customGameName || 'a video game of your choice'}.
+
+Stylized character/operator from the game in a dramatic close-up pose. Ultra close-up portrait.
+Replace face with provided photo.
+
+FACE & HAIR (STRICT):
+Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same.
+
+FACE DETAILS:
+Identity 100%, realistic skin, intense expression matching the game's mood.
+
+EYES: Sharp, cinematic catchlights.
+
+HANDS: Visible, holding game-appropriate weapon or item.
+
+BACKGROUND: ${f.background || FIELD_PLACEHOLDERS.custom.background}
+EFFECTS: ${f.effects || FIELD_PLACEHOLDERS.custom.effects}
+WEAPONS/SKINS: ${f.weaponsSkins || FIELD_PLACEHOLDERS.custom.weaponsSkins}
+${VISUAL_DIRECTIVES}
+
+STYLE:
+Ultra-realistic, dramatic lighting matching the game, NO TEXT, thumbnail optimized.`,
 };
 
 export function ThumbnailPage() {
@@ -216,8 +266,8 @@ export function ThumbnailPage() {
     pickImageFile, listThumbnails, deleteThumbnail,
   } = useApp();
 
-  const [game, setGame] = useState<Game>('fortnite');
-  const [fields, setFields] = useState<FormFields>({ background: '', effects: '', weaponsSkins: '' });
+  const [genre, setGenre] = useState<Genre>('battle_royale');
+  const [fields, setFields] = useState<FormFields>({ background: '', effects: '', weaponsSkins: '', customGameName: '' });
   const [referencePath, setReferencePath] = useState<string | null>(null);
   const [resultPath, setResultPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -240,7 +290,6 @@ export function ThumbnailPage() {
   };
 
   const fileToBase64 = async (path: string): Promise<{ base64: string; mime: string }> => {
-    // Direkter IPC-Read — keine fetch(media://) mehr, robuster bei Sonderzeichen im Pfad
     const r = await window.api.invoke<{ base64: string; mime: string; size: number }>(
       'file.readAsBase64',
       { path },
@@ -264,7 +313,7 @@ export function ThumbnailPage() {
         refB64 = r.base64;
         refMime = r.mime;
       }
-      const prompt = PROMPTS[game](fields);
+      const prompt = PROMPTS[genre](fields);
       const path = await generateThumbnail(prompt, refB64, refMime);
       if (path) {
         setResultPath(path);
@@ -287,7 +336,7 @@ export function ThumbnailPage() {
 
   const onDownload = async () => {
     if (!resultPath) return;
-    await exportThumbnail(resultPath, `thumbnail-${game}-${Date.now()}.png`);
+    await exportThumbnail(resultPath, `thumbnail-${genre}-${Date.now()}.png`);
   };
 
   if (!hasGeminiKey) {
@@ -307,9 +356,10 @@ export function ThumbnailPage() {
     );
   }
 
+  const isCustom = genre === 'custom';
+
   return (
     <div className="h-full flex flex-col bg-fiano-black">
-      {/* Top Bar */}
       <header className="relative shrink-0">
         <div className="flex items-center justify-between gap-6 px-8 py-4">
           <div>
@@ -324,46 +374,56 @@ export function ThumbnailPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="p-8 max-w-5xl mx-auto pb-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          {/* LEFT: Form — sticky damit's beim Scroll der History rechts sichtbar bleibt */}
           <div className="space-y-5 lg:sticky lg:top-0 lg:self-start">
             <section className="glass p-5 space-y-2">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{t('thumbnail.gameLabel')}</div>
-              {/* Eine Zeile, horizontal scrollbar — alle Spiele aller Kategorien gemerged.
-                  Scroll-Snap für nice UX, fade-mask an den Rändern. */}
+              <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{t('thumbnail.genreLabel')}</div>
               <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory scrollbar-thin">
-                {GAME_CATEGORIES.flatMap((cat) => cat.games).map((g) => (
+                {GENRE_CATEGORIES.flatMap((cat) => cat.genres).map((g) => (
                   <button
                     key={g}
-                    onClick={() => setGame(g)}
+                    onClick={() => setGenre(g)}
                     className={clsx(
-                      'shrink-0 snap-start text-[11px] px-3 py-1.5 rounded-md font-medium transition-all border',
-                      game === g
+                      'shrink-0 snap-start text-[11px] px-3 py-1.5 rounded-md font-medium transition-all border whitespace-nowrap',
+                      genre === g
                         ? 'bg-fiano-red/15 border-fiano-red/45 text-white shadow-[0_0_12px_rgba(255,16,57,0.18)]'
                         : 'bg-white/[0.04] border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]',
                     )}
                   >
-                    {GAME_LABELS[g]}
+                    {t(GENRE_LABEL_KEY[g])}
                   </button>
                 ))}
               </div>
+              {/* Disclaimer für die generischen Genre-Bezeichnungen */}
+              <p className="text-[9px] text-zinc-600 leading-relaxed pt-1">
+                {t('thumbnail.genreDisclaimer')}
+              </p>
             </section>
 
             <section className="glass p-5 space-y-3">
+              {isCustom && (
+                <FormField
+                  label={t('thumbnail.fieldCustomGame')}
+                  placeholder={t('thumbnail.fieldCustomGamePlaceholder')}
+                  value={fields.customGameName}
+                  onChange={(v) => setFields((s) => ({ ...s, customGameName: v }))}
+                  hint={t('thumbnail.fieldCustomGameHint')}
+                />
+              )}
               <FormField
                 label={t('thumbnail.fieldBackground')}
-                placeholder={FIELD_PLACEHOLDERS[game].background}
+                placeholder={FIELD_PLACEHOLDERS[genre].background}
                 value={fields.background}
                 onChange={(v) => setFields((s) => ({ ...s, background: v }))}
               />
               <FormField
                 label={t('thumbnail.fieldEffects')}
-                placeholder={FIELD_PLACEHOLDERS[game].effects}
+                placeholder={FIELD_PLACEHOLDERS[genre].effects}
                 value={fields.effects}
                 onChange={(v) => setFields((s) => ({ ...s, effects: v }))}
               />
               <FormField
                 label={t('thumbnail.fieldWeapons')}
-                placeholder={FIELD_PLACEHOLDERS[game].weaponsSkins}
+                placeholder={FIELD_PLACEHOLDERS[genre].weaponsSkins}
                 value={fields.weaponsSkins}
                 onChange={(v) => setFields((s) => ({ ...s, weaponsSkins: v }))}
               />
@@ -403,7 +463,7 @@ export function ThumbnailPage() {
 
             <button
               onClick={onGenerate}
-              disabled={busy}
+              disabled={busy || (isCustom && !fields.customGameName.trim())}
               className="w-full bg-fiano-red text-white py-3 rounded-xl font-semibold text-[13px]
                          hover:brightness-110 hover:shadow-[0_0_28px_rgba(255,16,57,0.45)]
                          active:scale-[0.99] disabled:opacity-50 transition-all
@@ -432,7 +492,6 @@ export function ThumbnailPage() {
             )}
           </div>
 
-          {/* RIGHT: Result + History */}
           <div className="space-y-4">
             <div className="glass p-4">
               <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500 mb-3">{t('thumbnail.resultLabel')}</div>
@@ -457,7 +516,6 @@ export function ThumbnailPage() {
               )}
             </div>
 
-            {/* HISTORY */}
             <div className="glass p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">{t('thumbnail.historyLabel')} · {history.length}</div>
@@ -518,12 +576,13 @@ export function ThumbnailPage() {
 }
 
 function FormField({
-  label, placeholder, value, onChange,
+  label, placeholder, value, onChange, hint,
 }: {
   label: string;
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
+  hint?: string;
 }) {
   return (
     <div>
@@ -535,6 +594,7 @@ function FormField({
         className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600
                    focus:outline-none focus:bg-white/[0.06] focus:border-fiano-red/40 transition-colors"
       />
+      {hint && <div className="text-[9px] text-zinc-600 mt-1 leading-relaxed">{hint}</div>}
     </div>
   );
 }

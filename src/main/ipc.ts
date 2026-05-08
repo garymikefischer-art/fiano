@@ -921,6 +921,19 @@ const handlers: Record<string, Handler<any, any>> = {
     return { path: r.filePath };
   },
 
+  // GDPR Art. 20 Datenportabilität — User-Daten als JSON-File schreiben.
+  // Renderer sammelt die Daten (Supabase + lokaler appStore) und sendet sie als
+  // JSON-String. Wir machen Save-Dialog + atomic-write.
+  'account.exportData': async (i: { json: string; suggestedName?: string }): Promise<{ path: string } | null> => {
+    const r = await dialog.showSaveDialog({
+      defaultPath: i.suggestedName ?? `fiano-data-export-${new Date().toISOString().slice(0, 10)}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (r.canceled || !r.filePath) return null;
+    await fs.writeFile(r.filePath, i.json, 'utf-8');
+    return { path: r.filePath };
+  },
+
   // ─── Shell / Export ───────────────────────────────────────
   /**
    * Master-Clip + Trim + Format → Save-As-Dialog → finale Datei.
