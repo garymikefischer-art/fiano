@@ -272,8 +272,14 @@ export const useAuth = create<AuthState>((set, get) => ({
         const { data, error } = result as Awaited<typeof restorePromise>;
         if (!error && data.session) {
           set({ user: data.user ?? data.session.user, session: data.session });
-          // fetchSubscription auch nicht blockierend — fire-and-forget
-          get().fetchSubscription().catch((e) => console.warn('[auth] sub fetch:', e));
+          // BLOCKIEREND auf Subscription warten (max 2s) damit AuthGate nicht
+          // prematurely zu /pricing routet während fetch noch läuft. Race-Condition
+          // war: initializing=false → subscription=null → AuthGate sieht "kein Plan"
+          // → /pricing-Flash bevor die Subscription geladen wurde.
+          await Promise.race([
+            get().fetchSubscription().catch((e) => console.warn('[auth] sub fetch:', e)),
+            new Promise<void>((r) => setTimeout(r, 2000)),
+          ]);
         } else {
           console.warn('[auth] session restore failed:', error?.message ?? 'unknown');
           // Session abgelaufen / invalid — clean up

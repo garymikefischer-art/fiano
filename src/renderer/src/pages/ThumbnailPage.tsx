@@ -47,48 +47,38 @@ const GENRE_LABEL_KEY: Record<Genre, string> = {
   custom:           'thumbnail.genre.custom',
 };
 
-/** Field-Placeholders pro Genre — generische Beispiele OHNE Markennamen.
- *  Natural-Light-Fokus: keine "neon glow"/"rim light" Buzz-Words die Gemini
- *  als artifiziellen Halo um die Person interpretiert. */
+/** Field-Placeholders pro Genre — generische Beispiele OHNE Markennamen,
+ *  orientiert am Fortnite-Style-Reference des Users (daylight + depth of
+ *  field im Background, "Strong rim light, [color] glow, volumetric gas,
+ *  cinematic" für Effects). */
 const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
-  battle_royale:    { background: 'Bright daylight desert town, yellow toxic gas clouds spreading through buildings, debris, depth of field', effects: 'volumetric yellow gas, ambient daylight, soft particles, cinematic',     weaponsSkins: 'futuristic rifle with skin' },
-  modern_combat:    { background: 'Bright daylight urban hospital, green smoke grenade clouds, debris, depth of field',                       effects: 'volumetric green smoke, sunlit atmosphere, soft sparks, cinematic',        weaponsSkins: 'tactical assault rifle in hand' },
-  tactical_shooter: { background: 'Bright sci-fi map control point, ability burst, soft particles, depth of field',                           effects: 'teal ambient glow in environment, volumetric light, cinematic',          weaponsSkins: 'glowing ability orb' },
-  competitive_fps:  { background: 'Bright daylight desert site, light smoke, sun-lit environment, depth of field',                            effects: 'volumetric smoke, sunlit dust, cinematic',                                weaponsSkins: 'iconic sniper rifle / pistol' },
-  blocky_sandbox:   { background: 'Vibrant biome at daytime, lush shaders, giant pixel-style boss in background',                             effects: 'blocky particles, vibrant daylight atmosphere, cinematic',                weaponsSkins: 'enchanted sword, glowing pickaxe' },
-  open_world_crime: { background: 'Neon city at dusk, police chase, atmospheric lighting',                                                    effects: 'police lights from environment, atmospheric haze, dramatic, cinematic',   weaponsSkins: 'luxury car, gold pistol' },
-  moba:             { background: 'Splash-art arena baron pit, ability splashes, vibrant atmosphere',                                         effects: 'splash-art ambient glow, particles in environment, cinematic',           weaponsSkins: 'champion ability animation' },
-  custom:           { background: 'Describe the scene or environment',                                                                        effects: 'environmental lighting, particles, atmosphere',                          weaponsSkins: 'objects in hand / weapons' },
+  battle_royale:    { background: 'daylight, desert buildings, stink bomb explosion, yellow gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic', weaponsSkins: 'futuristic rifle with skin' },
+  modern_combat:    { background: 'daylight, war-torn urban hospital, smoke grenade, green gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic green glow, volumetric smoke, cinematic', weaponsSkins: 'tactical assault rifle in hand' },
+  tactical_shooter: { background: 'daylight, sci-fi map control point, ability burst, particles, depth of field',                          effects: 'Strong rim light, teal ability glow, volumetric light, cinematic', weaponsSkins: 'glowing ability orb' },
+  competitive_fps:  { background: 'daylight, desert site, smoke + muzzle flash, debris, depth of field',                                   effects: 'Strong rim light, dark contrast, sparks, dust, cinematic',         weaponsSkins: 'iconic sniper rifle / pistol' },
+  blocky_sandbox:   { background: 'daylight, vibrant biome, lush shaders, giant pixel-style boss, depth of field',                         effects: 'Strong rim light, blocky particles, vibrant colors, cinematic',    weaponsSkins: 'enchanted sword, glowing pickaxe' },
+  open_world_crime: { background: 'neon city at night, police chase, dramatic lighting, depth of field',                                   effects: 'Strong rim light, police lights, money particles, cinematic',      weaponsSkins: 'luxury car, gold pistol' },
+  moba:             { background: 'splash-art arena baron pit, ability splashes, depth of field',                                          effects: 'Strong rim light, splash-art glow, particles, cinematic',          weaponsSkins: 'champion ability animation' },
+  custom:           { background: 'daylight, describe the scene, depth of field',                                                          effects: 'Strong rim light, [color] glow, volumetric gas, cinematic',        weaponsSkins: 'objects in hand / weapons' },
 };
 
 /**
- * Shared closing block: erzwingt natürliche Beleuchtung, kein artifizielles
- * Glow-Halo um die Person, keine künstlichen Augen-Effekte. Wird an JEDES
- * Genre-Prompt angehängt.
- */
-const NATURAL_LIGHT_BLOCK = `LIGHTING:
-Character lit by environmental light only. Ambient atmosphere from the scene tints the skin and hair naturally (e.g. yellow gas → warm yellow tint).
-NO ARTIFICIAL EFFECTS:
-NO rim light, NO halo around the character, NO glow outline, NO glowing eyes, NO cinematic catchlights, NO chromatic aberration, NO red color edge. Character must blend naturally into the scene — no cutout look.
-STYLE:
-Ultra-realistic with cartoon-influenced game style, vibrant atmosphere, bright daylight, soft depth of field. NO TEXT.`;
-
-/**
- * Generische Prompts ohne Markennamen. Format orientiert sich am alten,
- * kompakten Pattern (kurze Sektionen). Inhalt fokussiert auf natürliche
- * Beleuchtung — kein "strong glow" / "rim light" / "catchlights" weil
- * Gemini diese Wörter als künstliches Halo um den Charakter interpretiert.
+ * Generische Prompts ohne Markennamen. Format = User-Reference-Prompt
+ * (kompakt, kurze Sektionen, "strong glow"/"Sharp"/"Visible"-Wording).
+ * User-Eingabefelder (background, effects, weaponsSkins) werden an den
+ * passenden Stellen eingesetzt — Custom-Mode lässt zusätzlich den Spielnamen
+ * vom User eingeben (Markenrechts-Verantwortung beim User, siehe Legal-Page).
  */
 const PROMPTS: Record<Genre, (f: FormFields) => string> = {
   battle_royale: (f) => `Create a highly realistic YouTube thumbnail in a Battle Royale game style.
-Elite operator with esport sweat outfit, cartoon-influenced gear, no helmet. Ultra close-up (Dutch tilt).
+Elite operator (esport sweat), Battle Royale outfit, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture with pores and a hint of sweat.
+Identity 100%, pores, sweat, strong glow.
 EYES:
-Natural, sharp focus, no glowing effects.
+Sharp.
 HANDS:
 Visible.
 BACKGROUND:
@@ -97,17 +87,18 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.battle_royale.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.battle_royale.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Ultra-realistic, NO TEXT.`,
 
   modern_combat: (f) => `Create a highly realistic YouTube thumbnail in a Modern Combat / military shooter game style.
-Elite special forces operator, dark tactical gear, no helmet. Ultra close-up, face dominant, aggressive forward-leaning pose.
+Elite special forces operator, tactical gear, no helmet. Ultra close-up.
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture with pores, slight dirt and sweat, intense expression.
+Identity 100%, pores, sweat, strong glow.
 EYES:
-Natural, sharp focus, no glowing effects.
+Sharp.
 HANDS:
 Visible.
 BACKGROUND:
@@ -116,17 +107,18 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.modern_combat.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.modern_combat.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Ultra-realistic, NO TEXT.`,
 
   tactical_shooter: (f) => `Create a highly realistic YouTube thumbnail in a Tactical Hero Shooter game style.
-Hero-shooter agent with sci-fi outfit, no helmet. Ultra close-up, face dominant, aggressive forward-leaning pose.
+Hero-shooter agent, sci-fi outfit, no helmet. Ultra close-up.
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture with pores and sweat, intense expression.
+Identity 100%, pores, sweat, strong glow.
 EYES:
-Natural, sharp focus, no glowing effects.
+Sharp.
 HANDS:
 Visible.
 BACKGROUND:
@@ -135,17 +127,18 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.tactical_shooter.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.tactical_shooter.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Ultra-realistic, NO TEXT.`,
 
   competitive_fps: (f) => `Create a highly realistic YouTube thumbnail in a Competitive Tactical FPS game style.
-Pro player operator, focused tactical pose. Ultra close-up, face dominant, intense aiming expression.
+Pro player operator, focused tactical pose. Ultra close-up.
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture with pores and sweat, focused stare.
+Identity 100%, pores, sweat, strong glow.
 EYES:
-Natural, sharp focus, no glowing effects.
+Sharp.
 HANDS:
 Visible.
 BACKGROUND:
@@ -154,17 +147,18 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.competitive_fps.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.competitive_fps.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Ultra-realistic, NO TEXT.`,
 
   blocky_sandbox: (f) => `Create a vibrant cinematic YouTube thumbnail in a Blocky Sandbox / pixel-style game.
-Player character with exaggerated emotional expression. Ultra close-up portrait blending realistic facial features with stylized blocky world.
+Player character, exaggerated emotional expression. Ultra close-up.
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture, vibrant daylight on face, exaggerated emotion.
+Identity 100%, vibrant lighting, exaggerated emotion.
 EYES:
-Natural, expressive, no glowing effects.
+Bright, large.
 HANDS:
 Visible.
 BACKGROUND:
@@ -173,17 +167,18 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.blocky_sandbox.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.blocky_sandbox.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Vibrant colors, exaggerated emotions, NO TEXT.`,
 
   open_world_crime: (f) => `Create a cinematic YouTube thumbnail in an Open-World Crime / heist game style.
-Stylish character with dramatic expression. City atmosphere, dramatic lighting. Ultra close-up.
+Stylish character, dramatic expression. Ultra close-up.
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture, dramatic expression.
+Identity 100%, pores, sweat, strong glow.
 EYES:
-Natural, sharp focus, no glowing effects.
+Sharp.
 HANDS:
 Visible.
 BACKGROUND:
@@ -192,17 +187,18 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.open_world_crime.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.open_world_crime.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Cinematic realism, NO TEXT.`,
 
   moba: (f) => `Create a cinematic YouTube thumbnail in a MOBA / splash-art-style game.
-Champion-styled portrait blending splash-art aesthetic with realistic features. Dramatic expression of focus or victory. Ultra close-up.
+Champion-styled portrait blending splash-art aesthetic with realistic features. Ultra close-up.
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture, splash-art-style ambient highlights.
+Identity 100%, splash-art highlights, magical glow.
 EYES:
-Natural, intense focus, no glowing effects.
+Glowing.
 HANDS:
 Visible.
 BACKGROUND:
@@ -211,7 +207,8 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.moba.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.moba.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Cinematic splash-art realism, NO TEXT.`,
 
   /**
    * Custom-Mode: User tippt selber Spielname/Genre. Eingabe wird unverändert
@@ -219,14 +216,14 @@ ${NATURAL_LIGHT_BLOCK}`,
    * eingegebenen Begriffe (Disclaimer in Legal-Page).
    */
   custom: (f) => `Create a highly realistic YouTube thumbnail inspired by ${f.customGameName || 'a video game of your choice'}.
-Stylized character/operator from the game in a dramatic close-up pose.
+Stylized character/operator from the game (esport sweat), no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
 FACE DETAILS:
-Identity 100%, natural skin texture, intense expression matching the game's mood.
+Identity 100%, pores, sweat, strong glow.
 EYES:
-Natural, sharp focus, no glowing effects.
+Sharp.
 HANDS:
 Visible.
 BACKGROUND:
@@ -235,7 +232,8 @@ EFFECTS:
 ${f.effects || FIELD_PLACEHOLDERS.custom.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || FIELD_PLACEHOLDERS.custom.weaponsSkins}
-${NATURAL_LIGHT_BLOCK}`,
+STYLE:
+Ultra-realistic, NO TEXT.`,
 };
 
 export function ThumbnailPage() {
