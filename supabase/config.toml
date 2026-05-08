@@ -1,0 +1,12 @@
+# Supabase project config — pro-function overrides
+# Diese Datei wird beim `supabase functions deploy` automatisch beachtet.
+
+# Stripe-Webhook: Stripe schickt KEINEN Supabase-JWT mit, also dürfen wir den
+# JWT-Check nicht erzwingen — sonst kommt jeder Webhook-Call mit 401 zurück.
+# Sicherheit kommt stattdessen über die Stripe-Signature-Verification im Code.
+[functions.stripe-webhook]
+verify_jwt = false
+
+# stripe-checkout / stripe-portal / delete-account — werden vom Client mit
+# User-JWT aufgerufen, JWT-Verify ist hier erwünscht und Default (true).
+# Keine Override nötig.
