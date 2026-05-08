@@ -79,8 +79,8 @@ const COMIC_STYLE_DEFAULTS = {
   weaponsSkins: 'futuristic rifle with skin',
 };
 const REALISTIC_STYLE_DEFAULTS = {
-  background:   'Verdansk Hospital exterior, daylight, smoke grenade explosion, green gas cloud, scattered debris, gunfire streaks, depth of field.',
-  effects:      'Strong rim light, sunlight + toxic green glow, cool shadows, volumetric gas smoke, particles, high contrast, cinematic.',
+  background:   'Verdansk Dam area, daylight, massive water-side explosion, shockwave, spray mist, debris, smoke pillars, bullet tracers, depth of field.',
+  effects:      'Strong rim light, sunlight + water reflections, cool shadows, volumetric smoke, particles, high contrast, cinematic.',
   weaponsSkins: 'tactical assault rifle in hand',
 };
 
@@ -119,38 +119,32 @@ Ultra-realistic, NO TEXT.`;
 
 /**
  * Realistic-Stil-Prompt: User-Reference EXAKT übernommen (mit Markennamen
- * "Call of Duty: Warzone", "Verdansk Hospital"). Nur Background/Effects/
- * Weapons-Skins werden via User-Input ersetzbar gemacht.
+ * "Call of Duty: Warzone", "Verdansk"). Nur Background + Effects sind via
+ * User-Input ersetzbar; WEAPONS/SKINS wird nur angehängt wenn User das Feld
+ * füllt (Reference-Prompt hat keine Weapons-Section).
  */
-const REALISTIC_STYLE_PROMPT = (f: FormFields) => `Create a highly realistic YouTube thumbnail inspired by Call of Duty: Warzone (Verdansk).
-
-Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (side angle profile shot), face dominant, slightly off-center, aggressive forward-leaning pose.
-
+const REALISTIC_STYLE_PROMPT = (f: FormFields) => {
+  const weaponsBlock = f.weaponsSkins.trim()
+    ? `\nWEAPONS/SKINS:\n${f.weaponsSkins}\n`
+    : '';
+  return `Create a highly realistic YouTube thumbnail inspired by Call of Duty: Warzone (Verdansk).
+Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (cinematic action tilt, slight zoom-in), face dominant, slightly off-center, aggressive forward-leaning pose.
 Replace face with provided photo.
-
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same, no changes, realistic relighting only.
-
 FACE DETAILS:
 Identity 100%, natural skin texture, pores, slight dirt + sweat, intense expression, slightly open mouth or clenched teeth.
-
 EYES:
 Sharp, strong contrast, cinematic catchlights, focused squint.
-
 HANDS:
 Visible, correct anatomy, natural, slight motion blur.
-
 BACKGROUND:
 ${f.background || REALISTIC_STYLE_DEFAULTS.background}
-
 EFFECTS:
 ${f.effects || REALISTIC_STYLE_DEFAULTS.effects}
-
-WEAPONS/SKINS:
-${f.weaponsSkins || REALISTIC_STYLE_DEFAULTS.weaponsSkins}
-
-STYLE:
-Ultra-realistic, high contrast, NO TEXT.`;
+${weaponsBlock}STYLE:
+Ultra-realistic, no text`;
+};
 
 const PROMPTS: Record<Genre, (f: FormFields) => string> = {
   battle_royale: (f) => `Create a highly realistic YouTube thumbnail in a Battle Royale game style.
