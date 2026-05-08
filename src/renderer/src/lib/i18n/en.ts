@@ -902,4 +902,9 @@ export const en: Record<string, string> = {
   'settings.account.dataExportButton': 'Export as JSON',
   'settings.account.dataExporting':    'Exporting…',
   'settings.account.dataExportSaved':  'Saved',
+
+  // Thumbnail style presets (Phase 6.4 follow-up)
+  'thumbnail.genreCatStyle':           'Style',
+  'thumbnail.genre.comic_style':       'Comic Style',
+  'thumbnail.genre.realistic_style':   'Realistic Style',
 };

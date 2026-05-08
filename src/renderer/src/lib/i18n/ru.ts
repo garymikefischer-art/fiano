@@ -870,4 +870,9 @@ export const ru: Record<string, string> = {
   'settings.account.dataExportButton': 'Экспорт в JSON',
   'settings.account.dataExporting':    'Экспорт…',
   'settings.account.dataExportSaved':  'Сохранено',
+
+  // Thumbnail style presets (Phase 6.4 follow-up)
+  'thumbnail.genreCatStyle':           'Стиль',
+  'thumbnail.genre.comic_style':       'Комикс-стиль',
+  'thumbnail.genre.realistic_style':   'Реалистичный стиль',
 };

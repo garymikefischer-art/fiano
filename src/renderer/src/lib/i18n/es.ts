@@ -869,4 +869,9 @@ export const es: Record<string, string> = {
   'settings.account.dataExportButton': 'Exportar como JSON',
   'settings.account.dataExporting':    'Exportando…',
   'settings.account.dataExportSaved':  'Guardado',
+
+  // Thumbnail style presets (Phase 6.4 follow-up)
+  'thumbnail.genreCatStyle':           'Estilo',
+  'thumbnail.genre.comic_style':       'Estilo Comic',
+  'thumbnail.genre.realistic_style':   'Estilo Realista',
 };

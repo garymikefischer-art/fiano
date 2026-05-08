@@ -12,14 +12,16 @@ import { useT } from '../lib/i18n';
  * selbst die markenrechtliche Verantwortung für die Eingabe.
  */
 type Genre =
+  | 'custom'
+  | 'comic_style'
+  | 'realistic_style'
   | 'battle_royale'
   | 'modern_combat'
   | 'tactical_shooter'
   | 'competitive_fps'
   | 'blocky_sandbox'
   | 'open_world_crime'
-  | 'moba'
-  | 'custom';
+  | 'moba';
 
 interface FormFields {
   background: string;
@@ -30,13 +32,18 @@ interface FormFields {
 }
 
 const GENRE_CATEGORIES: Array<{ labelKey: string; genres: Genre[] }> = [
-  // Custom-Game zuerst — User-Input-Modus für eigene Spiele/Genres.
-  { labelKey: 'thumbnail.genreCatShooter', genres: ['custom', 'battle_royale', 'modern_combat', 'tactical_shooter', 'competitive_fps'] },
+  // Style-Kategorie zuerst — die zwei "Mega-Presets" (Comic + Realistic) plus
+  // Custom-Mode sind die häufigsten Wahlen.
+  { labelKey: 'thumbnail.genreCatStyle',   genres: ['custom', 'comic_style', 'realistic_style'] },
+  { labelKey: 'thumbnail.genreCatShooter', genres: ['battle_royale', 'modern_combat', 'tactical_shooter', 'competitive_fps'] },
   { labelKey: 'thumbnail.genreCatOther',   genres: ['blocky_sandbox', 'open_world_crime', 'moba'] },
 ];
 
 /** Genre-Label kommt aus i18n — siehe i18n-Files: thumbnail.genre.<id> */
 const GENRE_LABEL_KEY: Record<Genre, string> = {
+  custom:           'thumbnail.genre.custom',
+  comic_style:      'thumbnail.genre.comic_style',
+  realistic_style:  'thumbnail.genre.realistic_style',
   battle_royale:    'thumbnail.genre.battle_royale',
   modern_combat:    'thumbnail.genre.modern_combat',
   tactical_shooter: 'thumbnail.genre.tactical_shooter',
@@ -44,7 +51,6 @@ const GENRE_LABEL_KEY: Record<Genre, string> = {
   blocky_sandbox:   'thumbnail.genre.blocky_sandbox',
   open_world_crime: 'thumbnail.genre.open_world_crime',
   moba:             'thumbnail.genre.moba',
-  custom:           'thumbnail.genre.custom',
 };
 
 /** Field-Placeholders pro Genre — generische Beispiele OHNE Markennamen,
@@ -52,6 +58,9 @@ const GENRE_LABEL_KEY: Record<Genre, string> = {
  *  field im Background, "Strong rim light, [color] glow, volumetric gas,
  *  cinematic" für Effects). */
 const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
+  custom:           { background: 'daylight, describe the scene, depth of field',                                                          effects: 'Strong rim light, [color] glow, volumetric gas, cinematic',        weaponsSkins: 'objects in hand / weapons' },
+  comic_style:      { background: 'daylight, desert buildings, stink bomb explosion, yellow gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic',   weaponsSkins: 'futuristic rifle with skin' },
+  realistic_style:  { background: 'war-torn urban hospital exterior, daylight, smoke grenade explosion, green gas cloud, scattered debris, gunfire streaks, depth of field', effects: 'Strong rim light, sunlight + toxic green glow, cool shadows, volumetric gas smoke, particles, high contrast, cinematic', weaponsSkins: 'tactical assault rifle in hand' },
   battle_royale:    { background: 'daylight, desert buildings, stink bomb explosion, yellow gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic', weaponsSkins: 'futuristic rifle with skin' },
   modern_combat:    { background: 'daylight, war-torn urban hospital, smoke grenade, green gas clouds spreading, debris, depth of field', effects: 'Strong rim light, toxic green glow, volumetric smoke, cinematic', weaponsSkins: 'tactical assault rifle in hand' },
   tactical_shooter: { background: 'daylight, sci-fi map control point, ability burst, particles, depth of field',                          effects: 'Strong rim light, teal ability glow, volumetric light, cinematic', weaponsSkins: 'glowing ability orb' },
@@ -59,7 +68,6 @@ const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
   blocky_sandbox:   { background: 'daylight, vibrant biome, lush shaders, giant pixel-style boss, depth of field',                         effects: 'Strong rim light, blocky particles, vibrant colors, cinematic',    weaponsSkins: 'enchanted sword, glowing pickaxe' },
   open_world_crime: { background: 'neon city at night, police chase, dramatic lighting, depth of field',                                   effects: 'Strong rim light, police lights, money particles, cinematic',      weaponsSkins: 'luxury car, gold pistol' },
   moba:             { background: 'splash-art arena baron pit, ability splashes, depth of field',                                          effects: 'Strong rim light, splash-art glow, particles, cinematic',          weaponsSkins: 'champion ability animation' },
-  custom:           { background: 'daylight, describe the scene, depth of field',                                                          effects: 'Strong rim light, [color] glow, volumetric gas, cinematic',        weaponsSkins: 'objects in hand / weapons' },
 };
 
 /**
@@ -70,6 +78,66 @@ const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName'>> = {
  * vom User eingeben (Markenrechts-Verantwortung beim User, siehe Legal-Page).
  */
 const PROMPTS: Record<Genre, (f: FormFields) => string> = {
+  /**
+   * Comic-Stil — cartoon-influenced battle-royale-style preset. Markenneutralisiert
+   * (kein "Fortnite", kein "Painted Palms", kein "Siren skin") — Wording aber
+   * 1:1 am User-Reference-Prompt orientiert.
+   */
+  comic_style: (f) => `Create a highly realistic YouTube thumbnail in a comic / cartoon-influenced game style.
+Elite operator (esport sweat), comic-style outfit, no helmet. Ultra close-up (Dutch tilt).
+Replace face with provided photo.
+FACE & HAIR (STRICT):
+Perfect alignment, head slightly larger (10–15%).
+FACE DETAILS:
+Identity 100%, pores, sweat, strong glow.
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.comic_style.background}
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.comic_style.effects}
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.comic_style.weaponsSkins}
+STYLE:
+Ultra-realistic, NO TEXT.`,
+
+  /**
+   * Realistic-Stil — military-shooter cinematic preset. Markenneutralisiert
+   * (kein "Call of Duty: Warzone", kein "Verdansk Hospital") — Wording 1:1
+   * am User-Reference-Prompt orientiert.
+   */
+  realistic_style: (f) => `Create a highly realistic YouTube thumbnail in a realistic military-shooter game style.
+
+Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (side angle profile shot), face dominant, slightly off-center, aggressive forward-leaning pose.
+
+Replace face with provided photo.
+
+FACE & HAIR (STRICT):
+Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same, no changes, realistic relighting only.
+
+FACE DETAILS:
+Identity 100%, natural skin texture, pores, slight dirt + sweat, intense expression, slightly open mouth or clenched teeth.
+
+EYES:
+Sharp, strong contrast, cinematic catchlights, focused squint.
+
+HANDS:
+Visible, correct anatomy, natural, slight motion blur.
+
+BACKGROUND:
+${f.background || FIELD_PLACEHOLDERS.realistic_style.background}
+
+EFFECTS:
+${f.effects || FIELD_PLACEHOLDERS.realistic_style.effects}
+
+WEAPONS/SKINS:
+${f.weaponsSkins || FIELD_PLACEHOLDERS.realistic_style.weaponsSkins}
+
+STYLE:
+Ultra-realistic, high contrast, NO TEXT.`,
+
   battle_royale: (f) => `Create a highly realistic YouTube thumbnail in a Battle Royale game style.
 Elite operator (esport sweat), Battle Royale outfit, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
