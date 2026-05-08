@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import { resolveBin } from './bin';
+import { broadcast } from './events';
 import type { JobContext } from './pipeline/types';
 import type {
   ClipEffects,
@@ -64,6 +65,18 @@ interface FfmpegOpts {
 }
 
 /**
+ * Module-level flag für shell-export Progress-Broadcasting.
+ * shell.exportClip / shell.buildVideo wrappen ihren Call mit setShellBroadcastStep('export'/'build')
+ * → alle internen FFmpeg-Spawns broadcasten dann progress an die StatusBar via
+ * `job.progress`-Event mit projectId='shell'. Job-Queue concurrency=1 → keine
+ * parallel-shell-exports → kein Race.
+ */
+let activeShellBroadcastStep: string | null = null;
+export function setShellBroadcastStep(step: string | null): void {
+  activeShellBroadcastStep = step;
+}
+
+/**
  * FFmpeg ausführen, optional Progress an UI emitten.
  * stderr-Ringbuffer wird bei Fehler an die Error-Message gehängt.
  */
@@ -86,13 +99,18 @@ export function runFfmpeg(args: string[], opts: FfmpegOpts = {}): Promise<void> 
         parsedDuration = +dur[1] * 3600 + +dur[2] * 60 + +dur[3] + +dur[4] / 100;
       }
       const t = chunk.match(/time=(\d+):(\d+):(\d+)\.(\d+)/);
-      if (t && parsedDuration && opts.step && opts.ctx) {
+      if (t && parsedDuration) {
         const cur = +t[1] * 3600 + +t[2] * 60 + +t[3] + +t[4] / 100;
-        opts.ctx.emit({
-          type: 'progress',
-          step: opts.step,
-          percent: Math.min(99, (cur / parsedDuration) * 100),
-        });
+        const stagePct = Math.min(99, (cur / parsedDuration) * 100);
+        if (opts.step && opts.ctx) {
+          opts.ctx.emit({ type: 'progress', step: opts.step, percent: stagePct });
+        }
+        // Shell-Export: progress an global broadcast (StatusBar). Multi-Stage-
+        // Builds (concat → music → subs) hüpfen zwischen Stages — User sieht
+        // dass etwas läuft, exakte Stage steht im Step-Namen.
+        if (activeShellBroadcastStep) {
+          broadcast({ type: 'job.progress', projectId: 'shell', step: activeShellBroadcastStep, percent: stagePct });
+        }
       }
     });
 

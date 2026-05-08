@@ -879,4 +879,6 @@ export const pl: Record<string, string> = {
   'thumbnail.customStyle.presetHint': 'Wstępnie ustawiony styl z referencyjnym promptem. Pola poniżej nadpisują wartości domyślne. Odpowiadasz za użycie znaków towarowych.',
   'thumbnail.fieldCustomGamePlaceholderComic':     'puste = Fortnite (domyślnie), lub np. Apex Legends, Roblox …',
   'thumbnail.fieldCustomGamePlaceholderRealistic': 'puste = Call of Duty: Warzone (domyślnie), lub np. PUBG, Battlefield …',
+  'status.exporting':           'Eksport 9:16',
+  'status.building':            'Tworzenie wideo',
 };

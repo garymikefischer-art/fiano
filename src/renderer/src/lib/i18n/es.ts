@@ -879,4 +879,6 @@ export const es: Record<string, string> = {
   'thumbnail.customStyle.presetHint': 'Estilo predefinido con prompt de referencia. Los campos siguientes sobrescriben los valores por defecto. Tú asumes la responsabilidad por el uso de marcas.',
   'thumbnail.fieldCustomGamePlaceholderComic':     'vacío = Fortnite (default), o p.ej. Apex Legends, Roblox …',
   'thumbnail.fieldCustomGamePlaceholderRealistic': 'vacío = Call of Duty: Warzone (default), o p.ej. PUBG, Battlefield …',
+  'status.exporting':           'Exportando 9:16',
+  'status.building':            'Creando vídeo',
 };

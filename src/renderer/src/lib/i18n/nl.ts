@@ -879,4 +879,6 @@ export const nl: Record<string, string> = {
   'thumbnail.customStyle.presetHint': 'Voorinstelling met referentie-prompt. De velden hieronder overschrijven de standaardwaarden. Je draagt de verantwoordelijkheid voor handelsmerk-gebruik.',
   'thumbnail.fieldCustomGamePlaceholderComic':     'leeg = Fortnite (default), of bijv. Apex Legends, Roblox …',
   'thumbnail.fieldCustomGamePlaceholderRealistic': 'leeg = Call of Duty: Warzone (default), of bijv. PUBG, Battlefield …',
+  'status.exporting':           'Exporteren 9:16',
+  'status.building':            'Video bouwen',
 };

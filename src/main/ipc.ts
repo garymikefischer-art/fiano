@@ -32,7 +32,8 @@ import {
   setGeminiApiKey, getGeminiApiKey, hasGeminiApiKey, deleteGeminiApiKey,
 } from './core/settings';
 import { checkBinaries, clearBinaryCache, getFfmpegDiagnostics, setFfmpegOverride } from './core/bin';
-import { exportClipAs, buildVideo, hasSubtitlesFilter, getSubtitleSupport, renderEditorTimeline, extractFrameJpeg, runVidstabDetect, hasVidstabFilter, setQualityMode, type BuilderClip, type EditorClipSpec, type EditorRenderOptions, type QualityMode } from './core/ffmpeg';
+import { exportClipAs, buildVideo, hasSubtitlesFilter, getSubtitleSupport, renderEditorTimeline, extractFrameJpeg, runVidstabDetect, hasVidstabFilter, setQualityMode, setShellBroadcastStep, type BuilderClip, type EditorClipSpec, type EditorRenderOptions, type QualityMode } from './core/ffmpeg';
+import { broadcast } from './core/events';
 import { transcodeForPreview } from './core/transcode';
 import { generateClipSrt } from './core/pipeline/subtitles';
 import type {
@@ -1029,18 +1030,26 @@ const handlers: Record<string, Handler<any, any>> = {
         }
       }
 
-      await exportClipAs(i.format, i.masterPath, tmp, i.segments, {
-        layout: i.layout,
-        facecam: i.facecam,
-        splitRatio: i.splitRatio,
-        music: i.music,
-        subtitles: subsForExport,
-      });
-      await fs.rename(tmp, r.filePath).catch(async () => {
-        await fs.copyFile(tmp, r.filePath);
-        await fs.rm(tmp, { force: true });
-      });
-      return { canceled: false, savedTo: r.filePath };
+      // Phase 8.x: shell-export Progress an StatusBar
+      setShellBroadcastStep('shell-export');
+      broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-export', percent: 0 });
+      try {
+        await exportClipAs(i.format, i.masterPath, tmp, i.segments, {
+          layout: i.layout,
+          facecam: i.facecam,
+          splitRatio: i.splitRatio,
+          music: i.music,
+          subtitles: subsForExport,
+        });
+        await fs.rename(tmp, r.filePath).catch(async () => {
+          await fs.copyFile(tmp, r.filePath);
+          await fs.rm(tmp, { force: true });
+        });
+        broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-export', percent: 100 });
+        return { canceled: false, savedTo: r.filePath };
+      } finally {
+        setShellBroadcastStep(null);
+      }
     } catch (err: any) {
       await fs.rm(tmp, { force: true }).catch(() => {});
       throw err;
@@ -1173,19 +1182,27 @@ const handlers: Record<string, Handler<any, any>> = {
         }
       }
 
-      await buildVideo(i.clips, r.filePath, {
-        format: i.format,
-        layout: i.layout,
-        facecam: i.facecam,
-        gameplay: i.gameplay,
-        splitRatio: i.splitRatio,
-        effects: i.effects,
-        intro: i.intro,
-        music: i.music,
-        exportQuality: i.exportQuality,
-        subtitlesPerClip: subsForBuild,
-      }, tmpDir);
-      return { canceled: false, savedTo: r.filePath };
+      // Phase 8.x: shell-build Progress an StatusBar
+      setShellBroadcastStep('shell-build');
+      broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-build', percent: 0 });
+      try {
+        await buildVideo(i.clips, r.filePath, {
+          format: i.format,
+          layout: i.layout,
+          facecam: i.facecam,
+          gameplay: i.gameplay,
+          splitRatio: i.splitRatio,
+          effects: i.effects,
+          intro: i.intro,
+          music: i.music,
+          exportQuality: i.exportQuality,
+          subtitlesPerClip: subsForBuild,
+        }, tmpDir);
+        broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-build', percent: 100 });
+        return { canceled: false, savedTo: r.filePath };
+      } finally {
+        setShellBroadcastStep(null);
+      }
     } finally {
       // SRTs aufräumen — buildTmp wird sowieso geräumt aber sicherheitshalber
       for (const p of generatedSrtPaths) {

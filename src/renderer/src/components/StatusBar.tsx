@@ -19,11 +19,13 @@ export function StatusBar() {
   }, []);
 
   const stepLabel: Record<string, string> = {
-    starting:    t('status.starting'),
-    download:    t('status.downloading'),
-    transcribe:  t('status.transcribing'),
-    highlights:  t('status.analyzingHighlights'),
-    render:      t('status.renderingClips'),
+    starting:        t('status.starting'),
+    download:        t('status.downloading'),
+    transcribe:      t('status.transcribing'),
+    highlights:      t('status.analyzingHighlights'),
+    render:          t('status.renderingClips'),
+    'shell-export':  t('status.exporting'),
+    'shell-build':   t('status.building'),
   };
 
   if (!job) {

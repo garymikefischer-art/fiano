@@ -687,38 +687,51 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   exportClip: async (masterPath, suggestedName, format, segments, options) => {
-    const r = await call<{ canceled: boolean; savedTo?: string }>('shell.exportClip', {
-      masterPath,
-      suggestedName,
-      format,
-      segments,
-      layout: options?.layout,
-      facecam: options?.facecam,
-      splitRatio: options?.splitRatio,
-      music: options?.music,
-      subtitles: options?.subtitles,
-    });
-    return r?.savedTo ?? null;
+    // Initiales currentJob setzen damit StatusBar SOFORT auftaucht (auch
+    // während Save-Dialog offen ist). Wird beim ersten progress-event vom
+    // main process überschrieben + bei Erfolg/Fehler in finally gecleared.
+    set({ currentJob: { projectId: 'shell', step: 'shell-export', percent: 0 } });
+    try {
+      const r = await call<{ canceled: boolean; savedTo?: string }>('shell.exportClip', {
+        masterPath,
+        suggestedName,
+        format,
+        segments,
+        layout: options?.layout,
+        facecam: options?.facecam,
+        splitRatio: options?.splitRatio,
+        music: options?.music,
+        subtitles: options?.subtitles,
+      });
+      return r?.savedTo ?? null;
+    } finally {
+      set({ currentJob: null });
+    }
   },
 
   buildVideo: async (projectId, suggestedName, clips, options) => {
-    const r = await call<{ canceled: boolean; savedTo?: string }>('shell.buildVideo', {
-      projectId,
-      suggestedName,
-      clips,
-      format: options.format,
-      layout: options.layout,
-      facecam: options.facecam,
-      gameplay: options.gameplay,
-      splitRatio: options.splitRatio,
-      effects: options.effects,
-      intro: options.intro,
-      music: options.music,
-      exportQuality: options.exportQuality,
-      qualityMode: options.qualityMode,
-      subtitlesPerClip: options.subtitlesPerClip,
-    });
-    return r?.savedTo ?? null;
+    set({ currentJob: { projectId: 'shell', step: 'shell-build', percent: 0 } });
+    try {
+      const r = await call<{ canceled: boolean; savedTo?: string }>('shell.buildVideo', {
+        projectId,
+        suggestedName,
+        clips,
+        format: options.format,
+        layout: options.layout,
+        facecam: options.facecam,
+        gameplay: options.gameplay,
+        splitRatio: options.splitRatio,
+        effects: options.effects,
+        intro: options.intro,
+        music: options.music,
+        exportQuality: options.exportQuality,
+        qualityMode: options.qualityMode,
+        subtitlesPerClip: options.subtitlesPerClip,
+      });
+      return r?.savedTo ?? null;
+    } finally {
+      set({ currentJob: null });
+    }
   },
 }));
 
