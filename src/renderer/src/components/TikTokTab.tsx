@@ -21,6 +21,8 @@ import { mediaUrl } from '../lib/mediaUrl';
 import { useRightRail } from './RightRailContext';
 import type { ClipSegment } from '@shared/types';
 import { useT } from '../lib/i18n';
+import { useFeature } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 
 function defaultFontSize(style: SubtitleStyle): number {
   switch (style) {
@@ -1549,6 +1551,9 @@ function getPresetDefaults(style: SubtitleStyle): Partial<SubtitleValues> {
 
 function SubtitleControls({ values: v, write }: SubtitleControlsProps) {
   const t = useT();
+  const layeredFeature = useFeature('subtitle_layered_style');
+  const presetsFeature = useFeature('custom_subtitle_presets');
+  const openUpgrade = useUpgradeModal((s) => s.open);
   const p = {
     ...v,
     onToggle:         (val: boolean) => write({ enabled: val }),
@@ -1614,12 +1619,19 @@ function SubtitleControls({ values: v, write }: SubtitleControlsProps) {
           <Section title={t('tiktok.subtitleStyle')}>
             <select
               value={p.style}
-              onChange={(e) => p.onStyle(e.target.value as SubtitleStyle)}
+              onChange={(e) => {
+                const next = e.target.value as SubtitleStyle;
+                if (next === 'layered' && !layeredFeature.unlocked) {
+                  openUpgrade('subtitle_layered_style');
+                  return;
+                }
+                p.onStyle(next);
+              }}
               className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2
                          text-[12px] font-medium text-zinc-200 focus:outline-none focus:border-fiano-red/40 transition"
             >
               <option value="fiano">fiano Bold</option>
-              <option value="layered">Layered</option>
+              <option value="layered">{layeredFeature.unlocked ? 'Layered' : 'Layered 🔒'}</option>
               <option value="bold">Bold</option>
               <option value="gaming">Gaming</option>
               <option value="default">Default</option>
@@ -1661,14 +1673,30 @@ function SubtitleControls({ values: v, write }: SubtitleControlsProps) {
 
           <Section title={t('tiktok.preset')}>
             <div className="grid grid-cols-5 gap-1.5">
-              {(['default', 'bold', 'gaming', 'fiano', 'layered'] as SubtitleStyle[]).map((s) => (
-                <PresetButton key={s} active={p.style === s} preset={s} onClick={() => p.onStyle(s)} />
-              ))}
+              {(['default', 'bold', 'gaming', 'fiano', 'layered'] as SubtitleStyle[]).map((s) => {
+                const isLocked = s === 'layered' && !layeredFeature.unlocked;
+                return (
+                  <PresetButton
+                    key={s}
+                    active={p.style === s}
+                    preset={s}
+                    locked={isLocked}
+                    onClick={() => {
+                      if (isLocked) { openUpgrade('subtitle_layered_style'); return; }
+                      p.onStyle(s);
+                    }}
+                  />
+                );
+              })}
             </div>
           </Section>
 
           {/* Custom-Presets — User kann eigene Settings speichern + laden + löschen */}
-          <CustomPresetsSection currentValues={v} write={write} />
+          {presetsFeature.unlocked ? (
+            <CustomPresetsSection currentValues={v} write={write} />
+          ) : (
+            <LockedCustomPresets onUpgrade={() => openUpgrade('custom_subtitle_presets')} />
+          )}
 
           <Section title={t('tiktok.wordHighlight')}>
             <WordHighlightEditor words={p.highlightWords} onChange={p.onHighlightWords} />
@@ -2231,12 +2259,38 @@ function SliderRow({
 /**
  * Aa-Preset-Picker-Button: zeigt visuelle Vorschau jedes Style-Presets.
  */
+/** Locked-Variante der Custom-Presets-Sektion — Click triggert UpgradeModal. */
+function LockedCustomPresets({ onUpgrade }: { onUpgrade: () => void }) {
+  return (
+    <Section title="My Presets">
+      <button
+        onClick={onUpgrade}
+        className="w-full text-left bg-white/[0.02] border border-white/[0.06] hover:border-fiano-red/40 hover:bg-fiano-red/[0.04]
+                   rounded-lg p-3 flex items-center gap-3 transition group"
+      >
+        <span className="shrink-0 w-9 h-9 rounded-lg bg-fiano-red/15 border border-fiano-red/30 flex items-center justify-center
+                         shadow-[0_0_12px_rgba(255,16,57,0.18)] group-hover:scale-105 transition-transform">
+          <svg viewBox="0 0 24 24" className="w-4 h-4 text-fiano-red" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-semibold text-zinc-200">Save your own presets</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">Pro feature — click to upgrade</div>
+        </div>
+      </button>
+    </Section>
+  );
+}
+
 function PresetButton({
-  preset, active, onClick,
+  preset, active, onClick, locked,
 }: {
   preset: SubtitleStyle;
   active: boolean;
   onClick: () => void;
+  locked?: boolean;
 }) {
   const presetStyle: Record<SubtitleStyle, React.CSSProperties> = {
     default: { fontFamily: 'sans-serif',          fontWeight: 400, color: '#fff', textShadow: '0 0 2px #000, 1px 1px 1px #000' },
@@ -2250,13 +2304,26 @@ function PresetButton({
     <button
       onClick={onClick}
       className={clsx(
-        'aspect-square flex flex-col items-center justify-center rounded-lg transition-all px-1',
+        'relative aspect-square flex flex-col items-center justify-center rounded-lg transition-all px-1',
         active
           ? 'bg-fiano-red/15 border border-fiano-red/40 shadow-[0_0_12px_rgba(255,16,57,0.2)]'
-          : 'bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.12]',
+          : locked
+            ? 'bg-white/[0.02] border border-white/[0.04] opacity-55 hover:opacity-75'
+            : 'bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.12]',
       )}
-      title={preset}
+      title={locked ? `${preset} (Pro)` : preset}
     >
+      {locked && (
+        <span
+          className="absolute top-1 right-1 z-10 flex items-center justify-center w-4 h-4 rounded-full bg-fiano-red/85 shadow-[0_0_8px_rgba(255,16,57,0.5)]"
+          aria-label="Locked"
+        >
+          <svg viewBox="0 0 24 24" className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+        </span>
+      )}
       {preset === 'layered' ? (
         // Mini-Layered-Preview: Big-Wort hinten (rot, gradient, größer), Small-Wort vorne (weiß, kleiner, überlappend)
         <span className="relative flex items-center justify-center w-full h-full" style={{ fontFamily: '"Arial Black", sans' }}>

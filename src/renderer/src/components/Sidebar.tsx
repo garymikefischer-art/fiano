@@ -6,6 +6,8 @@ import { WindowControls } from './WindowControls';
 import { useApp } from '../stores/appStore';
 import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
+import { useFeature, type FeatureId } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 
 /* ─── Sidebar ─────────────────────────────────────────────────── */
 
@@ -143,6 +145,7 @@ export function Sidebar() {
             isActive={({ pathname }) => pathname.startsWith('/project/') && ctx.tab === 'editor'}
           />
           <Item to="/thumbnail" icon={<IconThumbnail />} label={t('sidebar.thumbnails')} badge={t('common.new')}
+                featureId="thumbnail_generator"
                 isActive={({ pathname }) => pathname === '/thumbnail'} />
         </Section>
 
@@ -334,9 +337,11 @@ interface ItemProps {
   isActive?: (ctx: { pathname: string; tab: string | null; search: string }) => boolean;
   /** Optional: custom click-handler (z.B. Edit-Standalone-Flow) */
   onClick?: (e: React.MouseEvent) => void;
+  /** Optional: Plan-Gate. Bei locked → Click öffnet UpgradeModal, Schloss-Badge wird angezeigt. */
+  featureId?: FeatureId;
 }
 
-function Item({ to, icon, label, badge, disabledHint, isActive, onClick }: ItemProps) {
+function Item({ to, icon, label, badge, disabledHint, isActive, onClick, featureId }: ItemProps) {
   const location = useLocation();
   const tab = new URLSearchParams(location.search).get('tab');
   const active = isActive
@@ -345,16 +350,31 @@ function Item({ to, icon, label, badge, disabledHint, isActive, onClick }: ItemP
 
   const isHinted = !!disabledHint;
 
+  // Feature-Gate (bei featureId gesetzt). Locked → onClick wird durch
+  // openUpgrade ersetzt, NavLink-Navigation wird unterdrückt.
+  // Hooks unconditionally, sonst ESLint react-hooks/rules-of-hooks.
+  const featureRes = useFeature(featureId ?? 'auto_highlights');
+  const openUpgrade = useUpgradeModal((s) => s.open);
+  const isLocked = featureId ? !featureRes.unlocked : false;
+
+  const effectiveOnClick = isLocked
+    ? (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openUpgrade(featureId!);
+      }
+    : onClick;
+
   return (
     <NavLink
       to={to}
-      onClick={onClick}
+      onClick={effectiveOnClick}
       title={disabledHint}
       className={clsx(
         'group relative flex items-center gap-3 px-3 py-2 rounded-lg text-[12px] font-medium transition-all duration-200',
         active
           ? 'bg-white/[0.07] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-          : isHinted
+          : isHinted || isLocked
             ? 'text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300'
             : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white',
       )}
@@ -366,14 +386,24 @@ function Item({ to, icon, label, badge, disabledHint, isActive, onClick }: ItemP
         )}
         aria-hidden
       />
-      <span className="w-4 h-4 flex items-center justify-center text-current">{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
-      {badge && (
+      <span className={clsx('w-4 h-4 flex items-center justify-center text-current', isLocked && 'opacity-60')}>{icon}</span>
+      <span className={clsx('flex-1 truncate', isLocked && 'opacity-70')}>{label}</span>
+      {isLocked ? (
+        <span
+          className="flex items-center justify-center w-4 h-4 rounded-full bg-fiano-red/15 border border-fiano-red/40 text-fiano-red"
+          aria-label="Locked feature"
+        >
+          <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+        </span>
+      ) : badge ? (
         <span className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 rounded
                          bg-fiano-red/15 text-fiano-red border border-fiano-red/30">
           {badge}
         </span>
-      )}
+      ) : null}
     </NavLink>
   );
 }

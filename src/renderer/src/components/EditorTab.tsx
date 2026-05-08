@@ -10,6 +10,9 @@ import { renderTextClipToPng } from '../lib/textClipCanvas';
 import { LutVideoOverlay } from './LutVideoOverlay';
 import { useApp } from '../stores/appStore';
 import { useT } from '../lib/i18n';
+import { useFeature } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
+import { LockBadge } from './FeatureLock';
 
 /* ════════════════════════════════════════════════════════════════
    EDITOR TAB — Multi-track timeline editor.
@@ -605,6 +608,8 @@ function fmtTime(sec: number): string {
 
 export function EditorTab({ project }: { project: Project }) {
   const [exporting, setExporting] = useState(false);
+  const lutFeature = useFeature('lut_filters');
+  const openUpgrade = useUpgradeModal((s) => s.open);
 
   // Initial Tracks — drei Spuren: Video, Overlay, Audio
   const [tracks, setTracks] = useState<Track[]>([
@@ -1450,6 +1455,11 @@ export function EditorTab({ project }: { project: Project }) {
           onOpenTts={() => setShowTtsModal(true)}
           onOpenTextDialog={() => setShowTextDialog(true)}
           onUploadLut={async () => {
+            // Plan-Gate: nur Pro/Lifetime können eigene LUT-Files importieren.
+            if (!lutFeature.unlocked) {
+              openUpgrade('lut_filters');
+              return;
+            }
             const r = await window.api.invoke<{ path: string } | null>('dialog.openFile', {
               filters: [{ name: 'LUT', extensions: ['cube', 'lut', '3dl'] }],
               title: 'Upload LUT file',
@@ -1462,6 +1472,7 @@ export function EditorTab({ project }: { project: Project }) {
               ]);
             }
           }}
+          lutLocked={!lutFeature.unlocked}
           onAddToTimeline={(asset) => {
             // Spezialfall: Transition-Asset → applique auf 2. Clip auf Track-0
             if (asset.transitionType) {
@@ -2285,7 +2296,7 @@ function TransitionIcon({ type }: { type: TransitionType }) {
 /* ─── AssetSidebar ──────────────────────────────────────────── */
 
 function AssetSidebar({
-  width, category, assets, onAddToTimeline, onOpenTts, onOpenTextDialog, onUploadLut,
+  width, category, assets, onAddToTimeline, onOpenTts, onOpenTextDialog, onUploadLut, lutLocked,
 }: {
   width: number;
   category: AssetCategory;
@@ -2294,14 +2305,15 @@ function AssetSidebar({
   onOpenTts?: () => void;
   onOpenTextDialog?: () => void;
   onUploadLut?: () => void;
+  lutLocked?: boolean;
 }) {
   const t = useT();
   const categories = useEditorCategories();
   // Category-Header-Action-Button basierend auf aktivem Tab
   const headerAction = (() => {
-    if (category === 'tts'     && onOpenTts)        return { label: t('editor.generateBtn'), onClick: onOpenTts };
-    if (category === 'text'    && onOpenTextDialog) return { label: t('editor.customBtn'),   onClick: onOpenTextDialog };
-    if (category === 'filters' && onUploadLut)      return { label: t('editor.uploadLutBtn'), onClick: onUploadLut };
+    if (category === 'tts'     && onOpenTts)        return { label: t('editor.generateBtn'), onClick: onOpenTts, locked: false };
+    if (category === 'text'    && onOpenTextDialog) return { label: t('editor.customBtn'),   onClick: onOpenTextDialog, locked: false };
+    if (category === 'filters' && onUploadLut)      return { label: t('editor.uploadLutBtn'), onClick: onUploadLut, locked: !!lutLocked };
     return null;
   })();
 
@@ -2314,11 +2326,14 @@ function AssetSidebar({
         {headerAction && (
           <button
             onClick={headerAction.onClick}
-            className="text-[10px] font-semibold px-2.5 py-1 rounded-md
-                       border border-fiano-red/45 text-fiano-red bg-transparent
-                       hover:bg-fiano-red/10 hover:border-fiano-red/70
-                       active:scale-[0.97] transition-all"
+            className={clsx(
+              'flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-md',
+              'border border-fiano-red/45 text-fiano-red bg-transparent',
+              'hover:bg-fiano-red/10 hover:border-fiano-red/70',
+              'active:scale-[0.97] transition-all',
+            )}
           >
+            {headerAction.locked && <LockBadge />}
             {headerAction.label}
           </button>
         )}
@@ -3972,6 +3987,9 @@ function InspectorPanel({
   onEditTts?: (clipId: string) => void;
 }) {
   const t = useT();
+  const aiMaskFeature = useFeature('ai_subject_mask');
+  const stabilizerFeature = useFeature('stabilizer');
+  const openUpgrade = useUpgradeModal((s) => s.open);
   const tabLabels: Record<InspectorTab, string> = {
     video: t('editor.tabVideo'),
     audio: t('editor.tabAudio'),
@@ -4325,11 +4343,21 @@ function InspectorPanel({
                 {/* AI Subject Mask (SAM ONNX) */}
                 <div className="pt-3 border-t border-white/[0.06]">
                   <label className="flex items-center justify-between cursor-pointer mb-2">
-                    <span className="text-[11px] font-semibold text-zinc-200">AI Subject Mask</span>
+                    <span className="text-[11px] font-semibold text-zinc-200 flex items-center gap-1.5">
+                      AI Subject Mask
+                      {!aiMaskFeature.unlocked && <LockBadge />}
+                    </span>
                     <span
-                      onClick={() => onChange({ aiMaskEnabled: !selected.aiMaskEnabled })}
+                      onClick={() => {
+                        if (!aiMaskFeature.unlocked && !selected.aiMaskEnabled) {
+                          openUpgrade('ai_subject_mask');
+                          return;
+                        }
+                        onChange({ aiMaskEnabled: !selected.aiMaskEnabled });
+                      }}
                       className={clsx('relative w-9 h-5 rounded-full transition-colors cursor-pointer',
-                        selected.aiMaskEnabled ? 'bg-fiano-red' : 'bg-white/[0.08]')}>
+                        selected.aiMaskEnabled ? 'bg-fiano-red' : 'bg-white/[0.08]',
+                        !aiMaskFeature.unlocked && !selected.aiMaskEnabled && 'opacity-60')}>
                       <span className={clsx(
                         'pointer-events-none absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
                         selected.aiMaskEnabled ? 'translate-x-4' : 'translate-x-0')} />
@@ -4345,9 +4373,18 @@ function InspectorPanel({
                 {/* Stabilizer (FFmpeg vidstab — 2-Pass beim Export) */}
                 <div className="pt-3 border-t border-white/[0.06]">
                   <label className="flex items-center justify-between cursor-pointer mb-2">
-                    <span className="text-[11px] font-semibold text-zinc-200">Stabilizer</span>
+                    <span className="text-[11px] font-semibold text-zinc-200 flex items-center gap-1.5">
+                      Stabilizer
+                      {!stabilizerFeature.unlocked && <LockBadge />}
+                    </span>
                     <span
                       onClick={async () => {
+                        // Plan-Gate: nicht-Pro-User können Stabilizer nicht aktivieren.
+                        // Wenn schon enabled (z.B. Grandfathering nach Plan-Wechsel), Toggle off bleibt erlaubt.
+                        if (!stabilizerFeature.unlocked && !selected.stabilizeEnabled) {
+                          openUpgrade('stabilizer');
+                          return;
+                        }
                         // Beim Aktivieren: live check ob libvidstab installiert ist.
                         if (!selected.stabilizeEnabled) {
                           const res = await window.api.invoke<{ available: boolean }>('bin.hasVidstab', {});
@@ -4373,7 +4410,8 @@ function InspectorPanel({
                         onChange({ stabilizeEnabled: !selected.stabilizeEnabled });
                       }}
                       className={clsx('relative w-9 h-5 rounded-full transition-colors cursor-pointer',
-                        selected.stabilizeEnabled ? 'bg-fiano-red' : 'bg-white/[0.08]')}>
+                        selected.stabilizeEnabled ? 'bg-fiano-red' : 'bg-white/[0.08]',
+                        !stabilizerFeature.unlocked && !selected.stabilizeEnabled && 'opacity-60')}>
                       <span className={clsx(
                         'pointer-events-none absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform',
                         selected.stabilizeEnabled ? 'translate-x-4' : 'translate-x-0')} />

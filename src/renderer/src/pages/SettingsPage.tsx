@@ -9,6 +9,9 @@ import { mediaUrl } from '../lib/mediaUrl';
 import { TopBarActions } from '../components/TopBarActions';
 import * as sounds from '../lib/sounds';
 import { useT, LANGUAGES, type LanguageCode } from '../lib/i18n';
+import { useFeature } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
+import { LockBadge } from '../components/FeatureLock';
 
 type SettingsSection = 'account' | 'general' | 'language' | 'export' | 'appearance' | 'api-keys';
 
@@ -1081,20 +1084,24 @@ function GeneralSection() {
 function ExportSection() {
   const editorExport = useApp((s) => s.appDefaults.editorExport ?? { width: 1920, height: 1080, fps: 30, bitrate: '30M' });
   const setEditorExportDefaults = useApp((s) => s.setEditorExportDefaults);
+  const fourKFeature = useFeature('export_4k');
+  const highBitrateFeature = useFeature('export_high_bitrate');
+  const openUpgrade = useUpgradeModal((s) => s.open);
 
-  const RESOLUTIONS: Array<{ label: string; w: number; h: number }> = [
-    { label: '4K · 2160p',  w: 3840, h: 2160 },
+  // Pro-only Auflösungen + Bitraten — Creator wird beim Click auf Upgrade geleitet.
+  const RESOLUTIONS: Array<{ label: string; w: number; h: number; pro?: boolean }> = [
+    { label: '4K · 2160p',  w: 3840, h: 2160, pro: true },
     { label: '1440p',       w: 2560, h: 1440 },
     { label: 'Full HD · 1080p', w: 1920, h: 1080 },
     { label: 'HD · 720p',   w: 1280, h: 720 },
     { label: '480p',        w: 854,  h: 480 },
   ];
   const FPS_OPTIONS = [24, 30, 60];
-  const BITRATES: Array<{ label: string; value: string }> = [
-    { label: 'Lossless · 50M', value: '50M' },
-    { label: 'Maximum · 30M', value: '30M' },
-    { label: 'High · 20M',    value: '20M' },
-    { label: 'Standard · 15M', value: '15M' },
+  const BITRATES: Array<{ label: string; value: string; pro?: boolean }> = [
+    { label: 'Lossless · 50M',   value: '50M', pro: true },
+    { label: 'Maximum · 30M',    value: '30M', pro: true },
+    { label: 'High · 20M',       value: '20M' },
+    { label: 'Standard · 15M',   value: '15M' },
     { label: 'Compressed · 10M', value: '10M' },
   ];
 
@@ -1116,10 +1123,15 @@ function ExportSection() {
             <div className="grid grid-cols-2 gap-1.5">
               {RESOLUTIONS.map((r) => {
                 const active = r.w === editorExport.width && r.h === editorExport.height;
+                const locked = r.pro && !fourKFeature.unlocked;
                 return (
                   <button key={r.label}
-                    onClick={() => setEditorExportDefaults({ width: r.w, height: r.h })}
-                    className={selectBtnClass(active)}>
+                    onClick={() => {
+                      if (locked) { openUpgrade('export_4k'); return; }
+                      setEditorExportDefaults({ width: r.w, height: r.h });
+                    }}
+                    className={clsx(selectBtnClass(active), locked && 'opacity-60', 'flex items-center justify-center gap-1.5')}>
+                    {locked && <LockBadge />}
                     {r.label}
                   </button>
                 );
@@ -1141,13 +1153,20 @@ function ExportSection() {
 
           <SelectRow label="Bitrate" value={editorExport.bitrate}>
             <div className="grid grid-cols-2 gap-1.5">
-              {BITRATES.map((b) => (
-                <button key={b.value}
-                  onClick={() => setEditorExportDefaults({ bitrate: b.value })}
-                  className={selectBtnClass(editorExport.bitrate === b.value)}>
-                  {b.label}
-                </button>
-              ))}
+              {BITRATES.map((b) => {
+                const locked = b.pro && !highBitrateFeature.unlocked;
+                return (
+                  <button key={b.value}
+                    onClick={() => {
+                      if (locked) { openUpgrade('export_high_bitrate'); return; }
+                      setEditorExportDefaults({ bitrate: b.value });
+                    }}
+                    className={clsx(selectBtnClass(editorExport.bitrate === b.value), locked && 'opacity-60', 'flex items-center justify-center gap-1.5')}>
+                    {locked && <LockBadge />}
+                    {b.label}
+                  </button>
+                );
+              })}
             </div>
           </SelectRow>
         </div>
@@ -1164,7 +1183,9 @@ function QualityModeSection() {
   const t = useT();
   const qualityMode = useApp((s) => s.appDefaults.qualityMode ?? 'fast');
   const setQualityMode = useApp((s) => s.setQualityMode);
-  const opts: Array<{ value: 'fast' | 'quality'; label: string; hint: string }> = [
+  const qualityFeature = useFeature('quality_render_mode');
+  const openUpgrade = useUpgradeModal((s) => s.open);
+  const opts: Array<{ value: 'fast' | 'quality'; label: string; hint: string; pro?: boolean }> = [
     {
       value: 'fast',
       label: t('settings.qualityModeFast'),
@@ -1174,6 +1195,7 @@ function QualityModeSection() {
       value: 'quality',
       label: t('settings.qualityModeQuality'),
       hint: t('settings.qualityModeQualityHint'),
+      pro: true,
     },
   ];
   return (
@@ -1183,16 +1205,25 @@ function QualityModeSection() {
       <div className="grid grid-cols-2 gap-2">
         {opts.map((o) => {
           const active = qualityMode === o.value;
+          const locked = o.pro && !qualityFeature.unlocked;
           return (
             <button key={o.value}
-              onClick={() => setQualityMode(o.value)}
+              onClick={() => {
+                if (locked) { openUpgrade('quality_render_mode'); return; }
+                setQualityMode(o.value);
+              }}
               className={clsx(
-                'text-left rounded-lg px-4 py-3 border transition',
+                'relative text-left rounded-lg px-4 py-3 border transition',
                 active
                   ? 'bg-fiano-red/15 border-fiano-red/45 text-white shadow-[0_0_18px_rgba(255,16,57,0.18)]'
-                  : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]',
+                  : locked
+                    ? 'bg-white/[0.02] border-white/[0.06] text-zinc-400 opacity-70 hover:opacity-90'
+                    : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]',
               )}
             >
+              {locked && (
+                <span className="absolute top-2 right-2"><LockBadge /></span>
+              )}
               <div className="text-[12px] font-semibold">{o.label}</div>
               <div className="text-[10px] text-zinc-500 mt-1 leading-relaxed">{o.hint}</div>
             </button>

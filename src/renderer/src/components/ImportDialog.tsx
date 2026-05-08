@@ -4,6 +4,8 @@ import clsx from 'clsx';
 import type { VideoType } from '@shared/types';
 import { useApp } from '../stores/appStore';
 import { useT } from '../lib/i18n';
+import { useFeature } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 
 export function ImportDialog({ onClose }: { onClose: () => void }) {
   const { createFromUrl, createFromFile, createFromMultipleFiles, createQuickTikTok } = useApp();
@@ -12,6 +14,8 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [videoType, setVideoType] = useState<VideoType>('gaming');
   const t = useT();
+  const podcastFeature = useFeature('podcast_highlights');
+  const openUpgrade = useUpgradeModal((s) => s.open);
 
   const submitUrl = async () => {
     if (!url.trim() || busy) return;
@@ -99,24 +103,45 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
               {t('importDialog.videoTypeLabel')}
             </div>
             <div className="grid grid-cols-3 gap-1.5">
-              {(['gaming', 'podcast', 'auto'] as VideoType[]).map((vt) => (
-                <button
-                  key={vt}
-                  onClick={() => setVideoType(vt)}
-                  disabled={busy}
-                  className={clsx(
-                    'rounded-lg px-2 py-2 text-[11px] border transition',
-                    videoType === vt
-                      ? 'bg-fiano-red/15 border-fiano-red/45 text-white shadow-[0_0_12px_rgba(255,16,57,0.18)]'
-                      : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]',
-                  )}
-                >
-                  <div className="font-semibold">{t(`importDialog.videoType.${vt}`)}</div>
-                  <div className="text-[9px] text-zinc-500 mt-0.5 leading-tight">
-                    {t(`importDialog.videoType.${vt}Hint`)}
-                  </div>
-                </button>
-              ))}
+              {(['gaming', 'podcast', 'auto'] as VideoType[]).map((vt) => {
+                const isPodcastLocked = vt === 'podcast' && !podcastFeature.unlocked;
+                return (
+                  <button
+                    key={vt}
+                    onClick={() => {
+                      if (isPodcastLocked) { openUpgrade('podcast_highlights'); return; }
+                      setVideoType(vt);
+                    }}
+                    disabled={busy}
+                    className={clsx(
+                      'relative rounded-lg px-2 py-2 text-[11px] border transition',
+                      videoType === vt
+                        ? 'bg-fiano-red/15 border-fiano-red/45 text-white shadow-[0_0_12px_rgba(255,16,57,0.18)]'
+                        : isPodcastLocked
+                          ? 'bg-white/[0.02] border-white/[0.06] text-zinc-500 hover:bg-white/[0.04]'
+                          : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]',
+                    )}
+                  >
+                    <div className={clsx('font-semibold', isPodcastLocked && 'opacity-70')}>
+                      {t(`importDialog.videoType.${vt}`)}
+                    </div>
+                    <div className="text-[9px] text-zinc-500 mt-0.5 leading-tight">
+                      {t(`importDialog.videoType.${vt}Hint`)}
+                    </div>
+                    {isPodcastLocked && (
+                      <span
+                        className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 rounded-full bg-fiano-red/20 border border-fiano-red/40 text-fiano-red"
+                        aria-label="Locked feature"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="4" y="11" width="16" height="10" rx="2" />
+                          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

@@ -7,6 +7,7 @@ import { StatusBar } from './components/StatusBar';
 import { LoadingScreen } from './components/LoadingScreen';
 import { OnboardingTutorial, hasSeenOnboarding } from './components/OnboardingTutorial';
 import { UpdateToast } from './components/UpdateToast';
+import { UpgradeModal } from './components/UpgradeModal';
 import { HomePage } from './pages/HomePage';
 import { LibraryPage } from './pages/LibraryPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
@@ -81,6 +82,7 @@ export default function App() {
               <StatusBar />
               {showOnboarding && <OnboardingTutorial onClose={() => setShowOnboarding(false)} />}
               <UpdateToast />
+              <UpgradeModal />
             </div>
           );
         }}
