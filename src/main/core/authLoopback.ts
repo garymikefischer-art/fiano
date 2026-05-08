@@ -22,7 +22,7 @@ const FIXED_PORTS = [51999, 52000, 52001, 52002, 52003, 52004, 52005];
 
 let server: http.Server | null = null;
 let activePort: number | null = null;
-let codeListener: ((p: { code?: string; error?: string }) => void) | null = null;
+let codeListener: ((p: { code?: string; error?: string; type?: string }) => void) | null = null;
 
 const SUCCESS_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>fiano — Login successful</title>
@@ -71,7 +71,7 @@ const HASH_BRIDGE_HTML = `<!doctype html>
 /**
  * Setzt den Listener-Callback. Kann mehrfach aufgerufen werden — überschreibt jedes Mal.
  */
-export function setLoopbackListener(cb: ((p: { code?: string; error?: string }) => void) | null): void {
+export function setLoopbackListener(cb: ((p: { code?: string; error?: string; type?: string }) => void) | null): void {
   codeListener = cb;
 }
 
@@ -142,6 +142,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): voi
   }
 
   const code = url.searchParams.get('code');
+  const type = url.searchParams.get('type'); // 'recovery' bei Password-Reset, sonst undefined
   const error = url.searchParams.get('error') ?? url.searchParams.get('error_description');
 
   if (error) {
@@ -152,7 +153,7 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): voi
 
   if (code) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(SUCCESS_HTML);
-    if (codeListener) codeListener({ code });
+    if (codeListener) codeListener({ code, ...(type ? { type } : {}) });
     return;
   }
 

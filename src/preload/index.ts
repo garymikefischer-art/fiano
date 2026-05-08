@@ -40,9 +40,9 @@ const api = {
   },
 
   /** Auth: OAuth-Code aus dem Loopback-Server (Dev + Prod). Funktioniert
-   *  ohne OS-Custom-Scheme-Registrierung. */
-  onAuthOauthCode: (cb: (payload: { code?: string; error?: string }) => void): (() => void) => {
-    const handler = (_: unknown, payload: { code?: string; error?: string }) => cb(payload);
+   *  ohne OS-Custom-Scheme-Registrierung. type='recovery' bei Password-Reset. */
+  onAuthOauthCode: (cb: (payload: { code?: string; error?: string; type?: string }) => void): (() => void) => {
+    const handler = (_: unknown, payload: { code?: string; error?: string; type?: string }) => cb(payload);
     ipcRenderer.on('auth.oauth-code', handler);
     return () => {
       ipcRenderer.off('auth.oauth-code', handler);

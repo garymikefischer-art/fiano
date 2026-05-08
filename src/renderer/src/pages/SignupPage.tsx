@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../stores/authStore';
 import { useT } from '../lib/i18n';
+import { checkPasswordStrength, strengthLabel, strengthColor } from '../lib/passwordStrength';
 
 /**
  * SignupPage — Email/Password Sign-up.
@@ -55,9 +56,11 @@ export function SignupPage() {
 
   useEffect(() => { clearError(); }, [clearError]);
 
+  const strength = useMemo(() => checkPasswordStrength(password), [password]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || !email || !password || password.length < 6) return;
+    if (busy || !email || !strength.meetsAll) return;
     setBusy(true);
     const res = await signUp(email.trim(), password);
     setBusy(false);
@@ -188,7 +191,7 @@ export function SignupPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      minLength={6}
+                      minLength={8}
                       disabled={busy}
                       className="w-full mt-1 px-3 py-2 rounded-lg text-[13px]
                                  bg-white/[0.04] border border-white/[0.08] text-white
@@ -196,9 +199,39 @@ export function SignupPage() {
                                  focus:outline-none focus:bg-white/[0.06] focus:border-fiano-red/50
                                  transition-colors"
                     />
-                    <div className="text-[10px] text-zinc-600 mt-1">
-                      {t('auth.passwordHint')}
-                    </div>
+
+                    {/* Live Strength-Indicator */}
+                    {password.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex gap-1 h-1">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <div
+                              key={i}
+                              className={clsx(
+                                'flex-1 rounded-full transition-colors',
+                                i <= strength.score ? strengthColor(strength.score) : 'bg-white/[0.06]',
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-zinc-500">
+                            {strengthLabel(strength.score, t)}
+                          </span>
+                        </div>
+
+                        {/* Rule-Checkliste — zeigt was fehlt */}
+                        {!strength.meetsAll && (
+                          <ul className="text-[10px] text-zinc-500 space-y-0.5 mt-1.5">
+                            <Rule ok={strength.rules.length}  label={t('auth.ruleLength')} />
+                            <Rule ok={strength.rules.upper}   label={t('auth.ruleUpper')} />
+                            <Rule ok={strength.rules.lower}   label={t('auth.ruleLower')} />
+                            <Rule ok={strength.rules.digit}   label={t('auth.ruleDigit')} />
+                            <Rule ok={strength.rules.special} label={t('auth.ruleSpecial')} />
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {lastError && (
@@ -209,10 +242,10 @@ export function SignupPage() {
 
                   <button
                     type="submit"
-                    disabled={busy || !email || password.length < 6}
+                    disabled={busy || !email || !strength.meetsAll}
                     className={clsx(
                       'w-full py-2.5 rounded-lg text-[13px] font-semibold transition-all',
-                      busy || !email || password.length < 6
+                      busy || !email || !strength.meetsAll
                         ? 'bg-fiano-red/40 text-white/50 cursor-not-allowed'
                         : 'bg-fiano-red text-white hover:brightness-110 hover:shadow-[0_0_24px_rgba(255,16,57,0.45)] active:scale-[0.98]',
                     )}
@@ -237,6 +270,21 @@ export function SignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Single password-strength-rule line: green check or grey dot + label. */
+function Rule({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <li className="flex items-center gap-1.5">
+      <span className={clsx(
+        'w-3 h-3 rounded-full flex items-center justify-center text-[8px] shrink-0',
+        ok ? 'bg-emerald-400 text-zinc-900' : 'bg-white/[0.08] text-zinc-700',
+      )}>
+        {ok ? '✓' : '·'}
+      </span>
+      <span className={ok ? 'text-emerald-400/80' : 'text-zinc-500'}>{label}</span>
+    </li>
   );
 }
 

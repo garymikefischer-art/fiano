@@ -193,6 +193,12 @@ export function LoginPage() {
               >
                 {busy ? t('auth.signingIn') : t('auth.signIn')}
               </button>
+
+              <div className="text-center pt-1">
+                <Link to="/reset-password" className="text-[11px] text-zinc-500 hover:text-fiano-red transition">
+                  {t('auth.forgotPassword')}
+                </Link>
+              </div>
             </form>
 
             <div className="text-[12px] text-zinc-500 text-center pt-2 border-t border-white/[0.06]">

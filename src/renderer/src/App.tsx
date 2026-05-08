@@ -16,6 +16,7 @@ import { HelpPage } from './pages/HelpPage';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { PricingPage } from './pages/PricingPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import * as sounds from './lib/sounds';
 
 const SPLASH_MS = 1200;
@@ -52,21 +53,23 @@ export default function App() {
           if (state === 'login') {
             return (
               <Routes>
-                <Route path="/signup" element={<SignupPage />} />
-                <Route path="/login"  element={<LoginPage />} />
-                <Route path="*"       element={<Navigate to="/login" replace />} />
+                <Route path="/signup"         element={<SignupPage />} />
+                <Route path="/login"          element={<LoginPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="*"               element={<Navigate to="/login" replace />} />
               </Routes>
             );
           }
           if (state === 'pricing') {
             return (
               <Routes>
-                <Route path="/pricing" element={<PricingPage />} />
-                <Route path="*"        element={<Navigate to="/pricing" replace />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/pricing"        element={<PricingPage />} />
+                <Route path="*"               element={<Navigate to="/pricing" replace />} />
               </Routes>
             );
           }
-          // state === 'app' — voller Zugriff
+          // state === 'app' — voller Zugriff (Recovery-URL trotzdem zugänglich)
           return (
             <div className="h-screen flex flex-col bg-fiano-black text-fiano-white">
               <div className="flex flex-1 min-h-0">
@@ -117,13 +120,14 @@ function RouteFader() {
   return (
     <div key={location.pathname} className="flex-1 overflow-hidden flex flex-col animate-fade-in">
       <Routes location={location}>
-        <Route path="/"           element={<HomePage />} />
-        <Route path="/projects"   element={<LibraryPage />} />
-        <Route path="/project/:id" element={<ProjectDetailPage />} />
-        <Route path="/thumbnail"  element={<ThumbnailPage />} />
-        <Route path="/settings"   element={<SettingsPage />} />
-        <Route path="/help"       element={<HelpPage />} />
-        <Route path="*"           element={<Navigate to="/" replace />} />
+        <Route path="/"               element={<HomePage />} />
+        <Route path="/projects"       element={<LibraryPage />} />
+        <Route path="/project/:id"    element={<ProjectDetailPage />} />
+        <Route path="/thumbnail"      element={<ThumbnailPage />} />
+        <Route path="/settings"       element={<SettingsPage />} />
+        <Route path="/help"           element={<HelpPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="*"               element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   );

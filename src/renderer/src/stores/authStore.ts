@@ -42,6 +42,12 @@ interface AuthState {
   signUpWithPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }>;
   signInWithGoogle(): Promise<{ ok: boolean; error?: string }>;
   resendConfirmation(email: string): Promise<{ ok: boolean; error?: string }>;
+  /** Schickt Reset-Email mit Link zum Loopback. Klick → User landet im
+   *  ResetPasswordPage, wo er neues Passwort setzt. */
+  requestPasswordReset(email: string): Promise<{ ok: boolean; error?: string }>;
+  /** Wird auf der ResetPasswordPage aufgerufen nachdem Tokens via OAuth-Code-
+   *  Exchange in der Session sind. */
+  updatePassword(newPassword: string): Promise<{ ok: boolean; error?: string }>;
   signOut(): Promise<void>;
   fetchSubscription(): Promise<void>;
   clearError(): void;
@@ -129,6 +135,13 @@ export const useAuth = create<AuthState>((set, get) => ({
             await window.api.invoke('auth.saveSession', { sessionJson: JSON.stringify(data.session) });
             set({ user: data.user ?? data.session.user, session: data.session });
             await get().fetchSubscription();
+            // Recovery-Flow: User klickt Reset-Email-Link → wir sind eingeloggt MIT
+            // einer temporären Recovery-Session, aber müssen den User auf die
+            // ResetPasswordPage routen statt zur App. HashRouter-Navigation via
+            // window.location.hash (Store hat keinen direkten Router-Zugriff).
+            if (payload.type === 'recovery') {
+              window.location.hash = '#/reset-password?type=recovery';
+            }
           }
         } catch (err) {
           console.warn('[auth] code exchange failed:', err);
@@ -300,6 +313,40 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ lastError: friendly });
       return { ok: false, error: friendly };
     }
+  },
+
+  // ─── Password-Reset (Forgot-Password Flow) ────────────────────────────
+  async requestPasswordReset(email) {
+    set({ lastError: null });
+    try {
+      const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
+      const baseCallback = lp?.ok ? lp.data?.callbackUrl : null;
+      // Recovery-Link braucht eigenen sub-path damit ResetPasswordPage erkennt
+      // dass es sich um ein Reset und nicht um einen normalen Login-Callback handelt.
+      const redirectTo = baseCallback ? `${baseCallback}?type=recovery` : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined);
+      if (error) {
+        const friendly = humanizeAuthError(error.message);
+        set({ lastError: friendly });
+        return { ok: false, error: friendly };
+      }
+      return { ok: true };
+    } catch (err: any) {
+      const friendly = humanizeAuthError(err?.message ?? String(err));
+      set({ lastError: friendly });
+      return { ok: false, error: friendly };
+    }
+  },
+
+  async updatePassword(newPassword) {
+    set({ lastError: null });
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      const friendly = humanizeAuthError(error.message);
+      set({ lastError: friendly });
+      return { ok: false, error: friendly };
+    }
+    return { ok: true };
   },
 
   async signOut() {
