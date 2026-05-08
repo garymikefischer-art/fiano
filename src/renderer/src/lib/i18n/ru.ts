@@ -878,4 +878,6 @@ export const ru: Record<string, string> = {
   'thumbnail.customStyle.realistic':  'Реалистичный стиль (Military Shooter)',
   'thumbnail.customStyle.defaultHint':'Введите название своей игры — промпт построится на его основе.',
   'thumbnail.customStyle.presetHint': 'Готовый стиль с эталонным промптом. Поля ниже переопределяют значения по умолчанию. Вы несёте ответственность за использование товарных знаков.',
+  'thumbnail.fieldCustomGamePlaceholderComic':     'пусто = Fortnite (по умолчанию), или Apex Legends, Roblox …',
+  'thumbnail.fieldCustomGamePlaceholderRealistic': 'пусто = Call of Duty: Warzone (по умолчанию), или PUBG, Battlefield …',
 };

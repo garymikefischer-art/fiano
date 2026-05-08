@@ -877,4 +877,6 @@ export const es: Record<string, string> = {
   'thumbnail.customStyle.realistic':  'Estilo Realista (Military Shooter)',
   'thumbnail.customStyle.defaultHint':'Escribe el nombre de tu propio juego — el prompt se construirá a partir de él.',
   'thumbnail.customStyle.presetHint': 'Estilo predefinido con prompt de referencia. Los campos siguientes sobrescriben los valores por defecto. Tú asumes la responsabilidad por el uso de marcas.',
+  'thumbnail.fieldCustomGamePlaceholderComic':     'vacío = Fortnite (default), o p.ej. Apex Legends, Roblox …',
+  'thumbnail.fieldCustomGamePlaceholderRealistic': 'vacío = Call of Duty: Warzone (default), o p.ej. PUBG, Battlefield …',
 };

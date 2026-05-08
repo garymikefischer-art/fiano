@@ -93,12 +93,15 @@ const REALISTIC_STYLE_DEFAULTS = {
  */
 /**
  * Comic-Stil-Prompt: User-Reference EXAKT übernommen (mit Markennamen
- * "Fortnite", "Painted Palms", "Siren skin"). Nur Background/Effects/
- * Weapons-Skins werden via User-Input ersetzbar gemacht.
- * User-bewusste Wahl im Custom-Mode-Dropdown.
+ * "Fortnite", "Painted Palms", "Siren skin"). User kann optional einen
+ * eigenen Spielnamen eingeben — der ersetzt dann "Fortnite" im "inspired
+ * by" + "outfit". Restlicher Prompt funktioniert für ähnliche Battle-Royale-
+ * Style-Spiele genauso (Reference-Prompt-Logik des Users).
  */
-const COMIC_STYLE_PROMPT = (f: FormFields) => `Create a highly realistic YouTube thumbnail inspired by Fortnite.
-Elite operator styled as Siren skin (esport sweat), Fortnite outfit, no helmet. Ultra close-up (Dutch tilt).
+const COMIC_STYLE_PROMPT = (f: FormFields) => {
+  const game = f.customGameName.trim() || 'Fortnite';
+  return `Create a highly realistic YouTube thumbnail inspired by ${game}.
+Elite operator styled as Siren skin (esport sweat), ${game} outfit, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
@@ -116,18 +119,21 @@ WEAPONS/SKINS:
 ${f.weaponsSkins || COMIC_STYLE_DEFAULTS.weaponsSkins}
 STYLE:
 Ultra-realistic, NO TEXT.`;
+};
 
 /**
- * Realistic-Stil-Prompt: User-Reference EXAKT übernommen (mit Markennamen
- * "Call of Duty: Warzone", "Verdansk"). Nur Background + Effects sind via
- * User-Input ersetzbar; WEAPONS/SKINS wird nur angehängt wenn User das Feld
- * füllt (Reference-Prompt hat keine Weapons-Section).
+ * Realistic-Stil-Prompt: User-Reference EXAKT übernommen (Default-Spiel
+ * "Call of Duty: Warzone (Verdansk)"). User kann optional einen eigenen
+ * Spielnamen eingeben (z.B. "PUBG", "Battlefield") — derselbe Prompt
+ * funktioniert für ähnliche Military-Shooter genauso. WEAPONS/SKINS wird
+ * nur angehängt wenn User das Feld füllt.
  */
 const REALISTIC_STYLE_PROMPT = (f: FormFields) => {
+  const game = f.customGameName.trim() || 'Call of Duty: Warzone (Verdansk)';
   const weaponsBlock = f.weaponsSkins.trim()
     ? `\nWEAPONS/SKINS:\n${f.weaponsSkins}\n`
     : '';
-  return `Create a highly realistic YouTube thumbnail inspired by Call of Duty: Warzone (Verdansk).
+  return `Create a highly realistic YouTube thumbnail inspired by ${game}.
 Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (cinematic action tilt, slight zoom-in), face dominant, slightly off-center, aggressive forward-leaning pose.
 Replace face with provided photo.
 FACE & HAIR (STRICT):
@@ -486,17 +492,20 @@ export function ThumbnailPage() {
                         : t('thumbnail.customStyle.presetHint')}
                     </div>
                   </div>
-                  {/* Spielname nur im Default-Style — bei Comic/Realistic ist der
-                      Spielname Hardcoded im Prompt */}
-                  {fields.customStyle === 'default' && (
-                    <FormField
-                      label={t('thumbnail.fieldCustomGame')}
-                      placeholder={t('thumbnail.fieldCustomGamePlaceholder')}
-                      value={fields.customGameName}
-                      onChange={(v) => setFields((s) => ({ ...s, customGameName: v }))}
-                      hint={t('thumbnail.fieldCustomGameHint')}
-                    />
-                  )}
+                  {/* Spielname-Eingabe — für alle Custom-Styles sichtbar.
+                      Bei Comic/Realistic optional (leer = Reference-Default-Spiel),
+                      bei Default required (User muss eigenen Namen tippen). */}
+                  <FormField
+                    label={t('thumbnail.fieldCustomGame')}
+                    placeholder={
+                      fields.customStyle === 'comic'     ? t('thumbnail.fieldCustomGamePlaceholderComic') :
+                      fields.customStyle === 'realistic' ? t('thumbnail.fieldCustomGamePlaceholderRealistic') :
+                      t('thumbnail.fieldCustomGamePlaceholder')
+                    }
+                    value={fields.customGameName}
+                    onChange={(v) => setFields((s) => ({ ...s, customGameName: v }))}
+                    hint={t('thumbnail.fieldCustomGameHint')}
+                  />
                 </>
               )}
               <FormField

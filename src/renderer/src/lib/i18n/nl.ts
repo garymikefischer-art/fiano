@@ -877,4 +877,6 @@ export const nl: Record<string, string> = {
   'thumbnail.customStyle.realistic':  'Realistische stijl (Military Shooter)',
   'thumbnail.customStyle.defaultHint':'Typ je eigen gamenaam — de prompt wordt daaruit gebouwd.',
   'thumbnail.customStyle.presetHint': 'Voorinstelling met referentie-prompt. De velden hieronder overschrijven de standaardwaarden. Je draagt de verantwoordelijkheid voor handelsmerk-gebruik.',
+  'thumbnail.fieldCustomGamePlaceholderComic':     'leeg = Fortnite (default), of bijv. Apex Legends, Roblox …',
+  'thumbnail.fieldCustomGamePlaceholderRealistic': 'leeg = Call of Duty: Warzone (default), of bijv. PUBG, Battlefield …',
 };
