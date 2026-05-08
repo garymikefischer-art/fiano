@@ -35,14 +35,17 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return jsonResp({ error: 'Missing Authorization header' }, 401);
+    const jwt = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!jwt) return jsonResp({ error: 'Empty token' }, 401);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr || !userData?.user) return jsonResp({ error: 'Invalid JWT' }, 401);
+    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt);
+    if (userErr || !userData?.user) {
+      return jsonResp({ error: `Invalid JWT: ${userErr?.message ?? 'no user'}` }, 401);
+    }
     const user = userData.user;
 
     const body = await req.json().catch(() => null) as { return_url?: string } | null;

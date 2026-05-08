@@ -11,7 +11,18 @@ import { supabase } from './supabase';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 async function getAuthHeader(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
+  let { data } = await supabase.auth.getSession();
+  // Wenn Session in <60s abläuft → refresh damit der Edge-Function-Call nicht
+  // mit expired Token feuert.
+  const expiresAt = data.session?.expires_at;
+  if (expiresAt && expiresAt * 1000 < Date.now() + 60_000) {
+    try {
+      await supabase.auth.refreshSession();
+      ({ data } = await supabase.auth.getSession());
+    } catch (err) {
+      console.warn('[stripe] refreshSession failed:', err);
+    }
+  }
   const token = data.session?.access_token;
   return token ? `Bearer ${token}` : null;
 }
