@@ -428,7 +428,15 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   async signOut() {
     await unsubscribeRealtime();
-    await supabase.auth.signOut();
+    // scope:'local' vermeidet 403-Fehler von Supabase wenn der Refresh-Token
+    // bereits server-seitig invalidiert ist (passiert z.B. nach Token-Rotation
+    // in einer anderen App-Instanz). Wir clearen die safeStorage-Session eh
+    // selbst — globaler Server-Logout ist hier nicht nötig.
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (err) {
+      console.warn('[auth] signOut error (ignored):', err);
+    }
     await window.api.invoke('auth.clearSession');
     set({ user: null, session: null, subscription: null });
   },

@@ -22,13 +22,19 @@ import { useT } from '../lib/i18n';
 
 type PlanId = 'creator' | 'pro' | 'studio_lifetime';
 
+interface FeatureRow {
+  label: string;
+  /** false = Feature ist im Plan NICHT enthalten → wird mit X dargestellt. */
+  included: boolean;
+}
+
 interface PlanDef {
   id: PlanId;
   name: string;
   price: string;
   period: string;
   tagline: string;
-  features: string[];
+  features: FeatureRow[];
   cta: string;
   highlight?: boolean;
 }
@@ -62,16 +68,28 @@ export function PricingPage() {
       period: t('pricing.perMonth'),
       tagline: t('pricing.creatorTagline'),
       features: [
-        t('pricing.f.autoHighlights'),
-        t('pricing.f.manualHighlights'),
-        t('pricing.f.tiktokTab'),
-        t('pricing.f.builder'),
-        t('pricing.f.multiTrack'),
-        t('pricing.f.subtitleStudio'),
-        t('pricing.f.musicIntro'),
-        t('pricing.f.basicEffects'),
-        t('pricing.f.fullhd'),
-        t('pricing.f.creatorLimit'),
+        // Enthalten
+        { label: t('pricing.f.autoHighlights'),    included: true  },
+        { label: t('pricing.f.manualHighlights'),  included: true  },
+        { label: t('pricing.f.tiktokTab'),         included: true  },
+        { label: t('pricing.f.builder'),           included: true  },
+        { label: t('pricing.f.multiTrack'),        included: true  },
+        { label: t('pricing.f.subtitleStudio'),    included: true  },
+        { label: t('pricing.f.musicIntro'),        included: true  },
+        { label: t('pricing.f.basicEffects'),      included: true  },
+        { label: t('pricing.f.fullhd'),            included: true  },
+        { label: t('pricing.f.creatorLimit'),      included: true  },
+        // NICHT enthalten — werden mit X markiert, damit Creator-Lücken sichtbar sind
+        { label: t('pricing.f.podcastHighlights'), included: false },
+        { label: t('pricing.f.thumbnailGen'),      included: false },
+        { label: t('pricing.f.aiMask'),            included: false },
+        { label: t('pricing.f.stabilizer'),        included: false },
+        { label: t('pricing.f.lutFilters'),        included: false },
+        { label: t('pricing.f.layeredSubs'),       included: false },
+        { label: t('pricing.f.export4k'),          included: false },
+        { label: t('pricing.f.qualityMode'),       included: false },
+        { label: t('pricing.f.priorityQueue'),     included: false },
+        { label: t('pricing.f.earlyAccess'),       included: false },
       ],
       cta: t('pricing.getCreator'),
     },
@@ -83,18 +101,18 @@ export function PricingPage() {
       tagline: t('pricing.proTagline'),
       highlight: true,
       features: [
-        t('pricing.f.allCreator'),
-        t('pricing.f.podcastHighlights'),
-        t('pricing.f.thumbnailGen'),
-        t('pricing.f.aiMask'),
-        t('pricing.f.stabilizer'),
-        t('pricing.f.lutFilters'),
-        t('pricing.f.layeredSubs'),
-        t('pricing.f.export4k'),
-        t('pricing.f.qualityMode'),
-        t('pricing.f.unlimited'),
-        t('pricing.f.priorityQueue'),
-        t('pricing.f.earlyAccess'),
+        { label: t('pricing.f.allCreator'),        included: true },
+        { label: t('pricing.f.podcastHighlights'), included: true },
+        { label: t('pricing.f.thumbnailGen'),      included: true },
+        { label: t('pricing.f.aiMask'),            included: true },
+        { label: t('pricing.f.stabilizer'),        included: true },
+        { label: t('pricing.f.lutFilters'),        included: true },
+        { label: t('pricing.f.layeredSubs'),       included: true },
+        { label: t('pricing.f.export4k'),          included: true },
+        { label: t('pricing.f.qualityMode'),       included: true },
+        { label: t('pricing.f.unlimited'),         included: true },
+        { label: t('pricing.f.priorityQueue'),     included: true },
+        { label: t('pricing.f.earlyAccess'),       included: true },
       ],
       cta: t('pricing.getPro'),
     },
@@ -105,11 +123,11 @@ export function PricingPage() {
       period: t('pricing.oneTime'),
       tagline: t('pricing.lifetimeTagline'),
       features: [
-        t('pricing.f.allPro'),
-        t('pricing.f.lifetimeBadge'),
-        t('pricing.f.allFutureUpdates'),
-        t('pricing.f.allFutureLocal'),
-        t('pricing.f.lifetimeNoSub'),
+        { label: t('pricing.f.allPro'),            included: true },
+        { label: t('pricing.f.lifetimeBadge'),     included: true },
+        { label: t('pricing.f.allFutureUpdates'),  included: true },
+        { label: t('pricing.f.allFutureLocal'),    included: true },
+        { label: t('pricing.f.lifetimeNoSub'),     included: true },
       ],
       cta: t('pricing.getLifetime'),
     },
@@ -315,14 +333,24 @@ function PlanCard({
       {/* Features */}
       <ul className="space-y-2 mt-6 flex-1">
         {plan.features.map((f, i) => (
-          <li key={i} className="flex items-start gap-2 text-[12px] text-zinc-300 leading-snug">
+          <li
+            key={i}
+            className={clsx(
+              'flex items-start gap-2 text-[12px] leading-snug',
+              f.included ? 'text-zinc-300' : 'text-zinc-500 line-through decoration-zinc-700/60',
+            )}
+          >
             <span className={clsx(
               'shrink-0 w-4 h-4 rounded-full mt-0.5 flex items-center justify-center text-[9px]',
-              plan.highlight ? 'bg-fiano-red/20 text-fiano-red' : 'bg-emerald-500/15 text-emerald-400',
+              !f.included
+                ? 'bg-zinc-700/30 text-zinc-500'
+                : plan.highlight
+                  ? 'bg-fiano-red/20 text-fiano-red'
+                  : 'bg-emerald-500/15 text-emerald-400',
             )}>
-              ✓
+              {f.included ? '✓' : '✕'}
             </span>
-            <span>{f}</span>
+            <span>{f.label}</span>
           </li>
         ))}
       </ul>
