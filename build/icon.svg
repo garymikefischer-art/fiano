@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- macOS-Style rounded square (rx=180 ≈ Apple-Standard) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="180" ry="180" fill="#0d0d0d"/>
+  <!-- fiano Mark, ~95% Canvas, leicht nach unten für optische Mitte -->
+  <g transform="translate(20, 142) scale(0.96)">
+    <polygon fill="#ff1039" points="946.96 97.09 760.99 286.19 331.69 286.19 517.66 97.09 946.96 97.09"/>
+    <polygon fill="#ff1039" points="518.93 761.51 518.93 466.77 331.69 286.19 53.04 286.19 518.93 761.51"/>
+  </g>
+</svg>

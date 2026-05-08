@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- JIT für Chromium V8-Engine (Renderer-Prozess) -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <!-- Unsigned-Memory: Electron lädt manche Frameworks dynamisch -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <!-- DYLD-Env-Vars: nötig für Native-Module-Loads -->
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+  <!-- Disable library validation: erlaubt das Laden von Helper-Tools (z.B. ffmpeg, yt-dlp) -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <!-- File-Access: User wählt Files via Dialog → Read-Access nötig -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+  <!-- Microphone (für TTS-Recording falls implementiert) -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <!-- Network: Whisper, OpenAI, Gemini APIs -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>
