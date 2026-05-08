@@ -24,24 +24,42 @@ let server: http.Server | null = null;
 let activePort: number | null = null;
 let codeListener: ((p: { code?: string; error?: string; type?: string }) => void) | null = null;
 
-const SUCCESS_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>fiano — Login successful</title>
+// Wiederverwendbare HTML-Page für Auth/Checkout-Erfolg.
+// Title + Heading + Body als Argumente, damit wir verschiedene Use-Cases einfach abdecken.
+const renderSuccessPage = (heading: string, body: string, accent: 'red' | 'green' = 'red'): string => {
+  const accentBg     = accent === 'green' ? 'rgba(34,197,94,0.15)'  : 'rgba(255,16,57,0.15)';
+  const accentBorder = accent === 'green' ? 'rgba(34,197,94,0.4)'   : 'rgba(255,16,57,0.4)';
+  const accentText   = accent === 'green' ? '#22c55e'               : '#ff1039';
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>fiano</title>
 <style>
   html,body{margin:0;background:#0d0f10;color:#f1f2f2;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;height:100%;display:flex;align-items:center;justify-content:center}
   .card{padding:40px 48px;border-radius:20px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);text-align:center;max-width:380px}
   h1{margin:0 0 8px;font-size:18px;font-weight:600}
   p{margin:0;font-size:13px;color:#a1a1aa;line-height:1.5}
-  .check{width:48px;height:48px;border-radius:14px;background:rgba(255,16,57,0.15);border:1px solid rgba(255,16,57,0.4);margin:0 auto 16px;display:flex;align-items:center;justify-content:center}
-  .check svg{width:22px;height:22px;color:#ff1039}
+  .check{width:48px;height:48px;border-radius:14px;background:${accentBg};border:1px solid ${accentBorder};margin:0 auto 16px;display:flex;align-items:center;justify-content:center}
+  .check svg{width:22px;height:22px;color:${accentText}}
 </style></head>
 <body>
   <div class="card">
     <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
-    <h1>You're signed in</h1>
-    <p>You can close this window and return to fiano.</p>
+    <h1>${heading}</h1>
+    <p>${body}</p>
   </div>
-  <script>setTimeout(()=>{try{window.close();}catch(e){}},800);</script>
+  <script>setTimeout(()=>{try{window.close();}catch(e){}},1500);</script>
 </body></html>`;
+};
+
+const SUCCESS_HTML        = renderSuccessPage("You're signed in",         "You can close this window and return to fiano.");
+const CHECKOUT_OK_HTML    = renderSuccessPage('Payment successful',       'Welcome to fiano. You can close this window — your plan is being activated.', 'green');
+const CHECKOUT_CANCEL_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>fiano — Checkout canceled</title>
+<style>html,body{margin:0;background:#0d0f10;color:#f1f2f2;font-family:-apple-system,sans-serif;height:100%;display:flex;align-items:center;justify-content:center}
+.card{padding:40px 48px;border-radius:20px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);text-align:center;max-width:380px}
+h1{margin:0 0 8px;font-size:18px;font-weight:600}p{margin:0;font-size:13px;color:#a1a1aa;line-height:1.5}</style></head>
+<body><div class="card"><h1>Checkout canceled</h1><p>No charge was made. You can return to fiano and pick another plan whenever you're ready.</p></div>
+<script>setTimeout(()=>{try{window.close();}catch(e){}},2000);</script></body></html>`;
+const PORTAL_RETURN_HTML  = renderSuccessPage('All set',                  'You can close this window and return to fiano.', 'green');
 
 const FAILURE_HTML = (msg: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>fiano — Login failed</title>
@@ -133,6 +151,30 @@ function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): voi
   // Wir senden ein winziges JS-Bridge das den Hash zu Query macht und auf /auth-callback weiterleitet.
   if (url.pathname === '/' || url.pathname === '') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(HASH_BRIDGE_HTML);
+    return;
+  }
+
+  // Stripe-Checkout-Success: Stripe redirected hierhin nach erfolgreicher Zahlung.
+  // Subscription-Sync läuft via Webhook im Hintergrund — wir zeigen nur eine
+  // schöne "Payment successful"-Seite. Der Realtime-Channel im AuthStore
+  // detected die neue Subscription dann automatisch und routet weiter.
+  if (url.pathname === '/checkout-success') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(CHECKOUT_OK_HTML);
+    // App in Vordergrund holen
+    if (codeListener) codeListener({ /* nichts spezifisches — focus only */ });
+    return;
+  }
+
+  // Stripe-Checkout-Cancel: User hat Stripe-Checkout abgebrochen.
+  if (url.pathname === '/checkout-cancel') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(CHECKOUT_CANCEL_HTML);
+    return;
+  }
+
+  // Customer-Portal-Return: User klickt im Stripe-Portal "Return to fiano".
+  if (url.pathname === '/portal-return') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(PORTAL_RETURN_HTML);
+    if (codeListener) codeListener({ /* focus only */ });
     return;
   }
 
