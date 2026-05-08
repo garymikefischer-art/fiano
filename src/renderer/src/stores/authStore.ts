@@ -79,6 +79,41 @@ function humanizeAuthError(msg: string): string {
 let initStarted = false;
 const INIT_TIMEOUT_MS = 8000;
 
+// Realtime-Channel für die eigene subscription-Row. Wird (re-)abonniert wenn
+// User-ID sich ändert (Login / Logout / Re-Login). Channel bleibt aktiv solange
+// User eingeloggt ist — broadcastet bei Stripe-Webhook-Updates an den Store.
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let realtimeUserId: string | null = null;
+
+async function subscribeToOwnSubscription(userId: string, onChange: () => void): Promise<void> {
+  if (realtimeUserId === userId && realtimeChannel) return; // schon abonniert
+  // Alten Channel cleanen wenn sich user gewechselt hat
+  if (realtimeChannel) {
+    try { await supabase.removeChannel(realtimeChannel); } catch {/* ignore */}
+    realtimeChannel = null;
+  }
+  realtimeUserId = userId;
+  realtimeChannel = supabase
+    .channel(`sub-changes-${userId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'subscriptions', filter: `user_id=eq.${userId}` },
+      () => {
+        // Eigentlicher Refresh läuft im Store — wir triggern nur
+        onChange();
+      },
+    )
+    .subscribe();
+}
+
+async function unsubscribeRealtime(): Promise<void> {
+  if (realtimeChannel) {
+    try { await supabase.removeChannel(realtimeChannel); } catch {/* ignore */}
+    realtimeChannel = null;
+    realtimeUserId = null;
+  }
+}
+
 export const useAuth = create<AuthState>((set, get) => ({
   initializing: true,
   user: null,
@@ -350,6 +385,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   async signOut() {
+    await unsubscribeRealtime();
     await supabase.auth.signOut();
     await window.api.invoke('auth.clearSession');
     set({ user: null, session: null, subscription: null });
@@ -358,7 +394,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   // ─── Subscription aus public.subscriptions lesen ──────────────────────
   async fetchSubscription() {
     const userId = get().user?.id;
-    if (!userId) { set({ subscription: null }); return; }
+    if (!userId) { set({ subscription: null }); await unsubscribeRealtime(); return; }
     const { data, error } = await supabase
       .from('subscriptions')
       .select('plan, status, lifetime, current_period_end')
@@ -375,6 +411,11 @@ export const useAuth = create<AuthState>((set, get) => ({
       lifetime: !!data.lifetime,
       current_period_end: data.current_period_end,
     } : null });
+    // Realtime-Channel sicherstellen (idempotent)
+    subscribeToOwnSubscription(userId, () => {
+      // Bei jedem Webhook-Update triggern wir einen frischen Fetch
+      get().fetchSubscription().catch(() => {/* ignore */});
+    }).catch((err) => console.warn('[auth] realtime subscribe failed:', err));
   },
 
   clearError() { set({ lastError: null }); },

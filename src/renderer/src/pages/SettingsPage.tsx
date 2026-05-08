@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import type { FacecamRegion } from '@shared/types';
 import { useApp } from '../stores/appStore';
 import { useAuth } from '../stores/authStore';
+import { createCheckoutSession, createPortalSession } from '../lib/stripe';
 import { mediaUrl } from '../lib/mediaUrl';
 import { TopBarActions } from '../components/TopBarActions';
 import * as sounds from '../lib/sounds';
@@ -1267,6 +1268,34 @@ function AccountSection() {
   const subscription = useAuth((s) => s.subscription);
   const signOut = useAuth((s) => s.signOut);
   const fetchSubscription = useAuth((s) => s.fetchSubscription);
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState<'upgrade' | 'portal' | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleUpgrade = async () => {
+    if (busy) return;
+    // Aktuell creator → upgrade pro. Sonst zur Pricing-Page.
+    if (subscription?.plan !== 'creator') {
+      navigate('/pricing');
+      return;
+    }
+    setBusy('upgrade');
+    setErrorMsg(null);
+    const res = await createCheckoutSession('pro');
+    if (res.url) await window.api.invoke('shell.openExternal', { url: res.url });
+    else setErrorMsg(res.error ?? 'Failed');
+    setTimeout(() => setBusy(null), 2000);
+  };
+
+  const handlePortal = async () => {
+    if (busy) return;
+    setBusy('portal');
+    setErrorMsg(null);
+    const res = await createPortalSession();
+    if (res.url) await window.api.invoke('shell.openExternal', { url: res.url });
+    else setErrorMsg(res.error ?? 'Failed');
+    setTimeout(() => setBusy(null), 2000);
+  };
 
   const planLabel = subscription?.lifetime
     ? t('settings.account.planLifetime')
@@ -1336,33 +1365,42 @@ function AccountSection() {
 
         {/* Action-Buttons je nach Plan-State */}
         {!subscription?.lifetime && (
-          <div className="flex gap-2 pt-2 border-t border-zinc-800">
-            {subscription?.plan === 'creator' && (
-              <button
-                onClick={() => alert(t('settings.account.checkoutSoon'))}
-                className="text-[12px] font-semibold px-4 py-2 rounded-lg
-                           bg-fiano-red text-white hover:brightness-110 transition"
-              >
-                {t('settings.account.upgradeToPro')}
-              </button>
+          <>
+            {errorMsg && (
+              <div className="text-[11px] text-fiano-red bg-fiano-red/[0.08] border border-fiano-red/20 rounded-md px-3 py-2">
+                {errorMsg}
+              </div>
             )}
-            <button
-              onClick={() => alert(t('settings.account.portalSoon'))}
-              className="text-[12px] font-medium px-4 py-2 rounded-lg
-                         bg-white/[0.04] border border-white/[0.10] text-zinc-300
-                         hover:bg-white/[0.08] transition"
-            >
-              {t('settings.account.manageBilling')}
-            </button>
-            <button
-              onClick={() => fetchSubscription()}
-              className="text-[12px] font-medium px-4 py-2 rounded-lg
-                         bg-white/[0.04] border border-white/[0.10] text-zinc-400
-                         hover:bg-white/[0.08] transition"
-            >
-              {t('settings.account.refresh')}
-            </button>
-          </div>
+            <div className="flex gap-2 pt-2 border-t border-zinc-800 flex-wrap">
+              {subscription?.plan === 'creator' && (
+                <button
+                  onClick={handleUpgrade}
+                  disabled={busy !== null}
+                  className="text-[12px] font-semibold px-4 py-2 rounded-lg
+                             bg-fiano-red text-white hover:brightness-110 transition disabled:opacity-50"
+                >
+                  {busy === 'upgrade' ? t('settings.account.opening') : t('settings.account.upgradeToPro')}
+                </button>
+              )}
+              <button
+                onClick={handlePortal}
+                disabled={busy !== null}
+                className="text-[12px] font-medium px-4 py-2 rounded-lg
+                           bg-white/[0.04] border border-white/[0.10] text-zinc-300
+                           hover:bg-white/[0.08] transition disabled:opacity-50"
+              >
+                {busy === 'portal' ? t('settings.account.opening') : t('settings.account.manageBilling')}
+              </button>
+              <button
+                onClick={() => fetchSubscription()}
+                className="text-[12px] font-medium px-4 py-2 rounded-lg
+                           bg-white/[0.04] border border-white/[0.10] text-zinc-400
+                           hover:bg-white/[0.08] transition"
+              >
+                {t('settings.account.refresh')}
+              </button>
+            </div>
+          </>
         )}
       </section>
 
