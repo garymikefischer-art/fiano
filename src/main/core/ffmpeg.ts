@@ -77,6 +77,21 @@ export function setShellBroadcastStep(step: string | null): void {
 }
 
 /**
+ * Module-level AbortController für shell-Jobs (9:16 + Builder Export).
+ * shell.exportClip / shell.buildVideo registrieren ihren Controller via setShellAbortController().
+ * runFfmpeg fällt auf diesen Controller zurück wenn opts.ctx?.signal nicht gesetzt ist.
+ * shell.cancelActiveJob ruft .abort() darauf auf → laufender FFmpeg wird via signal getötet.
+ * Job-Queue concurrency=1 → kein Race.
+ */
+let activeShellAbort: AbortController | null = null;
+export function setShellAbortController(ctrl: AbortController | null): void {
+  activeShellAbort = ctrl;
+}
+export function getShellAbortController(): AbortController | null {
+  return activeShellAbort;
+}
+
+/**
  * FFmpeg ausführen, optional Progress an UI emitten.
  * stderr-Ringbuffer wird bei Fehler an die Error-Message gehängt.
  */
@@ -84,8 +99,11 @@ export function runFfmpeg(args: string[], opts: FfmpegOpts = {}): Promise<void> 
   const bin = resolveBin('ffmpeg');
   if (!bin) return Promise.reject(new Error('ffmpeg not found. Install via: brew install ffmpeg'));
 
+  // Signal-Priorität: explizites JobContext-Signal > Module-level Shell-Abort
+  const signal = opts.ctx?.signal ?? activeShellAbort?.signal;
+
   return new Promise((resolve, reject) => {
-    const p = spawn(bin, args, { signal: opts.ctx?.signal });
+    const p = spawn(bin, args, { signal });
     let parsedDuration = opts.expectedDuration ?? 0;
     let stderrBuf = '';
 
@@ -133,8 +151,8 @@ export function runFfmpeg(args: string[], opts: FfmpegOpts = {}): Promise<void> 
         .slice(-8)
         .join(' | ')
         .slice(-800);
-      // User-Cancel via ctx → silent abort
-      if (opts.ctx?.signal?.aborted) {
+      // User-Cancel via ctx oder shell-abort → silent abort
+      if (signal?.aborted) {
         reject(new Error('aborted'));
         return;
       }

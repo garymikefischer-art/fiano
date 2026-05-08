@@ -881,4 +881,6 @@ export const it: Record<string, string> = {
   'thumbnail.fieldCustomGamePlaceholderRealistic': 'vuoto = Call of Duty: Warzone (default), oppure PUBG, Battlefield …',
   'status.exporting':           'Esportazione 9:16',
   'status.building':            'Creazione video',
+  'status.cancel':              'Annulla',
+  'status.canceling':           'Annullamento…',
 };

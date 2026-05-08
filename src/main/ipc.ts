@@ -32,7 +32,7 @@ import {
   setGeminiApiKey, getGeminiApiKey, hasGeminiApiKey, deleteGeminiApiKey,
 } from './core/settings';
 import { checkBinaries, clearBinaryCache, getFfmpegDiagnostics, setFfmpegOverride } from './core/bin';
-import { exportClipAs, buildVideo, hasSubtitlesFilter, getSubtitleSupport, renderEditorTimeline, extractFrameJpeg, runVidstabDetect, hasVidstabFilter, setQualityMode, setShellBroadcastStep, type BuilderClip, type EditorClipSpec, type EditorRenderOptions, type QualityMode } from './core/ffmpeg';
+import { exportClipAs, buildVideo, hasSubtitlesFilter, getSubtitleSupport, renderEditorTimeline, extractFrameJpeg, runVidstabDetect, hasVidstabFilter, setQualityMode, setShellBroadcastStep, setShellAbortController, getShellAbortController, type BuilderClip, type EditorClipSpec, type EditorRenderOptions, type QualityMode } from './core/ffmpeg';
 import { broadcast } from './core/events';
 import { transcodeForPreview } from './core/transcode';
 import { generateClipSrt } from './core/pipeline/subtitles';
@@ -1031,6 +1031,9 @@ const handlers: Record<string, Handler<any, any>> = {
       }
 
       // Phase 8.x: shell-export Progress an StatusBar
+      // Phase 9.1: AbortController für Cancel-Button
+      const abort = new AbortController();
+      setShellAbortController(abort);
       setShellBroadcastStep('shell-export');
       broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-export', percent: 0 });
       try {
@@ -1047,8 +1050,16 @@ const handlers: Record<string, Handler<any, any>> = {
         });
         broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-export', percent: 100 });
         return { canceled: false, savedTo: r.filePath };
+      } catch (err: any) {
+        // Cancel via AbortController → silent canceled-Result statt Error
+        if (abort.signal.aborted || err?.message === 'aborted') {
+          await fs.rm(tmp, { force: true }).catch(() => {});
+          return { canceled: true };
+        }
+        throw err;
       } finally {
         setShellBroadcastStep(null);
+        setShellAbortController(null);
       }
     } catch (err: any) {
       await fs.rm(tmp, { force: true }).catch(() => {});
@@ -1183,6 +1194,9 @@ const handlers: Record<string, Handler<any, any>> = {
       }
 
       // Phase 8.x: shell-build Progress an StatusBar
+      // Phase 9.1: AbortController für Cancel-Button
+      const abort = new AbortController();
+      setShellAbortController(abort);
       setShellBroadcastStep('shell-build');
       broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-build', percent: 0 });
       try {
@@ -1200,8 +1214,16 @@ const handlers: Record<string, Handler<any, any>> = {
         }, tmpDir);
         broadcast({ type: 'job.progress', projectId: 'shell', step: 'shell-build', percent: 100 });
         return { canceled: false, savedTo: r.filePath };
+      } catch (err: any) {
+        // Cancel via AbortController → silent canceled-Result statt Error
+        if (abort.signal.aborted || err?.message === 'aborted') {
+          await fs.rm(r.filePath, { force: true }).catch(() => {});
+          return { canceled: true };
+        }
+        throw err;
       } finally {
         setShellBroadcastStep(null);
+        setShellAbortController(null);
       }
     } finally {
       // SRTs aufräumen — buildTmp wird sowieso geräumt aber sicherheitshalber
@@ -1215,6 +1237,19 @@ const handlers: Record<string, Handler<any, any>> = {
   'shell.revealInFolder': async (i: { path: string }) => {
     shell.showItemInFolder(path.normalize(i.path));
     return { ok: true };
+  },
+
+  /**
+   * Phase 9.1: Bricht den aktuell laufenden Shell-Export (9:16 oder Builder) ab.
+   * Tötet via AbortController den FFmpeg-spawn — runFfmpeg fällt in 'aborted'-Pfad
+   * → exportClip/buildVideo räumt tmp-Files auf und liefert canceled:true zurück.
+   * No-op wenn nichts läuft.
+   */
+  'shell.cancelActiveJob': async () => {
+    const ctrl = getShellAbortController();
+    if (!ctrl) return { canceled: false, reason: 'no-active-job' };
+    ctrl.abort();
+    return { canceled: true };
   },
 
   // ─── Auth: Session encrypted persisting via safeStorage (Phase 6.1) ───────

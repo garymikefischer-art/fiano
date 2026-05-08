@@ -199,6 +199,8 @@ interface AppState {
     clips: BuilderClipInput[],
     options: BuildVideoOptions,
   ) => Promise<string | null>;
+  /** Phase 9.1: bricht den aktuell laufenden Shell-Export (9:16/Builder) ab. */
+  cancelCurrentJob: () => Promise<void>;
 }
 
 async function call<T>(channel: string, payload?: unknown): Promise<T | null> {
@@ -732,6 +734,14 @@ export const useApp = create<AppState>((set, get) => ({
     } finally {
       set({ currentJob: null });
     }
+  },
+
+  cancelCurrentJob: async () => {
+    // Optimistisch StatusBar idle setzen — Main-Prozess broadcastet keine progress
+    // mehr nach abort, aber der laufende exportClip/buildVideo-Aufruf returnt erst
+    // wenn FFmpeg sauber gestorben ist. UI soll nicht "Exporting 47%" stehen lassen.
+    set({ currentJob: null });
+    await call('shell.cancelActiveJob');
   },
 }));
 
