@@ -17,24 +17,28 @@ export const downloadStep: PipelineStep<Input, { sourcePath: string }> = {
     }
 
     const bin = resolveBin('yt-dlp');
-    if (!bin) throw new Error('yt-dlp not found. Install via: brew install yt-dlp');
+    if (!bin) throw new Error('yt-dlp not found. Reinstall fiano.');
+
+    // yt-dlp braucht FFmpeg für Video+Audio-Merge. Bundled FFmpeg ist NICHT im
+    // System-PATH → wir geben explizit den Pfad mit. resolveBin('ffmpeg') findet
+    // bundled bevorzugt, fällt auf System zurück.
+    const ffmpegBin = resolveBin('ffmpeg');
 
     const out = path.join(ctx.workDir, 'source.mp4');
     ctx.emit({ type: 'log', step: 'download', message: `yt-dlp ${source.value}` });
 
+    const args = [
+      '-f', 'bv*[ext=mp4][height<=1080]+ba[ext=m4a]/b[ext=mp4]/b',
+      '--merge-output-format', 'mp4',
+      '--no-playlist',
+      '--newline',
+      '-o', out,
+      ...(ffmpegBin ? ['--ffmpeg-location', ffmpegBin] : []),
+      source.value,
+    ];
+
     await new Promise<void>((resolve, reject) => {
-      const p = spawn(
-        bin,
-        [
-          '-f', 'bv*[ext=mp4][height<=1080]+ba[ext=m4a]/b[ext=mp4]/b',
-          '--merge-output-format', 'mp4',
-          '--no-playlist',
-          '--newline',
-          '-o', out,
-          source.value,
-        ],
-        { signal: ctx.signal },
-      );
+      const p = spawn(bin, args, { signal: ctx.signal });
 
       let lastErr = '';
       p.stdout.on('data', (b: Buffer) => {
@@ -50,8 +54,15 @@ export const downloadStep: PipelineStep<Input, { sourcePath: string }> = {
 
       p.on('error', reject);
       p.on('exit', (code) => {
-        if (code === 0 && fs.existsSync(out)) resolve();
-        else reject(new Error(`yt-dlp failed (exit ${code}): ${lastErr.trim()}`));
+        if (code === 0 && fs.existsSync(out)) {
+          resolve();
+        } else if (code === 0) {
+          // exit=0 aber Output fehlt → meist Merge-Failure (FFmpeg nicht gefunden,
+          // o.ä.) — yt-dlp loggt das als WARNING in stderr.
+          reject(new Error(`yt-dlp finished without producing output. Last warnings/errors:\n${lastErr.trim()}`));
+        } else {
+          reject(new Error(`yt-dlp failed (exit ${code}): ${lastErr.trim()}`));
+        }
       });
     });
 
