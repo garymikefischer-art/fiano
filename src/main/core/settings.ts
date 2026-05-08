@@ -14,6 +14,15 @@ export interface EditorExportDefaults {
   bitrate: string;
 }
 
+/** Phase 9.2: Defaults für 9:16 + Builder Export — analog editorExport, separate
+ *  Werte weil 9:16 vertikal-orientiert ist. */
+export interface ShellExportDefaults {
+  width: number;
+  height: number;
+  fps: number;
+  bitrate: string;
+}
+
 export interface AppDefaults {
   facecam: FacecamRegion;
   splitRatio: number;
@@ -32,6 +41,10 @@ export interface AppDefaults {
   // ─── Editor-Export-Defaults ──────────────────────────────
   /** Default-Werte für Editor-Timeline-Export (überschreibbar pro Export). */
   editorExport?: EditorExportDefaults;
+  /** Phase 9.2: Default-Werte für 9:16-Export (TikTokTab). */
+  tiktokExport?: ShellExportDefaults;
+  /** Phase 9.2: Default-Werte für Builder-Export (16:9). */
+  builderExport?: ShellExportDefaults;
   /** Encoder-Quality-Mode: 'fast' = Hardware (videotoolbox auf macOS, schnell aber pro-Bit
    *  qualitätsmäßig schlechter), 'quality' = libx264 -preset slow (langsamer, schärfer). */
   qualityMode?: 'fast' | 'quality';
@@ -43,6 +56,14 @@ const DEFAULT_EDITOR_EXPORT: EditorExportDefaults = {
   width: 1920, height: 1080, fps: 30, bitrate: '30M',
 };
 
+const DEFAULT_TIKTOK_EXPORT: ShellExportDefaults = {
+  width: 1080, height: 1920, fps: 30, bitrate: '30M',
+};
+
+const DEFAULT_BUILDER_EXPORT: ShellExportDefaults = {
+  width: 1920, height: 1080, fps: 30, bitrate: '30M',
+};
+
 const FALLBACK_DEFAULTS: AppDefaults = {
   facecam: { ...DEFAULT_FACECAM },
   splitRatio: DEFAULT_SPLIT_RATIO,
@@ -51,6 +72,8 @@ const FALLBACK_DEFAULTS: AppDefaults = {
   confirmDelete: true,
   soundsEnabled: true,
   editorExport: { ...DEFAULT_EDITOR_EXPORT },
+  tiktokExport: { ...DEFAULT_TIKTOK_EXPORT },
+  builderExport: { ...DEFAULT_BUILDER_EXPORT },
   qualityMode: 'fast',
 };
 
@@ -72,6 +95,8 @@ export async function getAppDefaults(): Promise<AppDefaults> {
       soundsEnabled: typeof parsed.soundsEnabled === 'boolean' ? parsed.soundsEnabled : true,
       language: typeof parsed.language === 'string' ? parsed.language : undefined,
       editorExport: { ...DEFAULT_EDITOR_EXPORT, ...(parsed.editorExport ?? {}) },
+      tiktokExport: { ...DEFAULT_TIKTOK_EXPORT, ...(parsed.tiktokExport ?? {}) },
+      builderExport: { ...DEFAULT_BUILDER_EXPORT, ...(parsed.builderExport ?? {}) },
       qualityMode: parsed.qualityMode === 'quality' ? 'quality' : 'fast',
       subtitlePresets: Array.isArray(parsed.subtitlePresets) ? parsed.subtitlePresets : [],
     };
@@ -84,6 +109,8 @@ export async function getAppDefaults(): Promise<AppDefaults> {
       confirmDelete: true,
       soundsEnabled: true,
       editorExport: { ...DEFAULT_EDITOR_EXPORT },
+      tiktokExport: { ...DEFAULT_TIKTOK_EXPORT },
+      builderExport: { ...DEFAULT_BUILDER_EXPORT },
       qualityMode: 'fast',
       subtitlePresets: [],
     };
@@ -106,6 +133,8 @@ export async function setAppDefaults(patch: Partial<AppDefaults>): Promise<AppDe
     soundsEnabled: typeof patch.soundsEnabled === 'boolean' ? patch.soundsEnabled : cur.soundsEnabled,
     language: 'language' in patch ? (patch.language || undefined) : cur.language,
     editorExport: { ...DEFAULT_EDITOR_EXPORT, ...cur.editorExport, ...(patch.editorExport ?? {}) },
+    tiktokExport: { ...DEFAULT_TIKTOK_EXPORT, ...cur.tiktokExport, ...(patch.tiktokExport ?? {}) },
+    builderExport: { ...DEFAULT_BUILDER_EXPORT, ...cur.builderExport, ...(patch.builderExport ?? {}) },
     qualityMode: patch.qualityMode ?? cur.qualityMode ?? 'fast',
     subtitlePresets: patch.subtitlePresets ?? cur.subtitlePresets ?? [],
   };

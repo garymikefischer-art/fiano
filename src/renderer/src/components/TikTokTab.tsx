@@ -9,7 +9,7 @@ import type {
 import { DEFAULT_FACECAM, DEFAULT_GAMEPLAY, effectiveSegments } from '@shared/types';
 import { useApp } from '../stores/appStore';
 import { renderSubtitleCueToPng } from '../lib/subtitleCanvas';
-import { BuildQualityDialog } from './BuilderTab';
+import { ExportSettingsDialog, defaultExportSettings, type ExportSettings } from './ExportSettingsDialog';
 import { TikTokPreview } from './TikTokPreview';
 import { FacecamEditor } from './FacecamEditor';
 import { GameplayEditor } from './GameplayEditor';
@@ -759,11 +759,22 @@ function SettingsSidebar({
   const setEffects = (patch: Partial<ClipEffects>) =>
     updateHighlight(project.id, index, { effects: { ...effects, ...patch } });
 
-  // Quality-Mode Dialog vor TikTok-Export — analog Builder.
+  // Phase 9.2: Export-Settings-Dialog für 9:16 — Resolution/FPS/Bitrate/Encoder.
   const [showQualityDialog, setShowQualityDialog] = useState(false);
+  const tiktokDefaults = useApp((s) => s.appDefaults.tiktokExport);
   const defaultQualityMode = useApp((s) => s.appDefaults.qualityMode ?? 'fast');
-  const [exportQualityMode, setExportQualityMode] = useState<'fast' | 'quality'>(defaultQualityMode);
-  useEffect(() => { setExportQualityMode(defaultQualityMode); }, [defaultQualityMode]);
+  const [exportSettings, setExportSettings] = useState<ExportSettings>(() => ({
+    ...defaultExportSettings('tiktok'),
+    ...(tiktokDefaults ?? {}),
+    qualityMode: defaultQualityMode,
+  }));
+  useEffect(() => {
+    setExportSettings({
+      ...defaultExportSettings('tiktok'),
+      ...(tiktokDefaults ?? {}),
+      qualityMode: defaultQualityMode,
+    });
+  }, [tiktokDefaults, defaultQualityMode]);
 
   const onExportClick = () => {
     if (!highlight.clipPath || exporting) return;
@@ -886,7 +897,13 @@ function SettingsSidebar({
           effects,
           intro: project.intro,
           music: resolveActiveMusic(project),
-          qualityMode: exportQualityMode,
+          qualityMode: exportSettings.qualityMode,
+          exportQuality: {
+            width: exportSettings.width,
+            height: exportSettings.height,
+            fps: exportSettings.fps,
+            bitrate: exportSettings.bitrate,
+          },
           subtitlesPerClip: subEnabled
             ? [{
                 highlightIndex: index,
@@ -1055,11 +1072,12 @@ function SettingsSidebar({
         </button>
       </div>
 
-      {/* Quality-Dialog vor TikTok-Export */}
+      {/* Phase 9.2: Export-Settings-Dialog vor 9:16-Export */}
       {showQualityDialog && (
-        <BuildQualityDialog
-          mode={exportQualityMode}
-          onChange={setExportQualityMode}
+        <ExportSettingsDialog
+          format="tiktok"
+          settings={exportSettings}
+          onChange={setExportSettings}
           onCancel={() => setShowQualityDialog(false)}
           onConfirm={onExport}
         />

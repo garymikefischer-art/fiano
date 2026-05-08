@@ -8,9 +8,7 @@ import { IntroSection } from './sections/IntroSection';
 import { VoiceOversSection } from './sections/VoiceOversSection';
 import { mediaUrl } from '../lib/mediaUrl';
 import { useT } from '../lib/i18n';
-import { useFeature } from '../lib/features';
-import { useUpgradeModal } from '../stores/upgradeModalStore';
-import { LockBadge } from './FeatureLock';
+import { ExportSettingsDialog, defaultExportSettings, type ExportSettings } from './ExportSettingsDialog';
 
 interface Props {
   project: Project;
@@ -138,12 +136,24 @@ function BuilderWorkspace({ project, selected }: Props) {
     });
   };
 
-  // Quality-Dialog: vor jedem YouTube-Build wird der Dialog gezeigt damit der User
-  // den Encoder-Mode (Fast/Best-Quality) wählen kann. State-Defaults aus appDefaults.
+  // Phase 9.2: Export-Settings-Dialog mit Resolution/FPS/Bitrate/Encoder.
+  // Default-Werte aus appDefaults.builderExport (persistiert in user-data) +
+  // appDefaults.qualityMode für Encoder-Mode.
   const [showQualityDialog, setShowQualityDialog] = useState(false);
+  const builderDefaults = useApp((s) => s.appDefaults.builderExport);
   const defaultQualityMode = useApp((s) => s.appDefaults.qualityMode ?? 'fast');
-  const [exportQualityMode, setExportQualityMode] = useState<'fast' | 'quality'>(defaultQualityMode);
-  useEffect(() => { setExportQualityMode(defaultQualityMode); }, [defaultQualityMode]);
+  const [exportSettings, setExportSettings] = useState<ExportSettings>(() => ({
+    ...defaultExportSettings('youtube'),
+    ...(builderDefaults ?? {}),
+    qualityMode: defaultQualityMode,
+  }));
+  useEffect(() => {
+    setExportSettings({
+      ...defaultExportSettings('youtube'),
+      ...(builderDefaults ?? {}),
+      qualityMode: defaultQualityMode,
+    });
+  }, [builderDefaults, defaultQualityMode]);
 
   const onBuild = () => {
     if (busy) return;
@@ -168,7 +178,13 @@ function BuilderWorkspace({ project, selected }: Props) {
         format: 'youtube',
         intro: project.intro,
         music: resolveActiveMusic(project),
-        qualityMode: exportQualityMode,
+        qualityMode: exportSettings.qualityMode,
+        exportQuality: {
+          width: exportSettings.width,
+          height: exportSettings.height,
+          fps: exportSettings.fps,
+          bitrate: exportSettings.bitrate,
+        },
       });
     } finally {
       setBusy(false);
@@ -237,83 +253,17 @@ function BuilderWorkspace({ project, selected }: Props) {
         </p>
       </div>
 
-      {/* Quality-Settings Dialog vor dem Build */}
+      {/* Phase 9.2: Export-Settings-Dialog (Resolution/FPS/Bitrate/Encoder) */}
       {showQualityDialog && (
-        <BuildQualityDialog
-          mode={exportQualityMode}
-          onChange={setExportQualityMode}
+        <ExportSettingsDialog
+          format="youtube"
+          settings={exportSettings}
+          onChange={setExportSettings}
           onCancel={() => setShowQualityDialog(false)}
           onConfirm={runBuild}
         />
       )}
 
-    </div>
-  );
-}
-
-/* ─── Quality-Dialog vor dem YouTube/Builder Export ─────────────────────────── */
-
-export function BuildQualityDialog({
-  mode, onChange, onCancel, onConfirm,
-}: {
-  mode: 'fast' | 'quality';
-  onChange: (m: 'fast' | 'quality') => void;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const t = useT();
-  const qualityFeature = useFeature('quality_render_mode');
-  const openUpgrade = useUpgradeModal((s) => s.open);
-  const opts: Array<{ value: 'fast' | 'quality'; label: string; hint: string; pro?: boolean }> = [
-    { value: 'fast',    label: t('settings.qualityModeFast'),    hint: t('settings.qualityModeFastHint') },
-    { value: 'quality', label: t('settings.qualityModeQuality'), hint: t('settings.qualityModeQualityHint'), pro: true },
-  ];
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-md animate-fade-in"
-         onClick={onCancel}>
-      <div className="glass w-[480px] max-w-[92vw] p-6 rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.5)]"
-           onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-[15px] font-semibold text-zinc-100 mb-1">{t('builder.qualityDialogTitle')}</h2>
-        <div className="text-[11px] text-zinc-500 mb-5">{t('builder.qualityDialogDesc')}</div>
-
-        <div className="space-y-1.5">
-          {opts.map((o) => {
-            const active = mode === o.value;
-            const locked = o.pro && !qualityFeature.unlocked;
-            return (
-              <button key={o.value}
-                onClick={() => {
-                  if (locked) { openUpgrade('quality_render_mode'); return; }
-                  onChange(o.value);
-                }}
-                className={clsx(
-                  'relative w-full text-left rounded-lg px-4 py-3 border transition',
-                  active
-                    ? 'bg-fiano-red/15 border-fiano-red/45 text-white shadow-[0_0_18px_rgba(255,16,57,0.18)]'
-                    : locked
-                      ? 'bg-white/[0.02] border-white/[0.06] text-zinc-400 opacity-70 hover:opacity-90'
-                      : 'bg-white/[0.03] border-white/[0.08] text-zinc-300 hover:bg-white/[0.06]',
-                )}
-              >
-                {locked && <span className="absolute top-2.5 right-2.5"><LockBadge /></span>}
-                <div className="text-[12px] font-semibold">{o.label}</div>
-                <div className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">{o.hint}</div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onCancel}
-            className="px-4 py-2 rounded-lg text-[12px] font-medium border border-white/[0.10] text-zinc-300 hover:bg-white/[0.05]">
-            {t('common.cancel')}
-          </button>
-          <button onClick={onConfirm}
-            className="px-4 py-2 rounded-lg text-[12px] font-semibold bg-fiano-red text-white hover:brightness-110 hover:shadow-[0_0_18px_rgba(255,16,57,0.45)] active:scale-[0.98] transition-all">
-            {t('builder.startExport')}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

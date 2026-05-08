@@ -950,6 +950,8 @@ const handlers: Record<string, Handler<any, any>> = {
     splitRatio?: number;
     music?: ProjectMusic;
     qualityMode?: QualityMode;
+    // Phase 9.2: Resolution/FPS/Bitrate Overrides
+    exportQuality?: { width?: number; height?: number; fps?: number; bitrate?: string };
     // Optional: Subtitle Embedding aus dem transcript.json des Projekts
     subtitles?: {
       projectId: string;
@@ -1043,6 +1045,7 @@ const handlers: Record<string, Handler<any, any>> = {
           splitRatio: i.splitRatio,
           music: i.music,
           subtitles: subsForExport,
+          exportQuality: i.exportQuality,
         });
         await fs.rename(tmp, r.filePath).catch(async () => {
           await fs.copyFile(tmp, r.filePath);

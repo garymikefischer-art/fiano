@@ -299,6 +299,13 @@ export interface ExportOptions {
   splitRatio?: number;
   music?: ProjectMusic;
   /**
+   * Phase 9.2: Optional Resolution/FPS/Bitrate Overrides. Wenn nicht gesetzt:
+   * - youtube: Master-Resolution + 30 Mbps
+   * - tiktok:  1080×1920 (oder Stacked-Layout-Resolution) + 30 Mbps
+   * width/height werden für scale benutzt; fps via -r; bitrate als -b:v.
+   */
+  exportQuality?: { width?: number; height?: number; fps?: number; bitrate?: string };
+  /**
    * Subtitles: liefere ENTWEDER `srtPath` (libass-Pfad) ODER `transcript+highlight` (drawtext-Fallback).
    * Wenn beide gegeben: libass wird bevorzugt wenn verfügbar, sonst drawtext.
    */
@@ -601,13 +608,19 @@ async function renderOneSegment(
 ): Promise<void> {
   const dur = Math.max(0.1, segment.end - segment.start);
 
+  // Phase 9.2: Quality-Overrides — Bitrate/FPS/Resolution.
+  // Defaults: 30 Mbps Bitrate, kein -r (Source-FPS), Resolution format-abhängig.
+  const eq = options.exportQuality ?? {};
+  const bitrate = eq.bitrate ?? '30M';
+  const fpsArg: string[] = eq.fps ? ['-r', String(eq.fps)] : [];
+
   const COMMON_FLAGS = [
-    // KEIN '-r' fest — Source-fps bleibt erhalten (60fps-Sources verlieren keine Frames mehr).
     // -fps_mode cfr stellt Constant Frame Rate sicher anhand der Input-Rate, nötig für sauberen Concat.
+    // Ohne explizites -r: Source-FPS bleibt erhalten (60fps-Sources verlieren keine Frames).
+    ...fpsArg,
     '-fps_mode', 'cfr',
     '-c:v', videoEncoder(), ...encoderExtraArgs(),
-    // Beide formats nutzen jetzt 30M — 9:16 verliert keine Qualität gegenüber Master.
-    '-b:v', '30M',
+    '-b:v', bitrate,
     '-c:a', 'aac',
     '-b:a', '192k',
     '-ar', '48000',
@@ -619,11 +632,25 @@ async function renderOneSegment(
 
   const fxSuffix = effectsSuffix(options.effects);
 
+  // Target-Resolution für tiktok-full + stacked. Default 1080×1920, aber wenn user
+  // exportQuality.width/height gesetzt hat: nutze diese (z.B. 720×1280, 2160×3840 4K).
+  const tiktokW = eq.width && eq.width > 0 ? eq.width : 1080;
+  const tiktokH = eq.height && eq.height > 0 ? eq.height : 1920;
+
   if (format === 'youtube' || options.layout !== 'stacked') {
     // Simpler Pfad — einfaches -vf reicht (+ optional Effects am Ende)
-    const vf = format === 'youtube'
-      ? `setsar=1${fxSuffix}`
-      : `crop=ih*9/16:ih,scale=1080:1920${SCALE_QUALITY_FLAGS},setsar=1${fxSuffix}`;
+    let vf: string;
+    if (format === 'youtube') {
+      // Youtube: optionaler scale wenn user explizite Resolution gewählt hat
+      if (eq.width && eq.height) {
+        vf = `scale=${eq.width}:${eq.height}${SCALE_QUALITY_FLAGS},setsar=1${fxSuffix}`;
+      } else {
+        vf = `setsar=1${fxSuffix}`;
+      }
+    } else {
+      // 9:16 full layout: crop auf 9:16-Aspect dann scale auf Target.
+      vf = `crop=ih*9/16:ih,scale=${tiktokW}:${tiktokH}${SCALE_QUALITY_FLAGS},setsar=1${fxSuffix}`;
+    }
 
     await runFfmpeg([
       '-y',
@@ -643,8 +670,8 @@ async function renderOneSegment(
   const fc = options.facecam ?? DEFAULT_FACECAM;
   const gp = options.gameplay ?? DEFAULT_GAMEPLAY;
   const ratio = clamp(options.splitRatio ?? DEFAULT_SPLIT_RATIO, 0.2, 0.8);
-  const topH = Math.round((1920 * ratio) / 2) * 2;
-  const botH = 1920 - topH;
+  const topH = Math.round((tiktokH * ratio) / 2) * 2;
+  const botH = tiktokH - topH;
   const fx = clamp(fc.x, 0, 0.99);
   const fy = clamp(fc.y, 0, 0.99);
   const fw = clamp(fc.width, 0.05, 1 - fx);
@@ -659,11 +686,11 @@ async function renderOneSegment(
   const filter = [
     `[0:v]split=2[a][b]`,
     `[a]crop=iw*${fw}:ih*${fh}:iw*${fx}:ih*${fy},` +
-      `scale=1080:${topH}:force_original_aspect_ratio=increase${SCALE_QUALITY_FLAGS},` +
-      `crop=1080:${topH}[top]`,
+      `scale=${tiktokW}:${topH}:force_original_aspect_ratio=increase${SCALE_QUALITY_FLAGS},` +
+      `crop=${tiktokW}:${topH}[top]`,
     `[b]crop=iw*${gw}:ih*${gh}:iw*${gx}:ih*${gy},` +
-      `scale=1080:${botH}:force_original_aspect_ratio=increase${SCALE_QUALITY_FLAGS},` +
-      `crop=1080:${botH}[bottom]`,
+      `scale=${tiktokW}:${botH}:force_original_aspect_ratio=increase${SCALE_QUALITY_FLAGS},` +
+      `crop=${tiktokW}:${botH}[bottom]`,
     `[top][bottom]vstack=inputs=2,setsar=1${fxSuffix}[v]`,
   ].join(';');
 

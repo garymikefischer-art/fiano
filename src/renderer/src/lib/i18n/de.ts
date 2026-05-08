@@ -900,4 +900,15 @@ export const de: Record<string, string> = {
   'status.building':            'Erstelle Video',
   'status.cancel':              'Abbrechen',
   'status.canceling':           'Breche ab …',
+  // Phase 9.2: ExportSettingsDialog (Builder + 9:16) — gleiches Design wie Edit-Tab
+  'exportDialog.title':         'Export-Einstellungen',
+  'exportDialog.resolution':    'Auflösung',
+  'exportDialog.width':         'Breite',
+  'exportDialog.height':        'Höhe',
+  'exportDialog.frameRate':     'Bildrate',
+  'exportDialog.bitrate':       'Bitrate',
+  'exportDialog.encoder':       'Encoder',
+  'exportDialog.encoderHardware': 'Hardware',
+  'exportDialog.encoderSoftware': 'Software',
+  'exportDialog.startExport':   'Export starten',
 };

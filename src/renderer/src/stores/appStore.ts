@@ -29,6 +29,14 @@ export interface EditorExportDefaults {
   bitrate: string;
 }
 
+/** Phase 9.2: 9:16 + Builder Export-Defaults — gleiche Struktur, separate Werte. */
+export interface ShellExportDefaults {
+  width: number;
+  height: number;
+  fps: number;
+  bitrate: string;
+}
+
 interface AppDefaults {
   facecam: FacecamRegion;
   splitRatio: number;
@@ -41,6 +49,8 @@ interface AppDefaults {
   soundsEnabled?: boolean;
   language?: string;
   editorExport?: EditorExportDefaults;
+  tiktokExport?: ShellExportDefaults;
+  builderExport?: ShellExportDefaults;
   /** Encoder-Quality-Mode: 'fast' = Hardware (videotoolbox), 'quality' = libx264 -preset slow (langsamer aber schärfer) */
   qualityMode?: 'fast' | 'quality';
   /** User-saved Subtitle-Presets. */
@@ -60,6 +70,10 @@ interface ExportClipOptions {
   facecam?: FacecamRegion;
   splitRatio?: number;
   music?: ProjectMusic;
+  /** Phase 9.2: Resolution/FPS/Bitrate Overrides für 9:16-Direkt-Export. */
+  exportQuality?: { width?: number; height?: number; fps?: number; bitrate?: string };
+  /** Phase 9.3: Encoder-Mode (fast=Hardware, quality=Software) — propagiert via setQualityMode. */
+  qualityMode?: 'fast' | 'quality';
   subtitles?: {
     projectId: string;
     highlightIndex: number;
@@ -704,6 +718,8 @@ export const useApp = create<AppState>((set, get) => ({
         splitRatio: options?.splitRatio,
         music: options?.music,
         subtitles: options?.subtitles,
+        exportQuality: options?.exportQuality,
+        qualityMode: options?.qualityMode,
       });
       return r?.savedTo ?? null;
     } finally {
