@@ -1,96 +1,55 @@
 /**
- * FFmpeg-Wrapper für Mobile.
+ * FFmpeg-Wrapper für Mobile — STUB für MVP (Phase 9.4.2).
  *
- * Nutzt ffmpeg-kit-react-native (Community-Fork — Original arthenica/ffmpeg-kit
- * ist seit Juni 2025 archiviert).
+ * Hintergrund: arthenica/ffmpeg-kit wurde Juni 2025 archiviert + Maven-Repo am
+ * 1.4.2025 abgeschaltet. Auch der jdarshan5-Fork pullt noch die alten
+ * `com.arthenica:ffmpeg-kit-https`-Coords → Gradle-Build schlägt fehl.
  *
- * Ablauf:
- *   - Args werden mit `buildMobileExportArgs` aus @fiano/shared/ffmpegArgs erstellt
- *   - Hier wird nur die Spawn-Layer + Progress-Callback gehandhabt
+ * Phase 9.4.x: Custom Native-Module (iOS via kewlbear/FFmpeg-iOS Swift-Package,
+ * Android via NDK + statisch gelinktes FFmpeg). Da @fiano/shared/ffmpegArgs
+ * plattform-neutral ist, ist der Migrationsaufwand klein.
  *
- * Migration-Path: wenn wir auf custom native Module wechseln (post-MVP), bleibt
- * dieser File die einzige Stelle die getauscht werden muss.
+ * Bis dahin: Stub damit App startbar und Login + Import + UI testbar bleiben.
  */
 
-import { Platform } from 'react-native';
-import {
-  FFmpegKit,
-  FFmpegKitConfig,
-  ReturnCode,
-  type Statistics,
-  type FFmpegSession,
-} from 'ffmpeg-kit-react-native';
 import {
   buildMobileExportArgs,
   type MobileExportOpts,
-  type Platform as ArgPlatform,
 } from '@fiano/shared/ffmpegArgs';
 
 export interface RunOpts {
-  /** Total-Duration in Sekunden für Progress-%-Berechnung. */
   expectedDuration: number;
   onProgress?: (percent: number) => void;
 }
 
-let activeSession: FFmpegSession | null = null;
-
-function platformForArgs(): ArgPlatform {
-  if (Platform.OS === 'ios') return 'darwin';
-  if (Platform.OS === 'android') return 'android';
-  return 'other';
-}
-
 /**
- * Führt einen Mobile-Export aus. Wirft bei Fehler oder Cancel.
- *
- * Returns: void (Output ist in opts.dst geschrieben).
+ * STUB — wirft "not-implemented". Args werden trotzdem berechnet damit der Code
+ * im ExportScreen kompiliert + die Pipeline-Logik testbar bleibt.
  */
 export async function exportMobile(opts: MobileExportOpts, runOpts: RunOpts): Promise<void> {
-  const args = buildMobileExportArgs(opts, platformForArgs());
-  await runFfmpegArgs(args, runOpts);
-}
+  const args = buildMobileExportArgs(opts, 'android');
+  console.log('[ffmpeg-stub] would run:', args.join(' '));
 
-/**
- * Low-level Runner — direkt mit args[]. Wird für custom Pipelines genutzt.
- */
-export async function runFfmpegArgs(args: string[], runOpts: RunOpts): Promise<void> {
-  return new Promise((resolve, reject) => {
-    FFmpegKitConfig.enableStatisticsCallback((stat: Statistics) => {
-      if (runOpts.onProgress && runOpts.expectedDuration > 0) {
-        const sec = stat.getTime() / 1000;
-        const pct = Math.min(99, (sec / runOpts.expectedDuration) * 100);
-        runOpts.onProgress(pct);
-      }
-    });
-
-    FFmpegKit.executeWithArguments(args)
-      .then(async (session) => {
-        activeSession = session;
-        const rc = await session.getReturnCode();
-        activeSession = null;
-        if (ReturnCode.isSuccess(rc)) {
-          runOpts.onProgress?.(100);
-          resolve();
-        } else if (ReturnCode.isCancel(rc)) {
-          reject(new Error('aborted'));
-        } else {
-          const log = await session.getOutput();
-          reject(new Error(`ffmpeg failed: ${(log ?? '').slice(-500)}`));
-        }
-      })
-      .catch((err) => {
-        activeSession = null;
-        reject(err instanceof Error ? err : new Error(String(err)));
-      });
-  });
-}
-
-/**
- * Bricht den aktiven FFmpeg-Job ab. Der laufende `exportMobile`-Promise rejected
- * dann mit `Error('aborted')`.
- */
-export function cancelFfmpeg(): void {
-  if (activeSession) {
-    FFmpegKit.cancel();
+  // Fake-Progress-Demo für UI-Tests (~3 sec)
+  for (let i = 0; i <= 100; i += 10) {
+    await new Promise((r) => setTimeout(r, 300));
+    runOpts.onProgress?.(i);
   }
+
+  throw new Error(
+    'FFmpeg-Native ist im MVP noch nicht aktiv (Phase 9.4.x). ' +
+    'Custom Android/iOS-Native-Module sind in Vorbereitung.',
+  );
+}
+
+/** Low-level Runner — gleicher Stub-Status. */
+export async function runFfmpegArgs(args: string[], runOpts: RunOpts): Promise<void> {
+  void args;
+  void runOpts;
+  throw new Error('FFmpeg-Native nicht im MVP — siehe exportMobile.');
+}
+
+/** Cancel-No-Op (kein laufender Job). */
+export function cancelFfmpeg(): void {
+  // Stub
 }

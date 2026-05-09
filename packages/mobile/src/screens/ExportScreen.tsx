@@ -68,6 +68,8 @@ export function ExportScreen() {
         },
       );
 
+      // Phase 9.4.2: dieser Code-Pfad wird erst in 9.4.x erreicht (Native-FFmpeg).
+      // Stub wirft heute eine Exception → "failed"-Phase mit verständlicher Message.
       setPhase('saving');
       const assetUri = await saveToCameraRoll(dst);
       setSavedAssetUri(assetUri);
@@ -138,7 +140,11 @@ export function ExportScreen() {
 
         {phase === 'failed' && (
           <>
-            <Text className="text-red-400 text-sm">{error}</Text>
+            <Text className="text-fiano-fg/80 text-sm leading-5 mb-2">{error}</Text>
+            <Text className="text-fiano-fg/40 text-xs leading-5">
+              Phase 9.4.2: UI-MVP ist live. FFmpeg-Native-Modul (iOS via Swift Package + Android NDK)
+              folgt in Phase 9.4.x — der ExportScreen ist UI-vollständig und wartet nur auf den Native-Layer.
+            </Text>
             <BrandButton title="Zurück" variant="secondary" onPress={() => nav.goBack()} />
           </>
         )}

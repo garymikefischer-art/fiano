@@ -36,11 +36,10 @@
     "@react-navigation/bottom-tabs": "^7.0.0",
     "@react-native-async-storage/async-storage": "~2.1.0",
     "@supabase/supabase-js": "^2.45.4",
-    "react-native-purchases": "^8.5.0",
     "zustand": "^4.5.5",
     "nativewind": "^4.1.0",
     "tailwindcss": "^3.4.10",
-    "ffmpeg-kit-react-native": "github:jdarshan5/ffmpeg-kit-react-native"
+    "expo-build-properties": "~0.13.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
@@ -48,8 +47,8 @@
     "typescript": "^5.5.4"
   },
   "_comments": {
-    "ffmpeg-kit": "Original arthenica/ffmpeg-kit ist seit Juni 2025 archiviert. jdarshan5-Fork ist Community-maintained und hat re-published native binaries. Bei Update auf eigenes Native-Module: nur src/lib/ffmpeg.ts tauschen (Args kommen aus @fiano/shared/ffmpegArgs).",
-    "expo-version": "Expo 52 = SDK von Q4 2024. Für 2026 ggf. auf 53+ updaten via `npx expo install --fix`.",
-    "ffmpeg-variant": "Für App-Store-Konformität nutzen wir die LGPL-Variant (https-lts oder min-lts). KEIN libass → drawtext-only Subtitles."
+    "ffmpeg-kit": "Aus MVP entfernt — arthenica/ffmpeg-kit Maven-Repo wurde am 1.4.2025 abgeschaltet (auch jdarshan5-Fork pullt diese Coords). Phase 9.4.x: custom Native-Module via kewlbear/FFmpeg-iOS + Android NDK. shared/ffmpegArgs.ts ist plattform-neutral, daher Migration nur Spawn-Layer.",
+    "react-native-purchases": "Aus MVP entfernt — RevenueCat-IAP-Setup ist Phase 9.4.x post-Login-Review.",
+    "expo-version": "Expo 52 = SDK von Q4 2024. Für 2026 ggf. auf 53+ updaten via `npx expo install --fix`."
   }
 }
