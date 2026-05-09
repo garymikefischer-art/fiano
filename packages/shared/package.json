@@ -1,0 +1,17 @@
+{
+  "name": "@fiano/shared",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Shared code for fiano desktop + mobile (types, i18n locales, ffmpeg arg builders, subtitle generators)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./i18n": "./src/i18n/index.ts",
+    "./i18n/locales/*": "./src/i18n/locales/*.ts",
+    "./ffmpegArgs": "./src/ffmpegArgs.ts",
+    "./subtitles": "./src/subtitles.ts"
+  },
+  "license": "MIT"
+}

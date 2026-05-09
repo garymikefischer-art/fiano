@@ -1,8 +1,11 @@
 {
   "name": "video-app",
   "version": "0.2.0",
-  "description": "AI-powered video clipping desktop app",
+  "description": "AI-powered video clipping desktop app (workspace root + Electron desktop)",
   "main": "./out/main/index.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "author": "Gary Fischer",
   "license": "MIT",
   "repository": {

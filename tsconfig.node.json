@@ -14,7 +14,9 @@
     "types": ["node", "electron-vite/node"],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"],
+      "@shared/*": ["packages/shared/src/*"],
+      "@fiano/shared": ["packages/shared/src/index.ts"],
+      "@fiano/shared/*": ["packages/shared/src/*"],
       "@core/*": ["src/main/core/*"]
     },
     "composite": true
@@ -22,7 +24,7 @@
   "include": [
     "src/main/**/*",
     "src/preload/**/*",
-    "src/shared/**/*",
+    "packages/shared/src/**/*",
     "electron.vite.config.ts"
   ]
 }

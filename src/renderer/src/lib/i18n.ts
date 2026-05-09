@@ -13,40 +13,22 @@
 
 import { useSyncExternalStore } from 'react';
 
-import { de } from './i18n/de';
-import { en } from './i18n/en';
-import { es } from './i18n/es';
-import { fr } from './i18n/fr';
-import { it } from './i18n/it';
-import { nl } from './i18n/nl';
-import { pl } from './i18n/pl';
-import { pt } from './i18n/pt';
-import { ru } from './i18n/ru';
+// Phase 9.4.1: Locales sind jetzt im @fiano/shared Package — Mobile-App nutzt
+// dieselben Übersetzungs-Tabellen. Renderer behält den useT-Hook + Persistierung.
+import {
+  TRANSLATIONS,
+  LANGUAGES as SHARED_LANGUAGES,
+  type LanguageCode as SharedLanguageCode,
+  type LanguageMeta as SharedLanguageMeta,
+} from '@fiano/shared/i18n';
 
-export type LanguageCode = 'de' | 'en' | 'es' | 'fr' | 'it' | 'nl' | 'pl' | 'pt' | 'ru';
+export type LanguageCode = SharedLanguageCode;
+export type LanguageMeta = SharedLanguageMeta;
 
-export interface LanguageMeta {
-  code: LanguageCode;
-  /** Native-Name (z.B. "Deutsch", "Русский") — für Dropdown-Display. */
-  nativeName: string;
-}
+/** UI-sortiert (siehe @fiano/shared/i18n). */
+export const LANGUAGES: LanguageMeta[] = SHARED_LANGUAGES;
 
-/** UI-sortiert: User-Vorgabe (DE/EN/IT/RU/ES + FR/PT/NL/PL). */
-export const LANGUAGES: LanguageMeta[] = [
-  { code: 'de', nativeName: 'Deutsch' },
-  { code: 'en', nativeName: 'English' },
-  { code: 'it', nativeName: 'Italiano' },
-  { code: 'ru', nativeName: 'Русский' },
-  { code: 'es', nativeName: 'Español' },
-  { code: 'fr', nativeName: 'Français' },
-  { code: 'pt', nativeName: 'Português' },
-  { code: 'nl', nativeName: 'Nederlands' },
-  { code: 'pl', nativeName: 'Polski' },
-];
-
-const TABLES: Record<LanguageCode, Record<string, string>> = {
-  de, en, es, fr, it, nl, pl, pt, ru,
-};
+const TABLES: Record<LanguageCode, Record<string, string>> = TRANSLATIONS;
 
 const DEFAULT_LANGUAGE: LanguageCode = 'en';
 

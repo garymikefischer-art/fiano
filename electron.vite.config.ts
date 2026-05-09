@@ -2,12 +2,17 @@ import { resolve } from 'node:path';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 
+// Phase 9.4.1: shared package liegt in packages/shared/. Beide Aliases bleiben
+// erhalten — `@shared/*` (legacy) UND `@fiano/shared/*` (neu für Monorepo).
+const SHARED_DIR = resolve(__dirname, 'packages/shared/src');
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        '@shared': resolve(__dirname, 'src/shared'),
+        '@shared': SHARED_DIR,
+        '@fiano/shared': SHARED_DIR,
         '@core': resolve(__dirname, 'src/main/core'),
       },
     },
@@ -16,7 +21,8 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        '@shared': resolve(__dirname, 'src/shared'),
+        '@shared': SHARED_DIR,
+        '@fiano/shared': SHARED_DIR,
       },
     },
   },
@@ -26,7 +32,8 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src/renderer/src'),
-        '@shared': resolve(__dirname, 'src/shared'),
+        '@shared': SHARED_DIR,
+        '@fiano/shared': SHARED_DIR,
       },
     },
     optimizeDeps: {
