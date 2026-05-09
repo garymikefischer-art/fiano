@@ -1,17 +1,10 @@
 /**
- * LoginScreen — Apple-Liquid-Glass-Style analog Desktop LoginPage.tsx.
- *
- * Layout (Desktop-Parität):
- *   - Brand-Glow im Hintergrund
- *   - fiano-Logo (Pfeil + Wortmarke)
- *   - Glass-Card mit Title + Subtitle + Email/Password + Submit + "noAccount"-Link
- *   - Forgot-Password (vorerst nur Anzeige, Reset-Flow Phase 9.4.x)
- *   - Footer: "byContinuing"
+ * LoginScreen — exakt analog Desktop LoginPage.tsx (Liquid-Glass-Card).
+ * Keine Background-Glows. Card centered. Title + Email/Password + Submit + Footer-Link.
  */
 
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -25,7 +18,6 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAuthStore } from '../stores/authStore';
-import { FianoLogo } from '../components/FianoLogo';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -42,10 +34,7 @@ export function LoginScreen() {
   const [pwFocus, setPwFocus] = useState(false);
 
   const onSubmit = async () => {
-    if (!email || !password) {
-      setError('Bitte E-Mail und Passwort eingeben.');
-      return;
-    }
+    if (busy || !email || !password) return;
     setBusy(true);
     setError(null);
     try {
@@ -62,69 +51,33 @@ export function LoginScreen() {
       style={{ flex: 1, backgroundColor: '#090b0c' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Brand-Glow Layer (analog Desktop fiano-bg-glow) */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: '-15%',
-          left: '-30%',
-          width: 600,
-          height: 600,
-          borderRadius: 300,
-          backgroundColor: '#ff1039',
-          opacity: 0.07,
-        }}
-      />
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          bottom: '-20%',
-          right: '-25%',
-          width: 480,
-          height: 480,
-          borderRadius: 240,
-          backgroundColor: '#ff1039',
-          opacity: 0.05,
-        }}
-      />
-
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
       >
-        {/* Logo */}
-        <View style={{ alignItems: 'center', marginBottom: 32 }}>
-          <FianoLogo height={48} />
-        </View>
-
-        {/* Glass-Card */}
+        {/* Glass-Card — analog Desktop .glass class */}
         <View
           style={{
-            backgroundColor: 'rgba(20, 24, 28, 0.7)',
-            borderRadius: 20,
+            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            borderRadius: 16,
             borderWidth: 1,
             borderColor: 'rgba(255, 255, 255, 0.08)',
-            padding: 24,
-            shadowColor: '#000',
-            shadowOpacity: 0.5,
-            shadowRadius: 32,
-            shadowOffset: { width: 0, height: 16 },
+            padding: 28,
           }}
         >
-          {/* Title */}
-          <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
-            Willkommen zurück
-          </Text>
-          <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
-            Melde dich mit deinem fiano-Konto an
-          </Text>
+          {/* Heading */}
+          <View>
+            <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
+              Sign in to fiano
+            </Text>
+            <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
+              Continue to your projects
+            </Text>
+          </View>
 
           {/* Email */}
-          <View style={{ marginTop: 24 }}>
-            <Text style={LABEL}>E-MAIL</Text>
+          <View style={{ marginTop: 20 }}>
+            <Text style={LABEL}>EMAIL</Text>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -140,7 +93,7 @@ export function LoginScreen() {
           </View>
 
           {/* Password */}
-          <View style={{ marginTop: 14 }}>
+          <View style={{ marginTop: 12 }}>
             <Text style={LABEL}>PASSWORT</Text>
             <TextInput
               value={password}
@@ -158,11 +111,11 @@ export function LoginScreen() {
           {error && (
             <View
               style={{
-                marginTop: 14,
+                marginTop: 12,
                 backgroundColor: 'rgba(255, 16, 57, 0.08)',
                 borderColor: 'rgba(255, 16, 57, 0.2)',
                 borderWidth: 1,
-                borderRadius: 8,
+                borderRadius: 6,
                 paddingHorizontal: 12,
                 paddingVertical: 8,
               }}
@@ -176,44 +129,50 @@ export function LoginScreen() {
             onPress={onSubmit}
             disabled={busy || !email || !password}
             style={({ pressed }) => ({
-              marginTop: 18,
+              marginTop: 16,
               backgroundColor: !email || !password ? 'rgba(255, 16, 57, 0.4)' : pressed ? '#cc0d2e' : '#ff1039',
               opacity: busy ? 0.6 : 1,
-              borderRadius: 10,
-              paddingVertical: 13,
+              borderRadius: 8,
+              paddingVertical: 11,
               alignItems: 'center',
-              shadowColor: '#ff1039',
-              shadowOpacity: pressed ? 0.6 : 0.4,
-              shadowRadius: pressed ? 16 : 24,
-              shadowOffset: { width: 0, height: 6 },
             })}
           >
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Anmelden</Text>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Sign In</Text>
             )}
           </Pressable>
 
-          {/* Forgot password — Phase 9.4.x */}
-          <Pressable onPress={() => Alert.alert('Passwort zurücksetzen', 'Folgt in Phase 9.4.x')} style={{ marginTop: 10, alignItems: 'center' }}>
-            <Text style={{ color: '#71717a', fontSize: 11 }}>Passwort vergessen?</Text>
-          </Pressable>
-
-          {/* Divider + Sign-Up-Link */}
-          <View style={{ marginTop: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255, 255, 255, 0.06)' }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
-              <Text style={{ color: '#71717a', fontSize: 12 }}>Noch kein Konto?</Text>
-              <Pressable onPress={() => nav.navigate('Signup')}>
-                <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '500' }}>Registrieren</Text>
-              </Pressable>
-            </View>
+          {/* Footer-Link — Sign Up */}
+          <View
+            style={{
+              marginTop: 20,
+              paddingTop: 14,
+              borderTopWidth: 1,
+              borderTopColor: 'rgba(255, 255, 255, 0.06)',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Text style={{ color: '#71717a', fontSize: 12 }}>No account?</Text>
+            <Pressable onPress={() => nav.navigate('Signup')}>
+              <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '500' }}>Sign up</Text>
+            </Pressable>
           </View>
         </View>
 
-        {/* Legal Footer */}
-        <Text style={{ color: '#52525b', fontSize: 10, textAlign: 'center', marginTop: 24, paddingHorizontal: 24 }}>
-          Mit der Anmeldung akzeptierst du unsere AGB und Datenschutzerklärung.
+        <Text
+          style={{
+            color: '#52525b',
+            fontSize: 10,
+            textAlign: 'center',
+            marginTop: 24,
+          }}
+        >
+          By continuing you agree to our Terms and Privacy Policy.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -224,7 +183,7 @@ const LABEL = {
   fontSize: 10,
   color: '#71717a',
   letterSpacing: 1.6,
-  marginBottom: 6,
+  marginBottom: 4,
 } as const;
 
 function inputStyle(focused: boolean) {
@@ -232,10 +191,10 @@ function inputStyle(focused: boolean) {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
     borderColor: focused ? 'rgba(255, 16, 57, 0.5)' : 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: '#f1f2f2',
-    fontSize: 14,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    color: '#fff',
+    fontSize: 13,
   } as const;
 }

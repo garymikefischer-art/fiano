@@ -1,5 +1,5 @@
 /**
- * SignupScreen — analog LoginScreen, mit Password-Strength-Hint.
+ * SignupScreen — analog Desktop SignupPage.tsx.
  */
 
 import { useState } from 'react';
@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 
 import { useAuthStore } from '../stores/authStore';
-import { FianoLogo } from '../components/FianoLogo';
 
 export function SignupScreen() {
   const signUp = useAuthStore((s) => s.signUp);
@@ -30,14 +29,14 @@ export function SignupScreen() {
 
   const onSubmit = async () => {
     if (!email || password.length < 8) {
-      setError('Passwort muss mindestens 8 Zeichen haben.');
+      setError('Password must be at least 8 characters.');
       return;
     }
     setBusy(true);
     setError(null);
     try {
       await signUp(email.trim(), password);
-      Alert.alert('Erfolg', 'Bitte bestätige deine E-Mail-Adresse.');
+      Alert.alert('Success', 'Please confirm your email address.');
     } catch (err: any) {
       setError(err?.message ?? String(err));
     } finally {
@@ -50,51 +49,28 @@ export function SignupScreen() {
       style={{ flex: 1, backgroundColor: '#090b0c' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: '-15%',
-          right: '-30%',
-          width: 600,
-          height: 600,
-          borderRadius: 300,
-          backgroundColor: '#ff1039',
-          opacity: 0.06,
-        }}
-      />
-
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
       >
-        <View style={{ alignItems: 'center', marginBottom: 32 }}>
-          <FianoLogo height={48} />
-        </View>
-
         <View
           style={{
-            backgroundColor: 'rgba(20, 24, 28, 0.7)',
-            borderRadius: 20,
+            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            borderRadius: 16,
             borderWidth: 1,
             borderColor: 'rgba(255, 255, 255, 0.08)',
-            padding: 24,
-            shadowColor: '#000',
-            shadowOpacity: 0.5,
-            shadowRadius: 32,
-            shadowOffset: { width: 0, height: 16 },
+            padding: 28,
           }}
         >
           <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
-            Konto erstellen
+            Create your fiano account
           </Text>
           <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
-            Synchronisiere deine Videos auf allen Geräten
+            Sync your videos across all your devices
           </Text>
 
-          <View style={{ marginTop: 24 }}>
-            <Text style={LABEL}>E-MAIL</Text>
+          <View style={{ marginTop: 20 }}>
+            <Text style={LABEL}>EMAIL</Text>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -109,8 +85,8 @@ export function SignupScreen() {
             />
           </View>
 
-          <View style={{ marginTop: 14 }}>
-            <Text style={LABEL}>PASSWORT (MIN. 8 ZEICHEN)</Text>
+          <View style={{ marginTop: 12 }}>
+            <Text style={LABEL}>PASSWORT (MIN. 8)</Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -121,36 +97,16 @@ export function SignupScreen() {
               placeholderTextColor="#52525b"
               style={inputStyle(pwFocus)}
             />
-            <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <View
-                  key={i}
-                  style={{
-                    flex: 1,
-                    height: 2,
-                    borderRadius: 1,
-                    backgroundColor:
-                      password.length >= i * 2
-                        ? password.length >= 12
-                          ? '#10b981'
-                          : password.length >= 8
-                            ? '#f59e0b'
-                            : '#ff1039'
-                        : 'rgba(255,255,255,0.06)',
-                  }}
-                />
-              ))}
-            </View>
           </View>
 
           {error && (
             <View
               style={{
-                marginTop: 14,
+                marginTop: 12,
                 backgroundColor: 'rgba(255, 16, 57, 0.08)',
                 borderColor: 'rgba(255, 16, 57, 0.2)',
                 borderWidth: 1,
-                borderRadius: 8,
+                borderRadius: 6,
                 paddingHorizontal: 12,
                 paddingVertical: 8,
               }}
@@ -163,29 +119,21 @@ export function SignupScreen() {
             onPress={onSubmit}
             disabled={busy || !email || password.length < 8}
             style={({ pressed }) => ({
-              marginTop: 18,
+              marginTop: 16,
               backgroundColor: !email || password.length < 8 ? 'rgba(255, 16, 57, 0.4)' : pressed ? '#cc0d2e' : '#ff1039',
               opacity: busy ? 0.6 : 1,
-              borderRadius: 10,
-              paddingVertical: 13,
+              borderRadius: 8,
+              paddingVertical: 11,
               alignItems: 'center',
-              shadowColor: '#ff1039',
-              shadowOpacity: 0.4,
-              shadowRadius: 24,
-              shadowOffset: { width: 0, height: 6 },
             })}
           >
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Konto erstellen</Text>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Create Account</Text>
             )}
           </Pressable>
         </View>
-
-        <Text style={{ color: '#52525b', fontSize: 10, textAlign: 'center', marginTop: 24, paddingHorizontal: 24 }}>
-          Mit der Registrierung akzeptierst du unsere AGB und Datenschutzerklärung.
-        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -195,7 +143,7 @@ const LABEL = {
   fontSize: 10,
   color: '#71717a',
   letterSpacing: 1.6,
-  marginBottom: 6,
+  marginBottom: 4,
 } as const;
 
 function inputStyle(focused: boolean) {
@@ -203,10 +151,10 @@ function inputStyle(focused: boolean) {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
     borderColor: focused ? 'rgba(255, 16, 57, 0.5)' : 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    color: '#f1f2f2',
-    fontSize: 14,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    color: '#fff',
+    fontSize: 13,
   } as const;
 }
