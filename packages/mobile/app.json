@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "fiano",
+    "slug": "fiano-mobile",
+    "scheme": "fiano",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#090b0c"
+    },
+    "ios": {
+      "bundleIdentifier": "app.fiano.video",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "fiano needs access to your photo library to import videos for editing and to save the rendered clips.",
+        "NSPhotoLibraryAddUsageDescription": "fiano saves rendered videos to your photo library.",
+        "NSCameraUsageDescription": "fiano needs camera access if you want to record a clip directly.",
+        "NSMicrophoneUsageDescription": "fiano accesses the microphone to import audio from your videos.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.fiano.video",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#090b0c"
+      },
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_AUDIO",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-image-picker",
+      "expo-media-library",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          },
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 24
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
