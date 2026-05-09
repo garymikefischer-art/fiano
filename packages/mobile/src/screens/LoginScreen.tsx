@@ -1,10 +1,23 @@
 /**
- * LoginScreen — exakt analog Desktop LoginPage.tsx (Liquid-Glass-Card).
- * Keine Background-Glows. Card centered. Title + Email/Password + Submit + Footer-Link.
+ * LoginScreen — 1:1 Pixel-Parität zum Desktop-Screenshot.
+ *
+ * Layout (Desktop-Match):
+ *   - BackgroundGlow (radial-gradients, smooth)
+ *   - Glass-Card centered
+ *     - "Sign in" / "Welcome back."
+ *     - Continue with Google (weiß, Logo)
+ *     - OR Divider
+ *     - EMAIL + PASSWORD inputs
+ *     - Sign in (rot, full)
+ *     - Forgot password?
+ *     - Divider + "No account yet? Sign up"
+ *   - "By signing in or signing up..." footer text
+ *   - Imprint · Privacy · Terms · Licenses footer
  */
 
 import { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +31,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAuthStore } from '../stores/authStore';
+import { BackgroundGlow } from '../components/BackgroundGlow';
+import { GoogleButton } from '../components/GoogleButton';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -46,37 +61,57 @@ export function LoginScreen() {
     }
   };
 
+  const onGoogle = () => {
+    Alert.alert('Google Sign-In', 'Folgt in Phase 9.4.x (expo-auth-session).');
+  };
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#090b0c' }}
+      style={{ flex: 1, backgroundColor: '#0a0a0a' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <BackgroundGlow />
+
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Glass-Card — analog Desktop .glass class */}
+        {/* Glass-Card — Desktop .glass class */}
         <View
           style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            backgroundColor: 'rgba(255, 255, 255, 0.045)',
             borderRadius: 16,
             borderWidth: 1,
             borderColor: 'rgba(255, 255, 255, 0.08)',
             padding: 28,
+            shadowColor: '#000',
+            shadowOpacity: 0.35,
+            shadowRadius: 24,
+            shadowOffset: { width: 0, height: 4 },
           }}
         >
           {/* Heading */}
-          <View>
-            <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
-              Sign in to fiano
-            </Text>
-            <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
-              Continue to your projects
-            </Text>
+          <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
+            Sign in
+          </Text>
+          <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
+            Welcome back.
+          </Text>
+
+          {/* Continue with Google */}
+          <View style={{ marginTop: 20 }}>
+            <GoogleButton onPress={onGoogle} disabled={busy} />
+          </View>
+
+          {/* OR Divider */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '500', letterSpacing: 1.5 }}>OR</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
           </View>
 
           {/* Email */}
-          <View style={{ marginTop: 20 }}>
+          <View>
             <Text style={LABEL}>EMAIL</Text>
             <TextInput
               value={email}
@@ -88,13 +123,14 @@ export function LoginScreen() {
               autoCapitalize="none"
               placeholder="you@example.com"
               placeholderTextColor="#52525b"
+              editable={!busy}
               style={inputStyle(emailFocus)}
             />
           </View>
 
           {/* Password */}
           <View style={{ marginTop: 12 }}>
-            <Text style={LABEL}>PASSWORT</Text>
+            <Text style={LABEL}>PASSWORD</Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -103,6 +139,7 @@ export function LoginScreen() {
               secureTextEntry
               autoComplete="current-password"
               placeholderTextColor="#52525b"
+              editable={!busy}
               style={inputStyle(pwFocus)}
             />
           </View>
@@ -124,14 +161,14 @@ export function LoginScreen() {
             </View>
           )}
 
-          {/* Submit */}
+          {/* Sign in Button */}
           <Pressable
             onPress={onSubmit}
             disabled={busy || !email || !password}
             style={({ pressed }) => ({
               marginTop: 16,
-              backgroundColor: !email || !password ? 'rgba(255, 16, 57, 0.4)' : pressed ? '#cc0d2e' : '#ff1039',
-              opacity: busy ? 0.6 : 1,
+              backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+              opacity: busy || !email || !password ? 0.5 : 1,
               borderRadius: 8,
               paddingVertical: 11,
               alignItems: 'center',
@@ -140,11 +177,19 @@ export function LoginScreen() {
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Sign In</Text>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Sign in</Text>
             )}
           </Pressable>
 
-          {/* Footer-Link — Sign Up */}
+          {/* Forgot password */}
+          <Pressable
+            onPress={() => Alert.alert('Reset password', 'Folgt in Phase 9.4.x.')}
+            style={{ marginTop: 12, alignItems: 'center' }}
+          >
+            <Text style={{ color: '#71717a', fontSize: 11 }}>Forgot password?</Text>
+          </Pressable>
+
+          {/* Divider + Sign up */}
           <View
             style={{
               marginTop: 20,
@@ -157,23 +202,49 @@ export function LoginScreen() {
               gap: 6,
             }}
           >
-            <Text style={{ color: '#71717a', fontSize: 12 }}>No account?</Text>
+            <Text style={{ color: '#71717a', fontSize: 12 }}>No account yet?</Text>
             <Pressable onPress={() => nav.navigate('Signup')}>
               <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '500' }}>Sign up</Text>
             </Pressable>
           </View>
         </View>
 
+        {/* Footer Notice */}
         <Text
           style={{
             color: '#52525b',
             fontSize: 10,
             textAlign: 'center',
             marginTop: 24,
+            paddingHorizontal: 16,
           }}
         >
-          By continuing you agree to our Terms and Privacy Policy.
+          By signing in or signing up you accept our terms of service.
         </Text>
+
+        {/* Legal Links */}
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 16,
+          }}
+        >
+          {['Imprint', 'Privacy', 'Terms', 'Licenses'].map((label, i) => (
+            <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Pressable
+                onPress={() =>
+                  Alert.alert(label, 'Web-View Folgt in Phase 9.4.x.\n\nDesktop hat alle Pages unter /legal/.')
+                }
+              >
+                <Text style={{ color: '#52525b', fontSize: 10 }}>{label}</Text>
+              </Pressable>
+              {i < 3 && <Text style={{ color: '#3f3f46', fontSize: 10 }}>·</Text>}
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -188,7 +259,7 @@ const LABEL = {
 
 function inputStyle(focused: boolean) {
   return {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: focused ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
     borderColor: focused ? 'rgba(255, 16, 57, 0.5)' : 'rgba(255, 255, 255, 0.08)',
     borderRadius: 8,

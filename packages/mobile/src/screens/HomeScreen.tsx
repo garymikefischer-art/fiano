@@ -1,7 +1,6 @@
 /**
  * HomeScreen / Library — analog Desktop LibraryPage.
- * Header (Logo links + Avatar rechts), Title + Plan, "+ New Video" CTA, Project-Grid.
- * Keine Glows.
+ * BackgroundGlow + Header (Logo + Avatar) + Library-Title + "+ New Video" + Empty-State + BottomTab.
  */
 
 import { Pressable, ScrollView, Text, View, StatusBar as RNStatusBar } from 'react-native';
@@ -11,6 +10,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAuthStore } from '../stores/authStore';
 import { FianoLogo } from '../components/FianoLogo';
+import { BackgroundGlow } from '../components/BackgroundGlow';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -31,8 +31,9 @@ export function HomeScreen() {
   const initial = (user?.email?.[0] ?? '?').toUpperCase();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#090b0c' }} edges={['top']}>
-      <RNStatusBar barStyle="light-content" backgroundColor="#090b0c" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0a0a' }} edges={['top']}>
+      <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+      <BackgroundGlow />
 
       {/* Header */}
       <View
@@ -65,13 +66,11 @@ export function HomeScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100, paddingTop: 20, gap: 16 }}>
-        {/* Title + Subtitle */}
         <View>
           <Text style={{ color: '#f1f2f2', fontSize: 26, fontWeight: '700', letterSpacing: -0.5 }}>Library</Text>
           <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>0 projects · {planName}</Text>
         </View>
 
-        {/* + New Video CTA */}
         <Pressable
           onPress={() => nav.navigate('Import')}
           style={({ pressed }) => ({
@@ -89,10 +88,9 @@ export function HomeScreen() {
           <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>New Video</Text>
         </Pressable>
 
-        {/* Empty-State */}
         <View
           style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            backgroundColor: 'rgba(255, 255, 255, 0.045)',
             borderRadius: 16,
             borderWidth: 1,
             borderColor: 'rgba(255, 255, 255, 0.08)',

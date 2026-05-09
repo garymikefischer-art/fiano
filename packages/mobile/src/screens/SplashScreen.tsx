@@ -1,17 +1,25 @@
 /**
- * Splash / Loading Screen — analog Desktop LoadingScreen.tsx.
- * Pure UI. Logo + indeterminate Progress-Bar + "INITIALIZING".
- * Keine Gradient-Glows.
+ * Splash / Loading Screen — analog Desktop LoadingScreen.tsx mit
+ * BackgroundGlow + pulsierendem Logo + Progress-Sweep + INITIALIZING.
  */
 
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, View, Text } from 'react-native';
 import { FianoLogo } from '../components/FianoLogo';
+import { BackgroundGlow } from '../components/BackgroundGlow';
 
 export function SplashScreen() {
   const sweep = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0.7)).current;
 
   useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.7, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    ).start();
+
     Animated.loop(
       Animated.timing(sweep, {
         toValue: 1,
@@ -20,14 +28,18 @@ export function SplashScreen() {
         useNativeDriver: false,
       }),
     ).start();
-  }, [sweep]);
+  }, [pulse, sweep]);
 
   const sweepLeft = sweep.interpolate({ inputRange: [0, 1], outputRange: ['-33%', '100%'] });
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#090b0c', alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
+      <BackgroundGlow />
+
       <View style={{ alignItems: 'center', gap: 28 }}>
-        <FianoLogo height={56} />
+        <Animated.View style={{ opacity: pulse }}>
+          <FianoLogo height={56} />
+        </Animated.View>
 
         <View
           style={{
