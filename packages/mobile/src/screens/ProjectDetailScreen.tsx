@@ -41,8 +41,16 @@ import {
   type SourceType,
 } from '../data/demoProjects';
 import { useProject, useProjectsStore } from '../stores/projectsStore';
-import { useAppStore } from '../stores/appStore';
+import {
+  useAppStore,
+  FACECAM_PRESETS,
+  GAMEPLAY_PRESETS,
+  type FacecamPreset,
+  type GameplayPreset,
+  type Region,
+} from '../stores/appStore';
 import { RegionOverlay } from '../components/RegionOverlay';
+import { RegionPreviewCard } from '../components/RegionPreviewCard';
 import {
   RegionCroppedVideoPlayer,
   type RegionCroppedVideoHandle,
@@ -1269,58 +1277,50 @@ function TikTokTab({
         </View>
       )}
 
-      {/* Hide-Overlay-Toggle — sinnvoll bei Stacked, da man dann die echte
-          Komposition statt der Schaubild-Kästen sehen will. */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: 'rgba(255,255,255,0.04)',
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderRadius: 14,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-        }}
-      >
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
-            {t('tiktok.showRegions', 'Show region overlay')}
-          </Text>
-          <Text style={{ color: '#71717a', fontSize: 10 }}>
-            {t(
-              'tiktok.showRegionsHint',
-              'Toggle the red/blue boxes off when you want to see the clean composition.',
-            )}
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => {
-            haptic.selection();
-            setShowOverlay((v) => !v);
-          }}
-          style={({ pressed }) => ({
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-            borderRadius: 999,
-            backgroundColor: showOverlay ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.06)',
-            borderWidth: 1,
-            borderColor: showOverlay ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.10)',
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <Text
-            style={{
-              color: showOverlay ? '#ff1039' : '#a1a1aa',
-              fontSize: 11,
-              fontWeight: '700',
+      {/* Region-Cards — analog Desktop's FacecamEditor + GameplayEditor.
+          Jede Card zeigt das Source-Frame mit dem aktuellen Region-Rect drauf
+          plus Snap-Presets darunter. Tap auf einen Preset → updateProject
+          (Project-Override). Stacked-Preview oben bleibt clean (kein Overlay). */}
+      {layout !== 'full' && (
+        <>
+          <SectionHeader>
+            {t('tiktok.facecamRegion', 'Facecam region (top)').toUpperCase()}
+          </SectionHeader>
+          <RegionPreviewCard
+            title={t('tiktok.facecamRegion', 'Facecam region (top)')}
+            sourceUri={project.sourceUri}
+            region={facecamRegion}
+            color="facecam"
+            presets={(Object.keys(FACECAM_PRESETS) as FacecamPreset[]).map((id) => ({
+              id,
+              label: presetLabelFor(id, t),
+              region: FACECAM_PRESETS[id],
+            }))}
+            activePresetId={matchPreset(facecamRegion, FACECAM_PRESETS)}
+            onPresetSelect={(_id, region) => {
+              updateProject(project.id, { facecamRegion: region });
             }}
-          >
-            {showOverlay ? t('common.on', 'ON') : t('common.off', 'OFF')}
-          </Text>
-        </Pressable>
-      </View>
+          />
+          <SectionHeader>
+            {t('tiktok.gameplayRegion', 'Gameplay region (bottom)').toUpperCase()}
+          </SectionHeader>
+          <RegionPreviewCard
+            title={t('tiktok.gameplayRegion', 'Gameplay region (bottom)')}
+            sourceUri={project.sourceUri}
+            region={gameplayRegion}
+            color="gameplay"
+            presets={(Object.keys(GAMEPLAY_PRESETS) as GameplayPreset[]).map((id) => ({
+              id,
+              label: presetLabelFor(id, t),
+              region: GAMEPLAY_PRESETS[id],
+            }))}
+            activePresetId={matchPreset(gameplayRegion, GAMEPLAY_PRESETS)}
+            onPresetSelect={(_id, region) => {
+              if (region) updateProject(project.id, { gameplayRegion: region });
+            }}
+          />
+        </>
+      )}
 
       {/* Add-Ons */}
       <SectionHeader>{t('tiktok.addOnsHeader', 'ADD-ONS').toUpperCase()}</SectionHeader>
@@ -2549,4 +2549,47 @@ function PlaceholderHero({ project }: { project: DemoProject }) {
       </View>
     </View>
   );
+}
+
+/* ─── Region-Preset Helpers ─────────────────────────────────────── */
+
+/** Findet den passenden Preset zur aktuellen Region (epsilon-Vergleich). */
+function matchPreset<T extends string>(
+  region: Region | null,
+  presets: Record<T, Region | null>,
+): T | null {
+  for (const key of Object.keys(presets) as T[]) {
+    const p = presets[key];
+    if (p === null && region === null) return key;
+    if (
+      p &&
+      region &&
+      Math.abs(p.x - region.x) < 0.015 &&
+      Math.abs(p.y - region.y) < 0.015 &&
+      Math.abs(p.w - region.w) < 0.015 &&
+      Math.abs(p.h - region.h) < 0.015
+    ) {
+      return key;
+    }
+  }
+  return null;
+}
+
+/** Kompakte Pill-Labels analog Desktop's Snap-Buttons (TL/TR/BL/BR/None / Center/Bottom/...). */
+function presetLabelFor(
+  id: FacecamPreset | GameplayPreset,
+  t: (k: string, f?: string) => string,
+): string {
+  switch (id) {
+    case 'top-left':     return t('region.snapTL', 'TL');
+    case 'top-right':    return t('region.snapTR', 'TR');
+    case 'bottom-left':  return t('region.snapBL', 'BL');
+    case 'bottom-right': return t('region.snapBR', 'BR');
+    case 'none':         return t('region.snapNone', 'None');
+    case 'center':       return t('region.snapCenter', 'Center');
+    case 'bottom':       return t('region.snapBottom', 'Bottom');
+    case 'stretch':      return t('region.snapStretch', 'Stretch');
+    case 'full':         return t('region.snapFull', 'Full');
+    default:             return id;
+  }
 }
