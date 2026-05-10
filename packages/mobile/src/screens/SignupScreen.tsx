@@ -18,8 +18,10 @@ import {
 import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { GoogleButton } from '../components/GoogleButton';
+import { useT } from '../lib/i18n';
 
 export function SignupScreen() {
+  const t = useT();
   const signUp = useAuthStore((s) => s.signUp);
 
   const [email, setEmail] = useState('');
@@ -31,14 +33,17 @@ export function SignupScreen() {
 
   const onSubmit = async () => {
     if (!email || password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError(t('auth.signupPasswordMin', 'Password must be at least 8 characters.'));
       return;
     }
     setBusy(true);
     setError(null);
     try {
       await signUp(email.trim(), password);
-      Alert.alert('Success', 'Please confirm your email address.');
+      Alert.alert(
+        t('auth.checkEmailTitle'),
+        t('auth.checkEmailBody').replace('{email}', email.trim()),
+      );
     } catch (err: any) {
       setError(err?.message ?? String(err));
     } finally {
@@ -47,12 +52,15 @@ export function SignupScreen() {
   };
 
   const onGoogle = () => {
-    Alert.alert('Google Sign-In', 'Folgt in Phase 9.4.x (expo-auth-session).');
+    Alert.alert(
+      t('auth.continueWithGoogle'),
+      t('auth.googleSoonMobile', 'Google Sign-In folgt in Phase 9.4.x (expo-auth-session).'),
+    );
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0a0a0a' }}
+      style={{ flex: 1, backgroundColor: '#0d0509' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <BackgroundGlow />
@@ -75,10 +83,10 @@ export function SignupScreen() {
           }}
         >
           <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
-            Create account
+            {t('auth.signUpTitle')}
           </Text>
           <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
-            Get started with fiano.
+            {t('auth.signUpSubtitle')}
           </Text>
 
           <View style={{ marginTop: 20 }}>
@@ -87,12 +95,14 @@ export function SignupScreen() {
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
             <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-            <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '500', letterSpacing: 1.5 }}>OR</Text>
+            <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '500', letterSpacing: 1.5 }}>
+              {t('auth.or').toUpperCase()}
+            </Text>
             <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
           </View>
 
           <View>
-            <Text style={LABEL}>EMAIL</Text>
+            <Text style={LABEL}>{t('auth.email').toUpperCase()}</Text>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -109,7 +119,9 @@ export function SignupScreen() {
           </View>
 
           <View style={{ marginTop: 12 }}>
-            <Text style={LABEL}>PASSWORD (MIN. 8)</Text>
+            <Text style={LABEL}>
+              {t('auth.password').toUpperCase()} (MIN. 8)
+            </Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -154,7 +166,9 @@ export function SignupScreen() {
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Create account</Text>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                {busy ? t('auth.signingUp') : t('auth.signUpTitle')}
+              </Text>
             )}
           </Pressable>
         </View>
@@ -168,7 +182,7 @@ export function SignupScreen() {
             paddingHorizontal: 16,
           }}
         >
-          By signing in or signing up you accept our terms of service.
+          {t('auth.byContinuing')}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

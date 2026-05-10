@@ -33,12 +33,14 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { GoogleButton } from '../components/GoogleButton';
+import { useT } from '../lib/i18n';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const nav = useNavigation<Nav>();
+  const t = useT();
   const signIn = useAuthStore((s) => s.signIn);
 
   const [email, setEmail] = useState('');
@@ -62,12 +64,15 @@ export function LoginScreen() {
   };
 
   const onGoogle = () => {
-    Alert.alert('Google Sign-In', 'Folgt in Phase 9.4.x (expo-auth-session).');
+    Alert.alert(
+      t('auth.continueWithGoogle'),
+      t('auth.googleSoonMobile', 'Google Sign-In folgt in Phase 9.4.x (expo-auth-session).'),
+    );
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0a0a0a' }}
+      style={{ flex: 1, backgroundColor: '#0d0509' }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <BackgroundGlow />
@@ -92,10 +97,10 @@ export function LoginScreen() {
         >
           {/* Heading */}
           <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
-            Sign in
+            {t('auth.signInTitle')}
           </Text>
           <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
-            Welcome back.
+            {t('auth.signInSubtitle')}
           </Text>
 
           {/* Continue with Google */}
@@ -106,13 +111,15 @@ export function LoginScreen() {
           {/* OR Divider */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
             <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
-            <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '500', letterSpacing: 1.5 }}>OR</Text>
+            <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '500', letterSpacing: 1.5 }}>
+              {t('auth.or').toUpperCase()}
+            </Text>
             <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
           </View>
 
           {/* Email */}
           <View>
-            <Text style={LABEL}>EMAIL</Text>
+            <Text style={LABEL}>{t('auth.email').toUpperCase()}</Text>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -130,7 +137,7 @@ export function LoginScreen() {
 
           {/* Password */}
           <View style={{ marginTop: 12 }}>
-            <Text style={LABEL}>PASSWORD</Text>
+            <Text style={LABEL}>{t('auth.password').toUpperCase()}</Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
@@ -177,16 +184,25 @@ export function LoginScreen() {
             {busy ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Sign in</Text>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                {t('auth.signIn')}
+              </Text>
             )}
           </Pressable>
 
           {/* Forgot password */}
           <Pressable
-            onPress={() => Alert.alert('Reset password', 'Folgt in Phase 9.4.x.')}
+            onPress={() =>
+              Alert.alert(
+                t('auth.forgotPasswordTitle', 'Reset password'),
+                t('auth.forgotPasswordBodyMobile', 'Reset password flow follows in Phase 9.4.x.'),
+              )
+            }
             style={{ marginTop: 12, alignItems: 'center' }}
           >
-            <Text style={{ color: '#71717a', fontSize: 11 }}>Forgot password?</Text>
+            <Text style={{ color: '#71717a', fontSize: 11 }}>
+              {t('auth.forgotPassword', 'Forgot password?')}
+            </Text>
           </Pressable>
 
           {/* Divider + Sign up */}
@@ -202,9 +218,11 @@ export function LoginScreen() {
               gap: 6,
             }}
           >
-            <Text style={{ color: '#71717a', fontSize: 12 }}>No account yet?</Text>
+            <Text style={{ color: '#71717a', fontSize: 12 }}>{t('auth.noAccount')}</Text>
             <Pressable onPress={() => nav.navigate('Signup')}>
-              <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '500' }}>Sign up</Text>
+              <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '500' }}>
+                {t('auth.signUp')}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -219,7 +237,7 @@ export function LoginScreen() {
             paddingHorizontal: 16,
           }}
         >
-          By signing in or signing up you accept our terms of service.
+          {t('auth.byContinuing')}
         </Text>
 
         {/* Legal Links */}

@@ -33,12 +33,12 @@ export function SplashScreen() {
   const sweepLeft = sweep.interpolate({ inputRange: [0, 1], outputRange: ['-33%', '100%'] });
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ flex: 1, backgroundColor: '#0d0509', alignItems: 'center', justifyContent: 'center' }}>
       <BackgroundGlow />
 
       <View style={{ alignItems: 'center', gap: 28 }}>
         <Animated.View style={{ opacity: pulse }}>
-          <FianoLogo height={56} />
+          <FianoLogo height={112} />
         </Animated.View>
 
         <View

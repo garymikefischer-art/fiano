@@ -48,6 +48,10 @@ export function BackgroundGlow() {
         </RadialGradient>
       </Defs>
 
+      {/* Base-Tint — sehr leicht roter Wash damit auch die Ecken/Ränder
+          (wo die Radial-Gradients zu opacity 0 ausfaden) noch leicht eingefärbt
+          sind statt pures #0a0a0a. Verhindert die schwarze Ränder am unteren Rand. */}
+      <Rect x="0" y="0" width="100%" height="100%" fill="rgba(255,16,57,0.04)" />
       <Rect x="0" y="0" width="100%" height="100%" fill="url(#glow1)" />
       <Rect x="0" y="0" width="100%" height="100%" fill="url(#glow2)" />
       <Rect x="0" y="0" width="100%" height="100%" fill="url(#tint1)" />

@@ -5,16 +5,21 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@fiano/shared": ["../shared/src/index.ts"],
-      "@fiano/shared/*": ["../shared/src/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@fiano/shared": [
+        "../shared/src/index.ts"
+      ],
+      "@fiano/shared/*": [
+        "../shared/src/*"
+      ]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts",
-    "../shared/src/**/*"
+    "../shared/src/**/*",
+    "nativewind-env.d.ts"
   ]
 }
