@@ -11,9 +11,10 @@
  * Sub-Komponenten unten in der Datei.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,6 +22,7 @@ import {
   View,
   StatusBar as RNStatusBar,
 } from 'react-native';
+import type { OnLoadData, OnProgressData } from 'react-native-video';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -40,6 +42,10 @@ import {
 import { useProject, useProjectsStore } from '../stores/projectsStore';
 import { useAppStore } from '../stores/appStore';
 import { RegionOverlay } from '../components/RegionOverlay';
+import {
+  RegionCroppedVideoPlayer,
+  type RegionCroppedVideoHandle,
+} from '../components/RegionCroppedVideoPlayer';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { useT } from '../lib/i18n';
@@ -1495,50 +1501,112 @@ function LayoutPreview({
     );
   }
 
-  if (layout === 'stacked') {
-    // 9:16 Container, geteilt in zwei 9:8-Blöcke (50/50). Beide Player zeigen
-    // das Source-Video mit cover-Crop — VideoPlayer mit `fill` nutzt die
-    // Eltern-Größe (kein internes aspectRatio das mit dem Stack-Layout streitet).
-    return (
-      <View
-        style={{
-          aspectRatio: 9 / 16,
-          borderRadius: 18,
-          overflow: 'hidden',
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
-          backgroundColor: '#000',
-        }}
-      >
-        <View style={{ flex: 1, position: 'relative' }}>
-          <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
-          <PaneLabel color="#ff1039" label="FACECAM" />
-          {showOverlay && facecamRegion && (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <RegionOverlay facecam={facecamRegion} />
-            </View>
-          )}
-        </View>
-        <View style={{ height: 2, backgroundColor: 'rgba(255,16,57,0.45)' }} />
-        <View style={{ flex: 1, position: 'relative' }}>
-          <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
-          <PaneLabel color="#60a5fa" label="GAMEPLAY" />
-          {showOverlay && (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <RegionOverlay gameplay={gameplayRegion} />
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  }
+  // stacked + split: ein gemeinsamer Wrapper mit zentralem Control-Overlay.
+  // Beide Panes zeigen pixel-präzise den jeweiligen Region-Crop, ein gemeinsames
+  // Play/Pause/Mute/Scrubber-Control sitzt darüber. Master-Slave-Sync sorgt
+  // dafür, dass beide Videos parallel laufen und nicht driften.
+  return (
+    <StackedSplitPreview
+      layout={layout}
+      sourceUri={sourceUri}
+      facecamRegion={facecamRegion}
+      gameplayRegion={gameplayRegion}
+      showOverlay={showOverlay}
+    />
+  );
+}
 
-  // split — zwei Player nebeneinander in 9:16-Frame
+const STACKED_SKIP_SEC = 5;
+const STACKED_AUTO_HIDE_MS = 2500;
+
+function StackedSplitPreview({
+  layout,
+  sourceUri,
+  facecamRegion,
+  gameplayRegion,
+  showOverlay,
+}: {
+  layout: 'stacked' | 'split';
+  sourceUri: string;
+  facecamRegion: { x: number; y: number; w: number; h: number } | null;
+  gameplayRegion: { x: number; y: number; w: number; h: number };
+  showOverlay: boolean;
+}) {
+  const facecamRef = useRef<RegionCroppedVideoHandle>(null);
+  const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
+
+  const [paused, setPaused] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const [currentSec, setCurrentSec] = useState(0);
+  const [durationSec, setDurationSec] = useState(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  // Ref auf volatilen State, damit der einmal-erstellte PanResponder die
+  // aktuellen Werte liest (Closures würden sonst alte States cachen).
+  const stateRef = useRef({ trackWidth, durationSec });
+  useEffect(() => {
+    stateRef.current = { trackWidth, durationSec };
+  }, [trackWidth, durationSec]);
+
+  // Auto-hide Controls während Playback.
+  useEffect(() => {
+    if (paused || !controlsVisible) return;
+    const timer = setTimeout(() => setControlsVisible(false), STACKED_AUTO_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [paused, controlsVisible, currentSec]);
+
+  // Master = facecam-Pane (treibt Scrubber + Slave-Sync).
+  const handleMasterLoad = (d: OnLoadData) => {
+    setDurationSec(d.duration);
+  };
+  const handleMasterProgress = (d: OnProgressData) => {
+    setCurrentSec(d.currentTime);
+    // Slave nur seeken wenn drift > 0.4s (Threshold im Handle selbst).
+    gameplayRef.current?.syncTo(d.currentTime);
+  };
+
+  const togglePlay = () => {
+    setPaused((p) => !p);
+    setControlsVisible(true);
+  };
+
+  const skipBy = (delta: number) => {
+    if (durationSec <= 0) return;
+    const next = Math.max(0, Math.min(durationSec, currentSec + delta));
+    facecamRef.current?.seek(next);
+    gameplayRef.current?.seek(next);
+    setCurrentSec(next);
+    setControlsVisible(true);
+  };
+
+  const seekFromTouch = (x: number) => {
+    const { trackWidth: w, durationSec: d } = stateRef.current;
+    if (w <= 0 || d <= 0) return;
+    const frac = Math.max(0, Math.min(1, x / w));
+    const sec = frac * d;
+    facecamRef.current?.seek(sec);
+    gameplayRef.current?.seek(sec);
+    setCurrentSec(sec);
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => seekFromTouch(evt.nativeEvent.locationX),
+      onPanResponderMove: (evt) => seekFromTouch(evt.nativeEvent.locationX),
+    }),
+  ).current;
+
+  const isStacked = layout === 'stacked';
+  const progressPct = durationSec > 0 ? (currentSec / durationSec) * 100 : 0;
+  const ready = durationSec > 0;
+
   return (
     <View
       style={{
         aspectRatio: 9 / 16,
-        flexDirection: 'row',
         borderRadius: 18,
         overflow: 'hidden',
         borderWidth: 1,
@@ -1546,18 +1614,237 @@ function LayoutPreview({
         backgroundColor: '#000',
       }}
     >
-      <View style={{ flex: 1, position: 'relative' }}>
-        <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
-        <PaneLabel color="#ff1039" label="FACECAM" />
+      {/* Pane-Layer: zwei RegionCroppedVideoPlayer in stacked / split-Anordnung. */}
+      <View style={{ flex: 1, flexDirection: isStacked ? 'column' : 'row' }}>
+        <View style={{ flex: 1, position: 'relative' }}>
+          <RegionCroppedVideoPlayer
+            ref={facecamRef}
+            uri={sourceUri}
+            region={facecamRegion}
+            paused={paused}
+            muted={muted}
+            onLoad={handleMasterLoad}
+            onProgress={handleMasterProgress}
+          />
+          <PaneLabel color="#ff1039" label="FACECAM" />
+          {showOverlay && facecamRegion && isStacked && (
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <RegionOverlay facecam={facecamRegion} />
+            </View>
+          )}
+        </View>
+        <View
+          style={
+            isStacked
+              ? { height: 2, backgroundColor: 'rgba(255,16,57,0.45)' }
+              : { width: 2, backgroundColor: 'rgba(255,16,57,0.45)' }
+          }
+        />
+        <View style={{ flex: 1, position: 'relative' }}>
+          <RegionCroppedVideoPlayer
+            ref={gameplayRef}
+            uri={sourceUri}
+            region={gameplayRegion}
+            paused={paused}
+            muted={true /* Slave-Pane immer stumm — sonst spielt Audio doppelt. */}
+          />
+          <PaneLabel color="#60a5fa" label="GAMEPLAY" />
+          {showOverlay && isStacked && (
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <RegionOverlay gameplay={gameplayRegion} />
+            </View>
+          )}
+        </View>
       </View>
-      <View style={{ width: 2, backgroundColor: 'rgba(255,16,57,0.45)' }} />
-      <View style={{ flex: 1, position: 'relative' }}>
-        <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
-        <PaneLabel color="#60a5fa" label="GAMEPLAY" />
-      </View>
+
+      {/* Tap-Layer: toggelt Controls-Sichtbarkeit. */}
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={() => ready && setControlsVisible((c) => !c)}
+      />
+
+      {/* Mute-Pill oben rechts — immer sichtbar wenn ready. */}
+      {ready && (
+        <Pressable
+          onPress={() => setMuted((m) => !m)}
+          hitSlop={6}
+          style={({ pressed }) => [
+            stackedStyles.mutePill,
+            { opacity: pressed ? 0.6 : 0.9 },
+          ]}
+        >
+          <Ionicons
+            name={muted ? 'volume-mute' : 'volume-high'}
+            size={16}
+            color="#fff"
+          />
+        </Pressable>
+      )}
+
+      {/* Center-Controls — Skip / Play / Skip */}
+      {ready && controlsVisible && (
+        <View pointerEvents="box-none" style={stackedStyles.centerRow}>
+          <Pressable
+            onPress={() => skipBy(-STACKED_SKIP_SEC)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.skipButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Ionicons name="play-back" size={18} color="#fff" />
+            <Text style={stackedStyles.skipLabel}>{STACKED_SKIP_SEC}s</Text>
+          </Pressable>
+          <Pressable
+            onPress={togglePlay}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.playButton,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons name={paused ? 'play' : 'pause'} size={28} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={() => skipBy(STACKED_SKIP_SEC)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.skipButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Ionicons name="play-forward" size={18} color="#fff" />
+            <Text style={stackedStyles.skipLabel}>{STACKED_SKIP_SEC}s</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Bottom Scrubber — auch sichtbar wenn Center-Controls ausgeblendet. */}
+      {ready && (
+        <View style={stackedStyles.bottomBar}>
+          <Text style={stackedStyles.time}>{formatPreviewTime(currentSec)}</Text>
+          <View
+            style={stackedStyles.trackHit}
+            onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+            {...panResponder.panHandlers}
+          >
+            <View style={stackedStyles.track}>
+              <View
+                style={[stackedStyles.trackFill, { width: `${progressPct}%` }]}
+              />
+            </View>
+            <View style={[stackedStyles.thumb, { left: `${progressPct}%` }]} />
+          </View>
+          <Text style={stackedStyles.time}>{formatPreviewTime(durationSec)}</Text>
+        </View>
+      )}
     </View>
   );
 }
+
+function formatPreviewTime(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+const stackedStyles = StyleSheet.create({
+  mutePill: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  centerRow: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 28,
+  },
+  skipButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipLabel: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  playButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  time: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    minWidth: 36,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowRadius: 4,
+  },
+  trackHit: {
+    flex: 1,
+    height: 24,
+    justifyContent: 'center',
+  },
+  track: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  trackFill: {
+    height: '100%',
+    backgroundColor: '#ff1039',
+    borderRadius: 2,
+  },
+  thumb: {
+    position: 'absolute',
+    top: 6,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    marginLeft: -6,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+  },
+});
 
 function PaneLabel({ color, label }: { color: string; label: string }) {
   return (
