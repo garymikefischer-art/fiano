@@ -14,13 +14,20 @@
  * `resizeMode="stretch"` weil wir die Native-Auflösung selbst setzen — das Video
  * wird hardware-bilinear hochskaliert (faktor 2-4× sieht auf modern Phones ok aus).
  *
- * KEINE Controls — reine Visualisierung. Pro Default beide muted (in einem
- * Stacked-Preview spielt sonst Audio doppelt).
+ * KEINE eingebauten Controls — der Parent (StackedSplitPreview) liefert ein
+ * gemeinsames Control-Overlay für beide Panes. Master-Slave-Sync via
+ * `syncTo()` auf der ref: Master ruft das mit eigener currentTime, Slave seekt
+ * sich selbst nur bei drift > 0.4s.
  */
 
-import { useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import Video, { type OnLoadData, type OnVideoErrorData } from 'react-native-video';
+import Video, {
+  type OnLoadData,
+  type OnProgressData,
+  type OnVideoErrorData,
+  type VideoRef,
+} from 'react-native-video';
 
 interface Region {
   x: number;
@@ -37,73 +44,116 @@ interface Props {
   muted?: boolean;
   /** Default false. Wenn true: Video pausiert. */
   paused?: boolean;
+  /** Wird einmal gefired wenn das Video Maße + Dauer kennt. Master-Pane nutzt das. */
+  onLoad?: (data: OnLoadData) => void;
+  /** Tickt während Playback (~250ms). Master-Pane treibt damit den globalen Scrubber. */
+  onProgress?: (data: OnProgressData) => void;
 }
 
-export function RegionCroppedVideoPlayer({ uri, region, muted = true, paused = false }: Props) {
-  const [paneSize, setPaneSize] = useState<{ w: number; h: number } | null>(null);
-  const [srcSize, setSrcSize] = useState<{ w: number; h: number } | null>(null);
-  const [errored, setErrored] = useState(false);
+export interface RegionCroppedVideoHandle {
+  /** Hartes Seek auf eine bestimmte Sekunde. */
+  seek: (sec: number) => void;
+  /** Sanfter Sync: nur seek wenn drift zur eigenen currentTime > 0.4s.
+   *  Wird vom Master mit dessen currentTime aufgerufen, damit Slave nicht driftet. */
+  syncTo: (masterSec: number) => void;
+}
 
-  const validRegion =
-    region != null && region.w > 0 && region.h > 0
-      ? clampRegion(region)
-      : null;
+const SYNC_THRESHOLD_SEC = 0.4;
 
-  const layout = computeLayout(paneSize, srcSize, validRegion);
+export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Props>(
+  function RegionCroppedVideoPlayer(
+    { uri, region, muted = true, paused = false, onLoad, onProgress },
+    ref,
+  ) {
+    const videoRef = useRef<VideoRef>(null);
+    const currentSecRef = useRef(0);
+    const [paneSize, setPaneSize] = useState<{ w: number; h: number } | null>(null);
+    const [srcSize, setSrcSize] = useState<{ w: number; h: number } | null>(null);
+    const [errored, setErrored] = useState(false);
 
-  return (
-    <View
-      style={styles.pane}
-      onLayout={(e) =>
-        setPaneSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
-      }
-    >
-      {!errored && (
-        <Video
-          key={uri}
-          source={{ uri }}
-          paused={paused}
-          muted={muted}
-          repeat
-          resizeMode={layout ? 'stretch' : 'cover'}
-          onLoad={(d: OnLoadData) => {
-            const w = d.naturalSize?.width ?? 0;
-            const h = d.naturalSize?.height ?? 0;
-            if (w > 0 && h > 0) setSrcSize({ w, h });
-          }}
-          onError={(_e: OnVideoErrorData) => setErrored(true)}
-          progressUpdateInterval={1000}
-          bufferConfig={{
-            minBufferMs: 5000,
-            maxBufferMs: 10000,
-            bufferForPlaybackMs: 1500,
-            bufferForPlaybackAfterRebufferMs: 3000,
-          }}
-          disableFocus={true}
-          ignoreSilentSwitch="ignore"
-          style={
-            layout
-              ? {
-                  position: 'absolute',
-                  left: layout.left,
-                  top: layout.top,
-                  width: layout.width,
-                  height: layout.height,
-                }
-              : StyleSheet.absoluteFill
+    useImperativeHandle(
+      ref,
+      () => ({
+        seek: (sec: number) => {
+          videoRef.current?.seek(sec);
+          currentSecRef.current = sec;
+        },
+        syncTo: (masterSec: number) => {
+          const drift = Math.abs(masterSec - currentSecRef.current);
+          if (drift > SYNC_THRESHOLD_SEC) {
+            videoRef.current?.seek(masterSec);
+            currentSecRef.current = masterSec;
           }
-        />
-      )}
+        },
+      }),
+      [],
+    );
 
-      {/* Loading-Indikator solange wir noch keine Source-Maße haben (= onLoad nicht gefired). */}
-      {!errored && !srcSize && (
-        <View style={styles.center} pointerEvents="none">
-          <ActivityIndicator color="#ff1039" size="small" />
-        </View>
-      )}
-    </View>
-  );
-}
+    const validRegion =
+      region != null && region.w > 0 && region.h > 0 ? clampRegion(region) : null;
+
+    const layout = computeLayout(paneSize, srcSize, validRegion);
+
+    return (
+      <View
+        style={styles.pane}
+        onLayout={(e) =>
+          setPaneSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
+        }
+      >
+        {!errored && (
+          <Video
+            key={uri}
+            ref={videoRef}
+            source={{ uri }}
+            paused={paused}
+            muted={muted}
+            repeat
+            resizeMode={layout ? 'stretch' : 'cover'}
+            onLoad={(d: OnLoadData) => {
+              const w = d.naturalSize?.width ?? 0;
+              const h = d.naturalSize?.height ?? 0;
+              if (w > 0 && h > 0) setSrcSize({ w, h });
+              onLoad?.(d);
+            }}
+            onProgress={(d: OnProgressData) => {
+              currentSecRef.current = d.currentTime;
+              onProgress?.(d);
+            }}
+            onError={(_e: OnVideoErrorData) => setErrored(true)}
+            progressUpdateInterval={250}
+            bufferConfig={{
+              minBufferMs: 5000,
+              maxBufferMs: 10000,
+              bufferForPlaybackMs: 1500,
+              bufferForPlaybackAfterRebufferMs: 3000,
+            }}
+            disableFocus={true}
+            ignoreSilentSwitch="ignore"
+            style={
+              layout
+                ? {
+                    position: 'absolute',
+                    left: layout.left,
+                    top: layout.top,
+                    width: layout.width,
+                    height: layout.height,
+                  }
+                : StyleSheet.absoluteFill
+            }
+          />
+        )}
+
+        {/* Loading-Indikator solange wir noch keine Source-Maße haben (= onLoad nicht gefired). */}
+        {!errored && !srcSize && (
+          <View style={styles.center} pointerEvents="none">
+            <ActivityIndicator color="#ff1039" size="small" />
+          </View>
+        )}
+      </View>
+    );
+  },
+);
 
 function clampRegion(r: Region): Region {
   const x = Math.max(0, Math.min(1, r.x));
