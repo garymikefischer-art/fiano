@@ -1289,7 +1289,7 @@ function TikTokTab({
           </SectionHeader>
           <RegionPreviewCard
             title={t('tiktok.facecamRegion', 'Facecam region (top)')}
-            sourceUri={project.sourceUri}
+            thumbUri={project.thumbUri}
             region={facecamRegion}
             color="facecam"
             presets={(Object.keys(FACECAM_PRESETS) as FacecamPreset[]).map((id) => ({
@@ -1307,7 +1307,7 @@ function TikTokTab({
           </SectionHeader>
           <RegionPreviewCard
             title={t('tiktok.gameplayRegion', 'Gameplay region (bottom)')}
-            sourceUri={project.sourceUri}
+            thumbUri={project.thumbUri}
             region={gameplayRegion}
             color="gameplay"
             presets={(Object.keys(GAMEPLAY_PRESETS) as GameplayPreset[]).map((id) => ({

@@ -123,10 +123,12 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
             onError={(_e: OnVideoErrorData) => setErrored(true)}
             progressUpdateInterval={250}
             bufferConfig={{
-              minBufferMs: 5000,
-              maxBufferMs: 10000,
-              bufferForPlaybackMs: 1500,
-              bufferForPlaybackAfterRebufferMs: 3000,
+              // Klein gehalten weil im Stacked-Modus zwei Decoder gleichzeitig
+              // laufen — Default 5/10s × 2 Streams hatte auf Android OOM ausgeloest.
+              minBufferMs: 1500,
+              maxBufferMs: 3000,
+              bufferForPlaybackMs: 800,
+              bufferForPlaybackAfterRebufferMs: 1500,
             }}
             disableFocus={true}
             ignoreSilentSwitch="ignore"
