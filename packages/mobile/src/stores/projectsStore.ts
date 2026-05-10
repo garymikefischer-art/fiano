@@ -19,6 +19,7 @@ import {
   DEMO_PROJECTS,
   type DemoProject,
   type ProjectMode,
+  type ProjectVoiceOver,
   type VideoType,
   type SourceType,
 } from '../data/demoProjects';
@@ -56,6 +57,12 @@ interface ProjectsState {
   addProject: (input: NewProjectInput) => Project;
   /** Patcht ein Projekt teilweise (z.B. status: ready/failed nach Export). */
   updateProject: (id: string, patch: Partial<Project>) => void;
+  /** Hängt einen Voice-Over an `project.voiceOvers` an. */
+  addVoiceOver: (id: string, vo: ProjectVoiceOver) => void;
+  /** Patcht den Voice-Over an Index `idx` im Project. */
+  updateVoiceOver: (id: string, idx: number, patch: Partial<ProjectVoiceOver>) => void;
+  /** Entfernt den Voice-Over an Index `idx`. */
+  removeVoiceOver: (id: string, idx: number) => void;
 }
 
 /** ID-Generator — Date.now + zufälliger Suffix, ausreichend für lokale Projekte. */
@@ -116,6 +123,35 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
   updateProject: (id, patch) =>
     set((s) => ({
       projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    })),
+
+  addVoiceOver: (id, vo) =>
+    set((s) => ({
+      projects: s.projects.map((p) =>
+        p.id === id ? { ...p, voiceOvers: [...(p.voiceOvers ?? []), vo] } : p,
+      ),
+    })),
+
+  updateVoiceOver: (id, idx, patch) =>
+    set((s) => ({
+      projects: s.projects.map((p) => {
+        if (p.id !== id) return p;
+        const list = p.voiceOvers ?? [];
+        if (idx < 0 || idx >= list.length) return p;
+        const next = list.map((vo, i) => (i === idx ? { ...vo, ...patch } : vo));
+        return { ...p, voiceOvers: next };
+      }),
+    })),
+
+  removeVoiceOver: (id, idx) =>
+    set((s) => ({
+      projects: s.projects.map((p) => {
+        if (p.id !== id) return p;
+        const list = p.voiceOvers ?? [];
+        if (idx < 0 || idx >= list.length) return p;
+        const next = list.filter((_, i) => i !== idx);
+        return { ...p, voiceOvers: next.length > 0 ? next : undefined };
+      }),
     })),
 }));
 

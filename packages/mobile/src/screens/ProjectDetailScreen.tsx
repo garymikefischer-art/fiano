@@ -32,6 +32,7 @@ import { BackgroundGlow } from '../components/BackgroundGlow';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge';
 import { VideoPlayer } from '../components/VideoPlayer';
 import {
+  DEFAULT_SPLIT_RATIO,
   formatDuration,
   formatTimecode,
   type DemoClip,
@@ -40,12 +41,22 @@ import {
   type SourceType,
 } from '../data/demoProjects';
 import { useProject, useProjectsStore } from '../stores/projectsStore';
-import { useAppStore } from '../stores/appStore';
+import {
+  useAppStore,
+  FACECAM_PRESETS,
+  GAMEPLAY_PRESETS,
+  type FacecamPreset,
+  type GameplayPreset,
+  type Region,
+} from '../stores/appStore';
 import { RegionOverlay } from '../components/RegionOverlay';
+import { RegionPreviewCard } from '../components/RegionPreviewCard';
 import {
   RegionCroppedVideoPlayer,
   type RegionCroppedVideoHandle,
 } from '../components/RegionCroppedVideoPlayer';
+import { SimpleSlider } from '../components/SimpleSlider';
+import { VoiceOversSection } from '../components/VoiceOversSection';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { useT } from '../lib/i18n';
@@ -1067,8 +1078,13 @@ function TikTokTab({
   const usingOverride = project.gameplayRegion != null || project.facecamRegion !== undefined;
 
   const [layout, setLayout] = useState<Layout>('stacked');
+  const [splitRatio, setSplitRatio] = useState(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
+  // Sync wenn das Project von außen aktualisiert wird (z.B. anderer Tab).
+  useEffect(() => {
+    setSplitRatio(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
+  }, [project.splitRatio]);
   const [subtitles, setSubtitles] = useState(true);
-  const [tts, setTts] = useState(false);
+  const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
   const [musicTracks, setMusicTracks] = useState<AudioTrack[]>([]);
   const [musicShuffle, setMusicShuffle] = useState(false);
   const [introUri, setIntroUri] = useState<string | null>(null);
@@ -1102,6 +1118,7 @@ function TikTokTab({
             facecamRegion={facecamRegion}
             gameplayRegion={gameplayRegion}
             showOverlay={showOverlay}
+            splitRatio={splitRatio}
           />
         </View>
       </View>
@@ -1201,58 +1218,110 @@ function TikTokTab({
         />
       </View>
 
-      {/* Hide-Overlay-Toggle — sinnvoll bei Stacked, da man dann die echte
-          Komposition statt der Schaubild-Kästen sehen will. */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          backgroundColor: 'rgba(255,255,255,0.04)',
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
-          borderRadius: 14,
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-        }}
-      >
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
-            {t('tiktok.showRegions', 'Show region overlay')}
-          </Text>
-          <Text style={{ color: '#71717a', fontSize: 10 }}>
-            {t(
-              'tiktok.showRegionsHint',
-              'Toggle the red/blue boxes off when you want to see the clean composition.',
-            )}
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => {
-            haptic.selection();
-            setShowOverlay((v) => !v);
-          }}
-          style={({ pressed }) => ({
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-            borderRadius: 999,
-            backgroundColor: showOverlay ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.06)',
+      {/* Facecam-Größe (nur stacked + split) — analog Desktop's SplitRatioSlider.
+          Live-Update der Pane-Aufteilung in der Preview, persistierte Commit
+          auf Release. Default 0.4 = 40% Facecam, 60% Gameplay. */}
+      {layout !== 'full' && (
+        <View
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.04)',
             borderWidth: 1,
-            borderColor: showOverlay ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.10)',
-            opacity: pressed ? 0.7 : 1,
-          })}
+            borderColor: 'rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            gap: 10,
+          }}
         >
-          <Text
+          <View
             style={{
-              color: showOverlay ? '#ff1039' : '#a1a1aa',
-              fontSize: 11,
-              fontWeight: '700',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
             }}
           >
-            {showOverlay ? t('common.on', 'ON') : t('common.off', 'OFF')}
-          </Text>
-        </Pressable>
-      </View>
+            <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+              {t('tiktok.facecamSize', 'Facecam size')}
+            </Text>
+            <Text
+              style={{
+                color: '#a1a1aa',
+                fontSize: 11,
+                fontWeight: '600',
+                fontVariant: ['tabular-nums'],
+              }}
+            >
+              {`${Math.round(splitRatio * 100)}% · ${Math.round((1 - splitRatio) * 100)}%`}
+            </Text>
+          </View>
+          <SimpleSlider
+            value={splitRatio}
+            min={0.2}
+            max={0.8}
+            step={0.05}
+            onChange={setSplitRatio}
+            onCommit={(v) => {
+              haptic.selection();
+              updateProject(project.id, { splitRatio: v });
+            }}
+          />
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: -4 }}
+          >
+            <Text style={{ color: '#71717a', fontSize: 9 }}>
+              {t('tiktok.facecamLabel', 'Facecam')}
+            </Text>
+            <Text style={{ color: '#71717a', fontSize: 9 }}>
+              {t('tiktok.gameplayLabel', 'Gameplay')}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Region-Cards — analog Desktop's FacecamEditor + GameplayEditor.
+          Jede Card zeigt das Source-Frame mit dem aktuellen Region-Rect drauf
+          plus Snap-Presets darunter. Tap auf einen Preset → updateProject
+          (Project-Override). Stacked-Preview oben bleibt clean (kein Overlay). */}
+      {layout !== 'full' && (
+        <>
+          <SectionHeader>
+            {t('tiktok.facecamRegion', 'Facecam region (top)').toUpperCase()}
+          </SectionHeader>
+          <RegionPreviewCard
+            title={t('tiktok.facecamRegion', 'Facecam region (top)')}
+            sourceUri={project.sourceUri}
+            region={facecamRegion}
+            color="facecam"
+            presets={(Object.keys(FACECAM_PRESETS) as FacecamPreset[]).map((id) => ({
+              id,
+              label: presetLabelFor(id, t),
+              region: FACECAM_PRESETS[id],
+            }))}
+            activePresetId={matchPreset(facecamRegion, FACECAM_PRESETS)}
+            onPresetSelect={(_id, region) => {
+              updateProject(project.id, { facecamRegion: region });
+            }}
+          />
+          <SectionHeader>
+            {t('tiktok.gameplayRegion', 'Gameplay region (bottom)').toUpperCase()}
+          </SectionHeader>
+          <RegionPreviewCard
+            title={t('tiktok.gameplayRegion', 'Gameplay region (bottom)')}
+            sourceUri={project.sourceUri}
+            region={gameplayRegion}
+            color="gameplay"
+            presets={(Object.keys(GAMEPLAY_PRESETS) as GameplayPreset[]).map((id) => ({
+              id,
+              label: presetLabelFor(id, t),
+              region: GAMEPLAY_PRESETS[id],
+            }))}
+            activePresetId={matchPreset(gameplayRegion, GAMEPLAY_PRESETS)}
+            onPresetSelect={(_id, region) => {
+              if (region) updateProject(project.id, { gameplayRegion: region });
+            }}
+          />
+        </>
+      )}
 
       {/* Add-Ons */}
       <SectionHeader>{t('tiktok.addOnsHeader', 'ADD-ONS').toUpperCase()}</SectionHeader>
@@ -1271,14 +1340,6 @@ function TikTokTab({
           desc={t('tiktok.subtitlesDesc', 'Burn-in word-highlight subs')}
           value={subtitles}
           onChange={setSubtitles}
-        />
-        <Divider />
-        <ToggleRow
-          icon="mic-outline"
-          label={t('tiktok.tts', 'TTS Voice-over')}
-          desc={t('tiktok.ttsDesc', 'AI-generated narration over the clip')}
-          value={tts}
-          onChange={setTts}
         />
         <Divider />
         <MultiAudioPicker
@@ -1378,8 +1439,15 @@ function TikTokTab({
         )}
       </View>
 
+      {/* Voice-Overs (TTS) — eigene Section analog Desktop's VoiceOversSection. */}
+      <VoiceOversSection
+        project={project}
+        totalDurationHint={project.durationSec}
+        title={t('tiktok.tts', 'TTS Voice-over')}
+      />
+
       {/* Aktive Add-Ons Live-Indicator */}
-      {(musicTracks.length > 0 || introUri || tts || subtitles) && (
+      {(musicTracks.length > 0 || introUri || hasVoiceOvers || subtitles) && (
         <View
           style={{
             backgroundColor: 'rgba(255,16,57,0.06)',
@@ -1397,7 +1465,7 @@ function TikTokTab({
           <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 16 }}>
             {[
               subtitles && t('tiktok.subtitles', 'Subtitles'),
-              tts && t('tiktok.tts', 'TTS'),
+              hasVoiceOvers && `${(project.voiceOvers ?? []).length} ${(project.voiceOvers ?? []).length === 1 ? 'TTS' : 'TTS tracks'}`,
               musicTracks.length > 0 && `${musicTracks.length} ${musicTracks.length === 1 ? 'track' : 'tracks'}${musicShuffle ? ' (shuffle)' : ''}`,
               introUri && `Intro · ${introMode}${introMode === 'overlay' ? ` · ${introPosition}` : ''}`,
             ]
@@ -1461,6 +1529,7 @@ function LayoutPreview({
   facecamRegion,
   gameplayRegion,
   showOverlay,
+  splitRatio,
 }: {
   layout: Layout;
   sourceUri?: string;
@@ -1468,6 +1537,7 @@ function LayoutPreview({
   facecamRegion: { x: number; y: number; w: number; h: number } | null;
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
+  splitRatio: number;
 }) {
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
   // in einer nativen Phase — hier zeigen wir die Aufteilung via 1–2 Player +
@@ -1512,6 +1582,7 @@ function LayoutPreview({
       facecamRegion={facecamRegion}
       gameplayRegion={gameplayRegion}
       showOverlay={showOverlay}
+      splitRatio={splitRatio}
     />
   );
 }
@@ -1525,12 +1596,15 @@ function StackedSplitPreview({
   facecamRegion,
   gameplayRegion,
   showOverlay,
+  splitRatio,
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
   facecamRegion: { x: number; y: number; w: number; h: number } | null;
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
+  /** 0.2..0.8 — Höhenanteil der Facecam-Pane (stacked). Im split-Modus = Width-Anteil. */
+  splitRatio: number;
 }) {
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
@@ -1614,9 +1688,12 @@ function StackedSplitPreview({
         backgroundColor: '#000',
       }}
     >
-      {/* Pane-Layer: zwei RegionCroppedVideoPlayer in stacked / split-Anordnung. */}
+      {/* Pane-Layer: zwei RegionCroppedVideoPlayer in stacked / split-Anordnung.
+          flex-Werte werden vom splitRatio getrieben — Top-Pane (Facecam) = ratio,
+          Bottom-Pane (Gameplay) = 1 - ratio. Sub-Pixel-Werte fallen weg, weil RN
+          flex auf integer-Pixels rundet. */}
       <View style={{ flex: 1, flexDirection: isStacked ? 'column' : 'row' }}>
-        <View style={{ flex: 1, position: 'relative' }}>
+        <View style={{ flex: splitRatio, position: 'relative' }}>
           <RegionCroppedVideoPlayer
             ref={facecamRef}
             uri={sourceUri}
@@ -1627,11 +1704,6 @@ function StackedSplitPreview({
             onProgress={handleMasterProgress}
           />
           <PaneLabel color="#ff1039" label="FACECAM" />
-          {showOverlay && facecamRegion && isStacked && (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <RegionOverlay facecam={facecamRegion} />
-            </View>
-          )}
         </View>
         <View
           style={
@@ -1640,7 +1712,7 @@ function StackedSplitPreview({
               : { width: 2, backgroundColor: 'rgba(255,16,57,0.45)' }
           }
         />
-        <View style={{ flex: 1, position: 'relative' }}>
+        <View style={{ flex: 1 - splitRatio, position: 'relative' }}>
           <RegionCroppedVideoPlayer
             ref={gameplayRef}
             uri={sourceUri}
@@ -1649,11 +1721,6 @@ function StackedSplitPreview({
             muted={true /* Slave-Pane immer stumm — sonst spielt Audio doppelt. */}
           />
           <PaneLabel color="#60a5fa" label="GAMEPLAY" />
-          {showOverlay && isStacked && (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <RegionOverlay gameplay={gameplayRegion} />
-            </View>
-          )}
         </View>
       </View>
 
@@ -2482,4 +2549,47 @@ function PlaceholderHero({ project }: { project: DemoProject }) {
       </View>
     </View>
   );
+}
+
+/* ─── Region-Preset Helpers ─────────────────────────────────────── */
+
+/** Findet den passenden Preset zur aktuellen Region (epsilon-Vergleich). */
+function matchPreset<T extends string>(
+  region: Region | null,
+  presets: Record<T, Region | null>,
+): T | null {
+  for (const key of Object.keys(presets) as T[]) {
+    const p = presets[key];
+    if (p === null && region === null) return key;
+    if (
+      p &&
+      region &&
+      Math.abs(p.x - region.x) < 0.015 &&
+      Math.abs(p.y - region.y) < 0.015 &&
+      Math.abs(p.w - region.w) < 0.015 &&
+      Math.abs(p.h - region.h) < 0.015
+    ) {
+      return key;
+    }
+  }
+  return null;
+}
+
+/** Kompakte Pill-Labels analog Desktop's Snap-Buttons (TL/TR/BL/BR/None / Center/Bottom/...). */
+function presetLabelFor(
+  id: FacecamPreset | GameplayPreset,
+  t: (k: string, f?: string) => string,
+): string {
+  switch (id) {
+    case 'top-left':     return t('region.snapTL', 'TL');
+    case 'top-right':    return t('region.snapTR', 'TR');
+    case 'bottom-left':  return t('region.snapBL', 'BL');
+    case 'bottom-right': return t('region.snapBR', 'BR');
+    case 'none':         return t('region.snapNone', 'None');
+    case 'center':       return t('region.snapCenter', 'Center');
+    case 'bottom':       return t('region.snapBottom', 'Bottom');
+    case 'stretch':      return t('region.snapStretch', 'Stretch');
+    case 'full':         return t('region.snapFull', 'Full');
+    default:             return id;
+  }
 }
