@@ -40,6 +40,7 @@ import {
 import { useProject, useProjectsStore } from '../stores/projectsStore';
 import { useAppStore } from '../stores/appStore';
 import { RegionOverlay } from '../components/RegionOverlay';
+import { RegionCroppedVideoPlayer } from '../components/RegionCroppedVideoPlayer';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { useT } from '../lib/i18n';
@@ -1496,9 +1497,10 @@ function LayoutPreview({
   }
 
   if (layout === 'stacked') {
-    // 9:16 Container, geteilt in zwei 9:8-Blöcke (50/50). Beide Player zeigen
-    // das Source-Video mit cover-Crop — VideoPlayer mit `fill` nutzt die
-    // Eltern-Größe (kein internes aspectRatio das mit dem Stack-Layout streitet).
+    // 9:16 Container, geteilt in zwei 9:8-Blöcke (50/50). Top-Pane zeigt
+    // pixel-präzise den facecamRegion-Crop, Bottom-Pane gameplayRegion —
+    // analog Desktop's Canvas-TikTokPreview, aber via overflow:hidden +
+    // absolute-positioniertes <Video> (RN hat keine drawImage-API).
     return (
       <View
         style={{
@@ -1511,7 +1513,7 @@ function LayoutPreview({
         }}
       >
         <View style={{ flex: 1, position: 'relative' }}>
-          <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
+          <RegionCroppedVideoPlayer uri={sourceUri} region={facecamRegion} />
           <PaneLabel color="#ff1039" label="FACECAM" />
           {showOverlay && facecamRegion && (
             <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -1521,7 +1523,7 @@ function LayoutPreview({
         </View>
         <View style={{ height: 2, backgroundColor: 'rgba(255,16,57,0.45)' }} />
         <View style={{ flex: 1, position: 'relative' }}>
-          <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
+          <RegionCroppedVideoPlayer uri={sourceUri} region={gameplayRegion} />
           <PaneLabel color="#60a5fa" label="GAMEPLAY" />
           {showOverlay && (
             <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -1533,7 +1535,7 @@ function LayoutPreview({
     );
   }
 
-  // split — zwei Player nebeneinander in 9:16-Frame
+  // split — zwei Region-Crops nebeneinander in 9:16-Frame
   return (
     <View
       style={{
@@ -1547,12 +1549,12 @@ function LayoutPreview({
       }}
     >
       <View style={{ flex: 1, position: 'relative' }}>
-        <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
+        <RegionCroppedVideoPlayer uri={sourceUri} region={facecamRegion} />
         <PaneLabel color="#ff1039" label="FACECAM" />
       </View>
       <View style={{ width: 2, backgroundColor: 'rgba(255,16,57,0.45)' }} />
       <View style={{ flex: 1, position: 'relative' }}>
-        <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
+        <RegionCroppedVideoPlayer uri={sourceUri} region={gameplayRegion} />
         <PaneLabel color="#60a5fa" label="GAMEPLAY" />
       </View>
     </View>
