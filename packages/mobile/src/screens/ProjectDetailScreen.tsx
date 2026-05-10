@@ -32,6 +32,7 @@ import { BackgroundGlow } from '../components/BackgroundGlow';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge';
 import { VideoPlayer } from '../components/VideoPlayer';
 import {
+  DEFAULT_SPLIT_RATIO,
   formatDuration,
   formatTimecode,
   type DemoClip,
@@ -46,6 +47,7 @@ import {
   RegionCroppedVideoPlayer,
   type RegionCroppedVideoHandle,
 } from '../components/RegionCroppedVideoPlayer';
+import { SimpleSlider } from '../components/SimpleSlider';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { useT } from '../lib/i18n';
@@ -1067,6 +1069,11 @@ function TikTokTab({
   const usingOverride = project.gameplayRegion != null || project.facecamRegion !== undefined;
 
   const [layout, setLayout] = useState<Layout>('stacked');
+  const [splitRatio, setSplitRatio] = useState(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
+  // Sync wenn das Project von außen aktualisiert wird (z.B. anderer Tab).
+  useEffect(() => {
+    setSplitRatio(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
+  }, [project.splitRatio]);
   const [subtitles, setSubtitles] = useState(true);
   const [tts, setTts] = useState(false);
   const [musicTracks, setMusicTracks] = useState<AudioTrack[]>([]);
@@ -1102,6 +1109,7 @@ function TikTokTab({
             facecamRegion={facecamRegion}
             gameplayRegion={gameplayRegion}
             showOverlay={showOverlay}
+            splitRatio={splitRatio}
           />
         </View>
       </View>
@@ -1200,6 +1208,66 @@ function TikTokTab({
           }}
         />
       </View>
+
+      {/* Facecam-Größe (nur stacked + split) — analog Desktop's SplitRatioSlider.
+          Live-Update der Pane-Aufteilung in der Preview, persistierte Commit
+          auf Release. Default 0.4 = 40% Facecam, 60% Gameplay. */}
+      {layout !== 'full' && (
+        <View
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            gap: 10,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+              {t('tiktok.facecamSize', 'Facecam size')}
+            </Text>
+            <Text
+              style={{
+                color: '#a1a1aa',
+                fontSize: 11,
+                fontWeight: '600',
+                fontVariant: ['tabular-nums'],
+              }}
+            >
+              {`${Math.round(splitRatio * 100)}% · ${Math.round((1 - splitRatio) * 100)}%`}
+            </Text>
+          </View>
+          <SimpleSlider
+            value={splitRatio}
+            min={0.2}
+            max={0.8}
+            step={0.05}
+            onChange={setSplitRatio}
+            onCommit={(v) => {
+              haptic.selection();
+              updateProject(project.id, { splitRatio: v });
+            }}
+          />
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: -4 }}
+          >
+            <Text style={{ color: '#71717a', fontSize: 9 }}>
+              {t('tiktok.facecamLabel', 'Facecam')}
+            </Text>
+            <Text style={{ color: '#71717a', fontSize: 9 }}>
+              {t('tiktok.gameplayLabel', 'Gameplay')}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Hide-Overlay-Toggle — sinnvoll bei Stacked, da man dann die echte
           Komposition statt der Schaubild-Kästen sehen will. */}
@@ -1461,6 +1529,7 @@ function LayoutPreview({
   facecamRegion,
   gameplayRegion,
   showOverlay,
+  splitRatio,
 }: {
   layout: Layout;
   sourceUri?: string;
@@ -1468,6 +1537,7 @@ function LayoutPreview({
   facecamRegion: { x: number; y: number; w: number; h: number } | null;
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
+  splitRatio: number;
 }) {
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
   // in einer nativen Phase — hier zeigen wir die Aufteilung via 1–2 Player +
@@ -1512,6 +1582,7 @@ function LayoutPreview({
       facecamRegion={facecamRegion}
       gameplayRegion={gameplayRegion}
       showOverlay={showOverlay}
+      splitRatio={splitRatio}
     />
   );
 }
@@ -1525,12 +1596,15 @@ function StackedSplitPreview({
   facecamRegion,
   gameplayRegion,
   showOverlay,
+  splitRatio,
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
   facecamRegion: { x: number; y: number; w: number; h: number } | null;
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
+  /** 0.2..0.8 — Höhenanteil der Facecam-Pane (stacked). Im split-Modus = Width-Anteil. */
+  splitRatio: number;
 }) {
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
@@ -1614,9 +1688,12 @@ function StackedSplitPreview({
         backgroundColor: '#000',
       }}
     >
-      {/* Pane-Layer: zwei RegionCroppedVideoPlayer in stacked / split-Anordnung. */}
+      {/* Pane-Layer: zwei RegionCroppedVideoPlayer in stacked / split-Anordnung.
+          flex-Werte werden vom splitRatio getrieben — Top-Pane (Facecam) = ratio,
+          Bottom-Pane (Gameplay) = 1 - ratio. Sub-Pixel-Werte fallen weg, weil RN
+          flex auf integer-Pixels rundet. */}
       <View style={{ flex: 1, flexDirection: isStacked ? 'column' : 'row' }}>
-        <View style={{ flex: 1, position: 'relative' }}>
+        <View style={{ flex: splitRatio, position: 'relative' }}>
           <RegionCroppedVideoPlayer
             ref={facecamRef}
             uri={sourceUri}
@@ -1627,11 +1704,6 @@ function StackedSplitPreview({
             onProgress={handleMasterProgress}
           />
           <PaneLabel color="#ff1039" label="FACECAM" />
-          {showOverlay && facecamRegion && isStacked && (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <RegionOverlay facecam={facecamRegion} />
-            </View>
-          )}
         </View>
         <View
           style={
@@ -1640,7 +1712,7 @@ function StackedSplitPreview({
               : { width: 2, backgroundColor: 'rgba(255,16,57,0.45)' }
           }
         />
-        <View style={{ flex: 1, position: 'relative' }}>
+        <View style={{ flex: 1 - splitRatio, position: 'relative' }}>
           <RegionCroppedVideoPlayer
             ref={gameplayRef}
             uri={sourceUri}
@@ -1649,11 +1721,6 @@ function StackedSplitPreview({
             muted={true /* Slave-Pane immer stumm — sonst spielt Audio doppelt. */}
           />
           <PaneLabel color="#60a5fa" label="GAMEPLAY" />
-          {showOverlay && isStacked && (
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <RegionOverlay gameplay={gameplayRegion} />
-            </View>
-          )}
         </View>
       </View>
 

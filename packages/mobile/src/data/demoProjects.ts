@@ -45,9 +45,29 @@ export interface DemoProject {
   gameplayRegion?: { x: number; y: number; w: number; h: number };
   /** Manuelle Reihenfolge der Clips für Builder. Wenn unset → original-Reihenfolge. */
   clipOrder?: string[];
+  /** 9:16 Stacked-Layout: Höhenanteil der Top-Pane (Facecam). 0.2..0.8, default 0.4. */
+  splitRatio?: number;
+  /** AI-Voice-Overs (Phase 9.5.5). Mehrere TTS-Spuren mit Position im Output. */
+  voiceOvers?: ProjectVoiceOver[];
   /** Letzte Fehlermeldung wenn status === 'failed'. */
   errorMessage?: string;
 }
+
+/** AI-Voice-Over (Text-to-Speech) mit Position im Output-Video. Analog Desktop ProjectVoiceOver. */
+export interface ProjectVoiceOver {
+  /** file:// URI in documentDirectory/voice-overs/. */
+  path: string;
+  /** Sekunde im Output-Video, ab der das Voice-Over startet. */
+  startSec: number;
+  /** 0..1.5, default 1.0. */
+  volume: number;
+  /** Original-Text für Re-Edit. */
+  text?: string;
+  /** OpenAI-Voice-ID (alloy/echo/fable/nova/onyx/shimmer). */
+  voice?: string;
+}
+
+export const DEFAULT_SPLIT_RATIO = 0.4;
 
 const makeClips = (count: number, baseDuration: number): DemoClip[] =>
   Array.from({ length: count }, (_, i) => {
