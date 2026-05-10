@@ -56,6 +56,7 @@ import {
   type RegionCroppedVideoHandle,
 } from '../components/RegionCroppedVideoPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
+import { VoiceOversSection } from '../components/VoiceOversSection';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { useT } from '../lib/i18n';
@@ -1083,7 +1084,7 @@ function TikTokTab({
     setSplitRatio(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
   }, [project.splitRatio]);
   const [subtitles, setSubtitles] = useState(true);
-  const [tts, setTts] = useState(false);
+  const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
   const [musicTracks, setMusicTracks] = useState<AudioTrack[]>([]);
   const [musicShuffle, setMusicShuffle] = useState(false);
   const [introUri, setIntroUri] = useState<string | null>(null);
@@ -1341,14 +1342,6 @@ function TikTokTab({
           onChange={setSubtitles}
         />
         <Divider />
-        <ToggleRow
-          icon="mic-outline"
-          label={t('tiktok.tts', 'TTS Voice-over')}
-          desc={t('tiktok.ttsDesc', 'AI-generated narration over the clip')}
-          value={tts}
-          onChange={setTts}
-        />
-        <Divider />
         <MultiAudioPicker
           tracks={musicTracks}
           shuffle={musicShuffle}
@@ -1446,8 +1439,15 @@ function TikTokTab({
         )}
       </View>
 
+      {/* Voice-Overs (TTS) — eigene Section analog Desktop's VoiceOversSection. */}
+      <VoiceOversSection
+        project={project}
+        totalDurationHint={project.durationSec}
+        title={t('tiktok.tts', 'TTS Voice-over')}
+      />
+
       {/* Aktive Add-Ons Live-Indicator */}
-      {(musicTracks.length > 0 || introUri || tts || subtitles) && (
+      {(musicTracks.length > 0 || introUri || hasVoiceOvers || subtitles) && (
         <View
           style={{
             backgroundColor: 'rgba(255,16,57,0.06)',
@@ -1465,7 +1465,7 @@ function TikTokTab({
           <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 16 }}>
             {[
               subtitles && t('tiktok.subtitles', 'Subtitles'),
-              tts && t('tiktok.tts', 'TTS'),
+              hasVoiceOvers && `${(project.voiceOvers ?? []).length} ${(project.voiceOvers ?? []).length === 1 ? 'TTS' : 'TTS tracks'}`,
               musicTracks.length > 0 && `${musicTracks.length} ${musicTracks.length === 1 ? 'track' : 'tracks'}${musicShuffle ? ' (shuffle)' : ''}`,
               introUri && `Intro · ${introMode}${introMode === 'overlay' ? ` · ${introPosition}` : ''}`,
             ]
