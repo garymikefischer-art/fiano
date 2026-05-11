@@ -132,7 +132,10 @@ export const DEFAULT_SUBTITLES: SubtitleSettings = {
   uppercase: true,
   textColor: '#ffffff',
   highlightColor: '#ff1039',
-  strokeEnabled: true,
+  // Default-Render hat KEINEN Stroke — User aktiviert explizit über Toggle.
+  // Vorher 'true' default sorgte fuer User-Verwirrung 'Stroke aktiviert sich
+  // bei Drop-Shadow-Aenderung von selbst' (Default-Merge bei Re-Save).
+  strokeEnabled: false,
   strokeWidth: 3,
   strokeColor: '#000000',
   glowEnabled: false,

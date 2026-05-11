@@ -185,21 +185,20 @@ function SvgGradientText({
   shadowBlur = 4,
 }: SvgGradientTextProps) {
   // Großzügige Box damit Stroke/Glow/Shadow nicht abgeschnitten werden.
-  // Glyph-Width-Faktor 0.85 (vorher 0.7) — bei breiten Fonts (Arial Black,
-  // Impact) extending stroke kann den Text deutlich breiter machen.
-  // Stroke malt halb innen + halb außen (strokeWidth × 4 = sicheres outside-pad).
+  // Stroke wird mit width×2 gerendert (paint-order-Hack), also brauchen wir
+  // strokeWidth × 6 padding fuer 'aussen' (= half of doubled stroke + slack).
   const extraPad = Math.max(
-    strokeWidth * 4,
+    strokeWidth * 6,
     Math.abs(shadowOffsetX) + shadowBlur * 2,
     glowBlur,
-    8,
+    12,
   );
   const w = Math.ceil(
-    text.length * fontSize * 0.85 +
+    text.length * fontSize * 0.9 +
       letterSpacing * Math.max(0, text.length - 1) +
       extraPad * 2,
   );
-  const h = Math.ceil(fontSize * 1.6 + extraPad);
+  const h = Math.ceil(fontSize * 1.7 + extraPad);
   const cx = w / 2;
   const cy = h * 0.7;
   const gradId = `grad-${text.length}-${metallic ? 'm' : 'g'}`;
@@ -277,7 +276,28 @@ function SvgGradientText({
         </SvgText>
       )}
 
-      {/* Main Text mit Gradient-Fill + optional Stroke */}
+      {/* Stroke-Pass (nur wenn aktiv): separater Text-Layer mit fill='none' +
+          stroke. Wird HINTER dem Fill gerendert damit stroke nicht in den
+          Buchstaben-Innenraum reinmalt (klassisches paint-order-Issue). */}
+      {strokeWidth > 0 && (
+        <SvgText
+          x={cx}
+          y={cy}
+          textAnchor="middle"
+          fontFamily={fontFamily}
+          fontSize={fontSize}
+          fontWeight="900"
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={strokeWidth * 2 /* ×2 weil halb wird vom fill ueberdeckt */}
+          strokeLinejoin="round"
+          letterSpacing={letterSpacing}
+        >
+          {text}
+        </SvgText>
+      )}
+
+      {/* Fill-Pass: gradient/metallic Fill ohne Stroke ueber dem Stroke-Layer */}
       <SvgText
         x={cx}
         y={cy}
@@ -286,8 +306,6 @@ function SvgGradientText({
         fontSize={fontSize}
         fontWeight="900"
         fill={`url(#${gradId})`}
-        stroke={strokeWidth > 0 ? strokeColor : undefined}
-        strokeWidth={strokeWidth > 0 ? strokeWidth : 0}
         letterSpacing={letterSpacing}
       >
         {text}
