@@ -173,7 +173,12 @@ export interface RegionRect {
 }
 
 export interface TikTokExportOpts {
+  /** Single-Source-Pfad. Wird ignoriert wenn `srcs` mit length >= 2 gegeben. */
   src: string;
+  /** Phase 9.5.8: Multi-Clip Concat — alle Pfade werden vorab auf ein gemeinsames
+   *  Format (1920x1080) gescaled und via concat-Filter zusammengefügt. Resultat
+   *  wird wie eine einzige Source durch die Layout-Pipeline geschickt. */
+  srcs?: string[];
   dst: string;
   trimStart?: number;
   trimEnd?: number;
@@ -248,23 +253,31 @@ export function buildTikTokExportArgs(
   const music = opts.music ?? [];
   const voiceOvers = opts.voiceOvers ?? [];
 
+  // Multi-Clip-Concat (Phase 9.5.8): wenn srcs[] gesetzt + length >= 2, alle clips
+  // zum gemeinsamen 1920x1080-Intermediate gescaled + via concat-Filter konkateniert.
+  // Trim wird bei Multi-Clip ignoriert (User hat clips bereits vor-getrimmt).
+  const sources = opts.srcs && opts.srcs.length >= 1 ? opts.srcs : [opts.src];
+  const isMulti = sources.length >= 2;
+
   const args: string[] = ['-y'];
 
-  if (opts.trimStart && opts.trimStart > 0) {
-    args.push('-ss', String(opts.trimStart));
-  }
-  if (opts.trimEnd && opts.trimEnd > 0) {
-    const dur = opts.trimEnd - (opts.trimStart ?? 0);
-    if (dur > 0) args.push('-t', String(dur));
+  if (!isMulti) {
+    if (opts.trimStart && opts.trimStart > 0) {
+      args.push('-ss', String(opts.trimStart));
+    }
+    if (opts.trimEnd && opts.trimEnd > 0) {
+      const dur = opts.trimEnd - (opts.trimStart ?? 0);
+      if (dur > 0) args.push('-t', String(dur));
+    }
   }
 
-  args.push('-i', opts.src);
+  for (const s of sources) {
+    args.push('-i', s);
+  }
 
   // ─── Zusätzliche Inputs: Intro + Music + VoiceOvers ─────────────────
-  // Input-Indizes: 0=Source, [optional 1]=Intro, dann Music+VoiceOvers
-  // {SRC_N} Platzhalter für Server-Side-Replacement bei dynamischen Pfaden —
-  // hier sind alle Pfade als reale Werte gesetzt (vom Caller schon ersetzt).
-  let inputIdx = 1;
+  // Input-Indizes verschieben sich bei Multi-Clip: 0..N-1=Sources, dann Intro, Music, VOs.
+  let inputIdx = sources.length;
   let introInputIdx = -1;
   if (opts.intro) {
     args.push('-i', opts.intro.path);
@@ -284,11 +297,33 @@ export function buildTikTokExportArgs(
   // ─── Filter-Complex aufbauen ────────────────────────────────────────
   const filters: string[] = [];
 
+  // Bei Multi-Clip: pre-scale alle inputs auf 1920x1080 (Source-Intermediate)
+  // + concat. Output-Labels [srcV][srcA] werden statt [0:v][0:a] in der Layout-
+  // Pipeline genutzt.
+  const srcVLabel = isMulti ? '[srcV]' : '[0:v]';
+  const srcALabel = isMulti ? '[srcA]' : '[0:a]';
+  if (isMulti) {
+    const INTERMEDIATE_W = 1920;
+    const INTERMEDIATE_H = 1080;
+    for (let i = 0; i < sources.length; i++) {
+      // scale + pad → uniform 1920x1080 (sonst crasht concat-Filter bei aspect-mismatch).
+      filters.push(
+        `[${i}:v]scale=${INTERMEDIATE_W}:${INTERMEDIATE_H}:force_original_aspect_ratio=decrease,` +
+          `pad=${INTERMEDIATE_W}:${INTERMEDIATE_H}:(ow-iw)/2:(oh-ih)/2:color=black,` +
+          `setsar=1,fps=${fps}[v${i}m]`,
+      );
+      // Audio: aresample für gleiche sample-rate + async-Korrektur.
+      filters.push(`[${i}:a]aresample=async=1:first_pts=0[a${i}m]`);
+    }
+    const concatPairs = sources.map((_, i) => `[v${i}m][a${i}m]`).join('');
+    filters.push(`${concatPairs}concat=n=${sources.length}:v=1:a=1[srcV][srcA]`);
+  }
+
   // Video-Composition: layout-spezifisch. Endet auf [vmain].
   if (opts.layout === 'full') {
     // Center-cover-crop auf 9:16.
     filters.push(
-      `[0:v]crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})',` +
+      `${srcVLabel}crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})',` +
         `scale=${W}:${H}:flags=lanczos,fps=${fps},setsar=1[vmain]`,
     );
   } else if (opts.layout === 'stacked') {
@@ -298,7 +333,7 @@ export function buildTikTokExportArgs(
     // erhält die Region-Aspect-Ratio (kein Stretch). Center-crop trimmt zur
     // Pane-Größe. Fix für User-Report 'export ist gestreckt'.
     filters.push(
-      `[0:v]split=2[base1][base2];` +
+      `${srcVLabel}split=2[base1][base2];` +
       `[base1]crop=iw*${fc.w}:ih*${fc.h}:iw*${fc.x}:ih*${fc.y},` +
         `scale=${W}:${topH}:force_original_aspect_ratio=increase,` +
         `crop=${W}:${topH},setsar=1[top];` +
@@ -312,7 +347,7 @@ export function buildTikTokExportArgs(
     const leftW = Math.round(W * splitRatio);
     const rightW = W - leftW;
     filters.push(
-      `[0:v]split=2[base1][base2];` +
+      `${srcVLabel}split=2[base1][base2];` +
       `[base1]crop=iw*${fc.w}:ih*${fc.h}:iw*${fc.x}:ih*${fc.y},` +
         `scale=${leftW}:${H}:force_original_aspect_ratio=increase,` +
         `crop=${leftW}:${H},setsar=1[left];` +
@@ -348,8 +383,9 @@ export function buildTikTokExportArgs(
 
   // ─── Audio-Mix (Source + Music + VoiceOvers) ──────────────────────
   // Erzeugt [aMain] das Source-Audio + Music + VoiceOvers gemischt enthält.
-  filters.push(`[0:a]volume=${sourceVol}[srcA]`);
-  const audioMixInputs: string[] = ['[srcA]'];
+  // Bei Multi-Clip: srcALabel = [srcA] (concat-Output), sonst [0:a].
+  filters.push(`${srcALabel}volume=${sourceVol}[srcAv]`);
+  const audioMixInputs: string[] = ['[srcAv]'];
   music.forEach((m, i) => {
     const idx = musicInputIndices[i];
     filters.push(`[${idx}:a]volume=${m.volume}[m${i}]`);
@@ -373,7 +409,7 @@ export function buildTikTokExportArgs(
         `duration=first:normalize=0[aMain]`,
     );
   } else {
-    filters.push(`[srcA]anull[aMain]`);
+    filters.push(`[srcAv]anull[aMain]`);
   }
 
   // ─── Intro-before-Mode: concat Intro + Main ────────────────────────

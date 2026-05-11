@@ -28,6 +28,10 @@ export interface DemoProject {
   /* ─── Optional, gesetzt bei echten Imports (siehe AddVideoProjectScreen) ─── */
   /** file:// URI im App-Cache. */
   sourceUri?: string;
+  /** Multi-Clip Source-Liste (Phase 9.5.8). Wenn gesetzt + length >= 2 → das
+   *  Projekt ist ein Multi-Clip-Concat (Builder-Mode). sourceUri bleibt für
+   *  Legacy-Single-Source-Reads (z.B. Preview-Player) gefüllt mit srcs[0]. */
+  sourceUris?: string[];
   /** YouTube / Twitch / Direct-URL — nur bei sourceType 'url' gesetzt. */
   sourceUrl?: string;
   /** Persistenter Thumbnail-Frame — vom Source-Video extrahiert beim Import. */

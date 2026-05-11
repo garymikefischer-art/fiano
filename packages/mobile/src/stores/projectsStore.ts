@@ -35,6 +35,8 @@ interface NewProjectInput {
   mode: ProjectMode;
   /** file:// URI (sourceType 'file') ODER YouTube/Twitch URL (sourceType 'url'). */
   sourceUri?: string;
+  /** Multi-Clip-Liste (sourceType 'multi-clip'). */
+  sourceUris?: string[];
   sourceUrl?: string;
   sourceType: SourceType;
   videoType?: VideoType;
@@ -111,6 +113,7 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
       thumbHue: Math.floor(Math.random() * 360),
       clips: [],
       sourceUri: input.sourceUri,
+      sourceUris: input.sourceUris,
       sourceUrl: input.sourceUrl,
       mode: input.mode,
       videoType: input.videoType,

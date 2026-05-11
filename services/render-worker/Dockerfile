@@ -12,10 +12,16 @@ RUN npm run build
 FROM node:22-bookworm-slim
 WORKDIR /app
 
-# FFmpeg + ffprobe install. apt-get cache wegwerfen für kleinere Image-Size.
-# Debian-bookworm bringt FFmpeg 5.x — reicht für unsere Filter (drawtext, scale, overlay).
+# FFmpeg + ffprobe + yt-dlp (Phase 9.5.7 YouTube/Twitch-Import).
+# yt-dlp ist ein standalone-binary aus dem upstream GitHub-Release — keine Python-
+# Setup nötig für die Standard-Features. ffmpeg/ffprobe braucht yt-dlp zum Mergen
+# von DASH-Streams (separate Video + Audio Tracks). curl + ca-certificates für
+# den one-time binary-pull.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl python3 \
+    && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+       -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

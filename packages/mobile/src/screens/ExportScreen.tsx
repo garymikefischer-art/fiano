@@ -73,8 +73,15 @@ export function ExportScreen() {
     setCurrent({ id: outputName, step: 'export', percent: 0, outputPath: outputName });
 
     try {
-      // 1. Lokale Source sicherstellen (file://-URI nicht asset://)
-      const localSrc = await ensureLocalCopy(params.sourceUri);
+      // 1. Multi-Clip-Detection: wenn project.sourceUris >= 2, concat-Pipeline.
+      const projectSourceUris = project?.sourceUris ?? [];
+      const isMultiClip = projectSourceUris.length >= 2;
+
+      // Lokale Source(s) sicherstellen (file://-URI nicht asset://).
+      const localSrcs = isMultiClip
+        ? await Promise.all(projectSourceUris.map((uri) => ensureLocalCopy(uri)))
+        : [await ensureLocalCopy(params.sourceUri)];
+      const localSrc = localSrcs[0];
 
       // 2. Layout + Regions + Subtitle vom Project ableiten.
       const layout = project?.tiktokLayout ?? 'stacked';
@@ -103,10 +110,13 @@ export function ExportScreen() {
         }
       })();
 
-      // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {DST}, {INTRO}, {MUSIC_N}, {VO_N})
+      // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {SRC_N}, {DST}, {INTRO}, {MUSIC_N}, {VO_N})
       const args = buildTikTokExportArgs(
         {
           src: '{SRC}',
+          srcs: isMultiClip
+            ? projectSourceUris.map((_, i) => `{SRC_${i}}`)
+            : undefined,
           dst: '{DST}',
           trimStart: params.trimStart,
           trimEnd: params.trimEnd,
@@ -134,7 +144,8 @@ export function ExportScreen() {
       // 7. Cloud-Render: Multi-Input Upload → Render → Download
       const result = await runRenderJob({
         inputs: {
-          sourceUri: localSrc,
+          sourceUri: isMultiClip ? undefined : localSrc,
+          sourceUris: isMultiClip ? localSrcs : undefined,
           introUri: intro?.path,
           musicUris: musicTracks.map((m) => m.path),
           voiceOverUris: voiceOvers.map((vo) => vo.path),
