@@ -24,6 +24,7 @@ const TAB_ICONS: Record<string, { active: IconName; inactive: IconName }> = {
   Clips: { active: 'cut', inactive: 'cut-outline' },
   TikTok: { active: 'logo-tiktok', inactive: 'logo-tiktok' },
   Builder: { active: 'construct', inactive: 'construct-outline' },
+  Thumbs: { active: 'image', inactive: 'image-outline' },
 };
 
 const TAB_I18N_KEYS: Record<string, { key: string; fallback: string }> = {
@@ -32,6 +33,7 @@ const TAB_I18N_KEYS: Record<string, { key: string; fallback: string }> = {
   Clips: { key: 'tab.highlights', fallback: 'Highlights' },
   TikTok: { key: 'tab.nineSixteen', fallback: '9:16' },
   Builder: { key: 'sidebar.builder', fallback: 'Builder' },
+  Thumbs: { key: 'tab.thumbs', fallback: 'Thumbs' },
 };
 
 export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
@@ -67,20 +69,15 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
         elevation: 12,
       }}
     >
-      <BlurView
-        intensity={100}
-        tint="dark"
-        experimentalBlurMethod="dimezisBlurView"
-        style={{ flex: 1 }}
-      >
+      <BlurView intensity={100} tint="dark" style={{ flex: 1 }}>
         <View
           style={{
             flexDirection: 'row',
             paddingVertical: 7,
             paddingHorizontal: 6,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: 'rgba(15,15,18,0.42)',
             borderWidth: 1.5,
-            borderColor: 'rgba(255,255,255,0.22)',
+            borderColor: 'rgba(255,255,255,0.18)',
             borderRadius: 28,
           }}
         >

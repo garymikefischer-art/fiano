@@ -11,6 +11,7 @@ export type MainTabParamList = {
   Clips: undefined;
   TikTok: undefined;
   Builder: undefined;
+  Thumbs: undefined;
 };
 
 export type RootStackParamList = {
