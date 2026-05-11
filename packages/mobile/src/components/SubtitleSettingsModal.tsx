@@ -30,7 +30,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MiniColorPicker } from './MiniColorPicker';
+import { ColorPickerButton } from './ColorPickerModal';
 import { SimpleSlider } from './SimpleSlider';
 import { SubtitlePreviewCard } from './SubtitlePreviewCard';
 import {
@@ -263,12 +263,12 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
 
               {/* 4. Colors */}
               <Section title="COLORS">
-                <MiniColorPicker
+                <ColorPickerButton
                   label="Text color"
                   value={local.textColor ?? '#ffffff'}
                   onChange={(c) => patch({ textColor: c })}
                 />
-                <MiniColorPicker
+                <ColorPickerButton
                   label="Highlight color"
                   value={local.highlightColor ?? '#ff1039'}
                   onChange={(c) => patch({ highlightColor: c })}
@@ -280,12 +280,12 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 />
                 {local.useGradient && (
                   <>
-                    <MiniColorPicker
+                    <ColorPickerButton
                       label="Gradient from"
                       value={local.gradientFrom ?? '#ff1039'}
                       onChange={(c) => patch({ gradientFrom: c })}
                     />
-                    <MiniColorPicker
+                    <ColorPickerButton
                       label="Gradient to"
                       value={local.gradientTo ?? '#ff8c00'}
                       onChange={(c) => patch({ gradientTo: c })}
@@ -317,7 +317,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                       display={`${(local.strokeWidth ?? 3).toFixed(1)}px`}
                       onChange={(v) => patch({ strokeWidth: v })}
                     />
-                    <MiniColorPicker
+                    <ColorPickerButton
                       label="Stroke color"
                       value={local.strokeColor ?? '#000000'}
                       onChange={(c) => patch({ strokeColor: c })}
@@ -353,7 +353,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                       display={`${Math.round((local.glowStrength ?? 0.7) * 100)}%`}
                       onChange={(v) => patch({ glowStrength: v })}
                     />
-                    <MiniColorPicker
+                    <ColorPickerButton
                       label="Glow color"
                       value={local.glowColor ?? '#ff1039'}
                       onChange={(c) => patch({ glowColor: c })}
@@ -398,7 +398,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                       display={`${local.shadowBlur ?? 0}px`}
                       onChange={(v) => patch({ shadowBlur: Math.round(v) })}
                     />
-                    <MiniColorPicker
+                    <ColorPickerButton
                       label="Shadow color"
                       value={local.shadowColor ?? '#000000'}
                       onChange={(c) => patch({ shadowColor: c })}
@@ -449,7 +449,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                         display={`${Math.round((local.highlightGlowStrength ?? 0.6) * 100)}%`}
                         onChange={(v) => patch({ highlightGlowStrength: v })}
                       />
-                      <MiniColorPicker
+                      <ColorPickerButton
                         label="Glow color"
                         value={local.highlightGlowColor ?? '#ffffff'}
                         onChange={(c) => patch({ highlightGlowColor: c })}
