@@ -1918,7 +1918,7 @@ function StackedSplitPreview({
             ref={facecamRef}
             uri={sourceUri}
             region={facecamRegion}
-            paused={paused}
+            paused={paused || introPlaying}
             muted={muted}
             enabled={videosActive}
             posterUri={thumbUri}
@@ -1939,7 +1939,7 @@ function StackedSplitPreview({
             ref={gameplayRef}
             uri={sourceUri}
             region={gameplayRegion}
-            paused={paused}
+            paused={paused || introPlaying}
             muted={true /* Slave-Pane immer stumm — sonst spielt Audio doppelt. */}
             enabled={videosActive}
             posterUri={thumbUri}

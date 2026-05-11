@@ -42,6 +42,7 @@ export function SettingsScreen() {
   const user = useAuthStore((s) => s.user);
   const subscription = useAuthStore((s) => s.subscription);
   const signOut = useAuthStore((s) => s.signOut);
+  const deleteAccount = useAuthStore((s) => s.deleteAccount);
   const resetOnboarding = useAppStore((s) => s.resetOnboarding);
   const facecamRegion = useAppStore((s) => s.facecamRegion);
   const gameplayRegion = useAppStore((s) => s.gameplayRegion);
@@ -102,11 +103,17 @@ export function SettingsScreen() {
         {
           text: t('settings.account.deleteFinal'),
           style: 'destructive',
-          onPress: () =>
-            Alert.alert(
-              t('common.comingSoon', 'Coming soon'),
-              t('settings.account.deleteSoonMobile', 'Account deletion is wired up in a follow-up phase.'),
-            ),
+          onPress: async () => {
+            try {
+              await deleteAccount();
+              // Auth-State-Change im Root-Navigator routet automatisch zur LoginScreen.
+            } catch (err: any) {
+              Alert.alert(
+                t('settings.account.deleteFailedTitle', 'Deletion failed'),
+                err?.message ?? String(err),
+              );
+            }
+          },
         },
       ],
     );

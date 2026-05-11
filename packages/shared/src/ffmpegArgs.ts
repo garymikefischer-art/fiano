@@ -364,9 +364,13 @@ export function buildTikTokExportArgs(
     audioMixInputs.push(`[vo${i}]`);
   });
   if (audioMixInputs.length > 1) {
+    // duration=first → amix-Output endet wenn Source-Audio endet. Sonst würde
+    // eine 2-Min-Musik auf einem 20-Sek-Clip den Audio-Stream auf 2 Min strecken
+    // — der gemappte Video-Stream ist aber nur 20 Sek → AV-Mismatch, FFmpeg
+    // exportiert Audio-only-Tail mit freeze-frame Video. User-Report 2026-05-11.
     filters.push(
       `${audioMixInputs.join('')}amix=inputs=${audioMixInputs.length}:` +
-        `duration=longest:normalize=0[aMain]`,
+        `duration=first:normalize=0[aMain]`,
     );
   } else {
     filters.push(`[srcA]anull[aMain]`);

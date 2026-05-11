@@ -23,6 +23,7 @@ import { useT } from '../lib/i18n';
 export function SignupScreen() {
   const t = useT();
   const signUp = useAuthStore((s) => s.signUp);
+  const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,11 +52,18 @@ export function SignupScreen() {
     }
   };
 
-  const onGoogle = () => {
-    Alert.alert(
-      t('auth.continueWithGoogle'),
-      t('auth.googleSoonMobile', 'Google Sign-In folgt in Phase 9.4.x (expo-auth-session).'),
-    );
+  const onGoogle = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await signInWithGoogle();
+      if (!res.ok && !res.canceled && res.error) setError(res.error);
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

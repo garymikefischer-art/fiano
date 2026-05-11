@@ -82,19 +82,11 @@ export function ExportScreen() {
       const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
       const splitRatio = project?.splitRatio ?? DEFAULT_SPLIT_RATIO;
 
-      // 3. Subtitle-Burn-In args wenn enabled.
-      const subSettings = project?.subtitles;
-      const subtitleArg = subSettings?.enabled
-        ? {
-            text: 'SUBTITLE PREVIEW' /* placeholder bis Whisper-Pipeline echte Cues liefert */,
-            fontSize: subSettings.fontSize ?? 64,
-            color: subSettings.textColor ?? '#ffffff',
-            strokeColor: subSettings.strokeColor ?? '#000000',
-            strokeWidth: subSettings.strokeEnabled === true ? subSettings.strokeWidth ?? 4 : 0,
-            position: subSettings.position as 'top' | 'center' | 'bottom' | undefined,
-            uppercase: subSettings.uppercase ?? false,
-          }
-        : undefined;
+      // 3. Subtitle-Burn-In deaktiviert bis Phase 9.6.7 (Whisper) echte Cues
+      //    liefert. Vorher wurde 'SUBTITLE PREVIEW' als Platzhalter gebrannt —
+      //    das war für den User irreführend. Style-Vorschau via SubtitleOverlay
+      //    in der Preview bleibt aktiv, im Export erscheint kein drawtext.
+      const subtitleArg = undefined;
 
       // 4. Add-Ons: Music + Voice-Overs + Intro vom Project ablesen.
       const musicTracks = project?.musicTracks ?? [];
