@@ -50,7 +50,9 @@ export function ExportScreen() {
   const project = useProject(params.projectId);
   const defaultFacecam = useAppStore((s) => s.facecamRegion);
   const defaultGameplay = useAppStore((s) => s.gameplayRegion);
-  const exportSettings = useAppStore((s) => s.exportSettings);
+  const storeExportSettings = useAppStore((s) => s.exportSettings);
+  // Wenn ExportSettingsModal Per-Export-Override mitgibt → nutze die.
+  const exportSettings = params.exportSettings ?? storeExportSettings;
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
