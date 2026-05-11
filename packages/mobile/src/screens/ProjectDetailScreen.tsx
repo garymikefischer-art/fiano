@@ -22,7 +22,7 @@ import {
   View,
   StatusBar as RNStatusBar,
 } from 'react-native';
-import type { OnLoadData, OnProgressData } from 'react-native-video';
+import Video, { type OnLoadData, type OnProgressData, type OnVideoErrorData } from 'react-native-video';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -55,10 +55,12 @@ import {
   RegionCroppedVideoPlayer,
   type RegionCroppedVideoHandle,
 } from '../components/RegionCroppedVideoPlayer';
+import { MusicPreviewPlayer } from '../components/MusicPreviewPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
+import { ExportSettingsModal } from '../components/ExportSettingsModal';
 import { DEFAULT_SUBTITLES, type SubtitleSettings } from '../data/demoProjects';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
@@ -1108,6 +1110,9 @@ function TikTokTab({
     updateProject(project.id, { subtitles: { ...subSettings, enabled: next } });
   };
   const [subModalOpen, setSubModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const exportSettings = useAppStore((s) => s.exportSettings);
+  const setExportSettingsStore = useAppStore((s) => s.setExportSettings);
   const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
 
   // Music + Intro: persistiert auf project (Phase 9.6.4 / 9.6.6)
@@ -1185,6 +1190,8 @@ function TikTokTab({
             showOverlay={showOverlay}
             splitRatio={splitRatio}
             subtitles={subSettings}
+            musicTracks={project.musicTracks?.map((m) => ({ path: m.path, volume: m.volume }))}
+            introUri={project.intro?.path ?? undefined}
           />
         </View>
       </View>
@@ -1595,16 +1602,9 @@ function TikTokTab({
             return;
           }
           haptic.medium();
-          nav.navigate('Export', {
-            sourceUri: project.sourceUri,
-            projectId: project.id,
-            trimStart: project.trimStart ?? 0,
-            trimEnd:
-              project.trimEnd ??
-              (project.durationSec > 60 ? 60 : project.durationSec),
-            sourceDuration: project.durationSec,
-            mode: project.mode ?? 'tiktok',
-          });
+          // ExportSettingsModal öffnet zuerst — User pickt Resolution/FPS/Bitrate,
+          // confirmt → ExportScreen-Navigation startet mit den gewählten Settings.
+          setExportModalOpen(true);
         }}
         style={({ pressed }) => ({
           backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
@@ -1623,13 +1623,39 @@ function TikTokTab({
         </Text>
       </Pressable>
 
-      {/* Subtitle-Settings-Modal — lazy mount damit der State-Tree leicht bleibt. */}
+      {/* Subtitle-Settings-Modal — lazy mount. */}
       {subModalOpen && (
         <SubtitleSettingsModal
           visible={subModalOpen}
           settings={subSettings}
           onClose={() => setSubModalOpen(false)}
           onChange={(next) => updateProject(project.id, { subtitles: next })}
+        />
+      )}
+
+      {/* Export-Settings-Modal vor Export-Click. */}
+      {exportModalOpen && project.sourceUri && (
+        <ExportSettingsModal
+          visible={exportModalOpen}
+          initialSettings={exportSettings}
+          onClose={() => setExportModalOpen(false)}
+          onConfirm={(next, saveAsDefault) => {
+            if (saveAsDefault) {
+              void setExportSettingsStore(next);
+            }
+            setExportModalOpen(false);
+            nav.navigate('Export', {
+              sourceUri: project.sourceUri!,
+              projectId: project.id,
+              trimStart: project.trimStart ?? 0,
+              trimEnd:
+                project.trimEnd ??
+                (project.durationSec > 60 ? 60 : project.durationSec),
+              sourceDuration: project.durationSec,
+              mode: project.mode ?? 'tiktok',
+              exportSettings: next,
+            });
+          }}
         />
       )}
     </ScrollView>
@@ -1646,6 +1672,8 @@ function LayoutPreview({
   showOverlay,
   splitRatio,
   subtitles,
+  musicTracks,
+  introUri,
 }: {
   layout: Layout;
   sourceUri?: string;
@@ -1656,6 +1684,8 @@ function LayoutPreview({
   showOverlay: boolean;
   splitRatio: number;
   subtitles?: SubtitleSettings;
+  musicTracks?: { path: string; volume: number }[];
+  introUri?: string;
 }) {
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
   // in einer nativen Phase — hier zeigen wir die Aufteilung via 1–2 Player +
@@ -1703,6 +1733,8 @@ function LayoutPreview({
       showOverlay={showOverlay}
       splitRatio={splitRatio}
       subtitles={subtitles}
+      musicTracks={musicTracks}
+      introUri={introUri}
     />
   );
 }
@@ -1719,18 +1751,22 @@ function StackedSplitPreview({
   showOverlay,
   splitRatio,
   subtitles,
+  musicTracks,
+  introUri,
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
-  /** project.thumbUri — Click-to-play-Poster, kein Decoder bis User Play tippt. */
+  /** project.thumbUri — Click-to-play-Poster. */
   thumbUri?: string;
   facecamRegion: { x: number; y: number; w: number; h: number } | null;
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
-  /** 0.2..0.8 — Höhenanteil der Facecam-Pane (stacked). Im split-Modus = Width-Anteil. */
   splitRatio: number;
-  /** Subtitle-Overlay-Settings (Phase 9.5.6). null/undefined = kein Overlay. */
   subtitles?: SubtitleSettings;
+  /** Music-Tracks für Live-Preview-Audio (Phase 9.6.4). Spielt nur den ersten Track. */
+  musicTracks?: { path: string; volume: number }[];
+  /** Intro-Video für Live-Preview (Phase 9.6.6). Wird VOR der Stacked-Preview gezeigt. */
+  introUri?: string;
 }) {
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
@@ -1739,6 +1775,9 @@ function StackedSplitPreview({
   // beiden <Video>-Decoder. Vorher zeigen die Panes nur das Poster (thumbUri),
   // sonst gibts auf Android Native-Crashes durch 2 simultane HEVC-Decoder.
   const [videosActive, setVideosActive] = useState(false);
+  // Intro-Playback-Phase (Phase 9.6.6 Preview): wenn Intro vorhanden + User
+  // tippt Play → erst spielt das Intro (full-screen), dann der Main-Stacked-Preview.
+  const [introPlaying, setIntroPlaying] = useState(false);
   const [paused, setPaused] = useState(true);
   const [muted, setMuted] = useState(false);
   const [currentSec, setCurrentSec] = useState(0);
@@ -1772,9 +1811,10 @@ function StackedSplitPreview({
 
   const togglePlay = () => {
     if (!videosActive) {
-      // Erstes Play → mounten die Videos jetzt.
+      // Erstes Play → mounten die Videos. Wenn Intro da → spiele zuerst Intro.
       setVideosActive(true);
       setPaused(false);
+      if (introUri) setIntroPlaying(true);
     } else {
       setPaused((p) => !p);
     }
@@ -1868,8 +1908,36 @@ function StackedSplitPreview({
       </View>
 
       {/* Subtitle-Overlay (Phase 9.5.6) — Pointer-Events:none damit Tap-Layer
-          darunter erreichbar bleibt. Wird nur gezeigt wenn subtitles.enabled. */}
-      {subtitles && <SubtitleOverlay settings={subtitles} />}
+          darunter erreichbar bleibt. Wird nur gezeigt wenn subtitles.enabled.
+          Während Intro-Phase aus (Subtitle gehört zum Main-Clip). */}
+      {subtitles && !introPlaying && <SubtitleOverlay settings={subtitles} />}
+
+      {/* Intro-Video (Phase 9.6.6 Preview) — full-screen cover, spielt vor Main.
+          onEnd → switch zu Main-Stacked-Preview. */}
+      {videosActive && introPlaying && introUri && (
+        <Video
+          key={introUri}
+          source={{ uri: introUri }}
+          paused={paused}
+          repeat={false}
+          resizeMode="cover"
+          onEnd={() => setIntroPlaying(false)}
+          onError={() => setIntroPlaying(false)}
+          style={StyleSheet.absoluteFill}
+          ignoreSilentSwitch="ignore"
+          disableFocus
+        />
+      )}
+
+      {/* Music-Player (Phase 9.6.4 Preview) — hidden Audio, spielt parallel zum
+          Main-Stacked-Preview (NICHT während Intro). */}
+      {videosActive && !introPlaying && musicTracks && musicTracks.length > 0 && (
+        <MusicPreviewPlayer
+          uri={musicTracks[0].path}
+          volume={musicTracks[0].volume}
+          paused={paused}
+        />
+      )}
 
       {/* Tap-Layer: toggelt Controls-Sichtbarkeit. Vor erstem Play sind die
           Controls IMMER sichtbar (User braucht den Play-Button). */}

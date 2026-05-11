@@ -383,9 +383,11 @@ export function buildTikTokExportArgs(
         `crop=${W}:${H},fps=${fps},setsar=1[introV]`,
     );
     filters.push(`[${introInputIdx}:a]aresample=async=1[introA]`);
-    // concat n=2 mit beiden video + audio streams
+    // concat n=2 — Syntax: [v0][a0][v1][a1]concat=n=2:v=1:a=1
+    // FFmpeg erwartet ALTERNATING video+audio pro segment, NICHT [v0][v1][a0][a1].
+    // Vorher: [introV][vsub][introA][aMain] → Media-type-Mismatch-Crash.
     filters.push(
-      `[introV]${videoComposed}[introA][aMain]concat=n=2:v=1:a=1[vfinal][afinal]`,
+      `[introV][introA]${videoComposed}[aMain]concat=n=2:v=1:a=1[vfinal][afinal]`,
     );
     finalVideo = '[vfinal]';
     finalAudio = '[afinal]';
