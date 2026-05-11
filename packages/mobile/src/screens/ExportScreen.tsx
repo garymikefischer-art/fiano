@@ -85,11 +85,24 @@ export function ExportScreen() {
       const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
       const splitRatio = project?.splitRatio ?? DEFAULT_SPLIT_RATIO;
 
-      // 3. Subtitle-Burn-In deaktiviert bis Phase 9.6.7 (Whisper) echte Cues
-      //    liefert. Vorher wurde 'SUBTITLE PREVIEW' als Platzhalter gebrannt —
-      //    das war für den User irreführend. Style-Vorschau via SubtitleOverlay
-      //    in der Preview bleibt aktiv, im Export erscheint kein drawtext.
-      const subtitleArg = undefined;
+      // 3. Subtitle-Burn-In (Phase 9.6.7a): wenn project.subtitles.enabled UND
+      //    cues vorhanden → multi-cue drawtext mit between(t,start,end).
+      //    Sonst: kein Subtitle im Export.
+      const subSettings = project?.subtitles;
+      const cues = subSettings?.cues ?? [];
+      const subtitleArg =
+        subSettings?.enabled && cues.length > 0
+          ? {
+              text: '', // unused when cues[] is set
+              cues: cues.map((c) => ({ startSec: c.startSec, endSec: c.endSec, text: c.text })),
+              fontSize: subSettings.fontSize ?? 64,
+              color: subSettings.textColor ?? '#ffffff',
+              strokeColor: subSettings.strokeColor ?? '#000000',
+              strokeWidth: subSettings.strokeEnabled === true ? subSettings.strokeWidth ?? 4 : 0,
+              position: subSettings.position as 'top' | 'center' | 'bottom' | undefined,
+              uppercase: subSettings.uppercase ?? false,
+            }
+          : undefined;
 
       // 4. Add-Ons: Music + Voice-Overs + Intro vom Project ablesen.
       const musicTracks = project?.musicTracks ?? [];
@@ -122,6 +135,7 @@ export function ExportScreen() {
           facecamRegion: { x: facecamRegion.x, y: facecamRegion.y, w: facecamRegion.w, h: facecamRegion.h },
           gameplayRegion: { x: gameplayRegion.x, y: gameplayRegion.y, w: gameplayRegion.w, h: gameplayRegion.h },
           splitRatio,
+          fullOffsetX: project?.fullOffsetX,
           subtitle: subtitleArg,
           music: musicTracks.map((m, i) => ({ path: `{MUSIC_${i}}`, volume: m.volume })),
           voiceOvers: voiceOvers.map((vo, i) => ({

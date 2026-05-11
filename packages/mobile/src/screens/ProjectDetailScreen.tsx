@@ -60,7 +60,9 @@ import { MusicPreviewPlayer } from '../components/MusicPreviewPlayer';
 import { VoiceOverPreviewPlayer } from '../components/VoiceOverPreviewPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
+import { CueEditorModal } from '../components/CueEditorModal';
 import { extractVideoThumbnail } from '../lib/thumbnails';
+import { transcribeVideo } from '../lib/whisper';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { ExportSettingsModal } from '../components/ExportSettingsModal';
@@ -319,6 +321,51 @@ function HighlightsTab({
   const selectedCount = selectedClipIds.size;
   const allSelected = selectedCount > 0 && selectedCount === project.clips.length;
 
+  // Phase 9.6.7a — AI-Transcribe-State
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisPhase, setAnalysisPhase] = useState<'uploading' | 'transcribing' | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [cueEditorOpen, setCueEditorOpen] = useState(false);
+  const cues = project.subtitles?.cues ?? [];
+  const hasCues = cues.length > 0;
+
+  const onAnalyze = async () => {
+    if (!project.sourceUri || analysisBusy) return;
+    haptic.medium();
+    setAnalysisBusy(true);
+    setUploadProgress(0);
+    setAnalysisPhase('uploading');
+    try {
+      const result = await transcribeVideo({
+        sourceUri: project.sourceUri,
+        projectId: project.id,
+        onPhase: setAnalysisPhase,
+        onUploadProgress: setUploadProgress,
+      });
+      const existing = project.subtitles ?? DEFAULT_SUBTITLES;
+      useProjectsStore.getState().updateProject(project.id, {
+        subtitles: { ...existing, enabled: true, cues: result.cues },
+      });
+      haptic.success();
+      Alert.alert(
+        t('highlights.analyzeDoneTitle', 'AI analysis complete'),
+        t(
+          'highlights.analyzeDoneBody',
+          `${result.cues.length} subtitle cues generated. Tap 'Edit cues' to refine.`,
+        ).replace('${count}', String(result.cues.length)),
+      );
+    } catch (err: any) {
+      haptic.error();
+      Alert.alert(
+        t('highlights.analyzeFailed', 'Analysis failed'),
+        err?.message ?? String(err),
+      );
+    } finally {
+      setAnalysisBusy(false);
+      setAnalysisPhase(null);
+    }
+  };
+
   const toggleClip = (id: string) => {
     haptic.light();
     const next = new Set(selectedClipIds);
@@ -360,6 +407,140 @@ function HighlightsTab({
           {project.errorMessage}
         </Text>
       )}
+
+      {/* AI Analysis Box (Phase 9.6.7a) — generiert Subtitle-Cues via Whisper. */}
+      {project.sourceUri && (
+        <View
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderWidth: 1,
+            borderColor: hasCues ? 'rgba(34,197,94,0.32)' : 'rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            padding: 12,
+            gap: 10,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons
+              name={hasCues ? 'checkmark-circle' : 'sparkles-outline'}
+              size={16}
+              color={hasCues ? '#22c55e' : '#ff1039'}
+            />
+            <Text style={{ flex: 1, color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+              {t('highlights.aiAnalysis', 'AI Analysis')}
+            </Text>
+            {hasCues && (
+              <Text style={{ color: '#22c55e', fontSize: 10, fontWeight: '700' }}>
+                {cues.length} {t('highlights.cuesLabel', 'cues')}
+              </Text>
+            )}
+          </View>
+          <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }}>
+            {hasCues
+              ? t(
+                  'highlights.aiAnalysisDone',
+                  'Subtitles transcribed. Edit cues to refine text, then enable subtitles in the 9:16 tab.',
+                )
+              : t(
+                  'highlights.aiAnalysisHint',
+                  'Transcribe audio via OpenAI Whisper to generate timed subtitle cues. Uses your OpenAI API key.',
+                )}
+          </Text>
+          {analysisBusy && (
+            <View style={{ gap: 4 }}>
+              <Text style={{ color: '#71717a', fontSize: 10 }}>
+                {analysisPhase === 'uploading'
+                  ? t('highlights.uploading', `Uploading source… ${Math.round(uploadProgress * 100)}%`).replace(
+                      '${pct}',
+                      String(Math.round(uploadProgress * 100)),
+                    )
+                  : t('highlights.transcribing', 'Transcribing audio with Whisper…')}
+              </Text>
+              <View
+                style={{
+                  height: 3,
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                <View
+                  style={{
+                    height: '100%',
+                    width: analysisPhase === 'uploading' ? `${Math.round(uploadProgress * 100)}%` : '60%',
+                    backgroundColor: '#ff1039',
+                  }}
+                />
+              </View>
+            </View>
+          )}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={onAnalyze}
+              disabled={analysisBusy}
+              style={({ pressed }) => ({
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                paddingVertical: 10,
+                borderRadius: 10,
+                backgroundColor: analysisBusy
+                  ? 'rgba(255,255,255,0.06)'
+                  : pressed
+                    ? '#cc0d2e'
+                    : '#ff1039',
+                opacity: analysisBusy ? 0.5 : 1,
+              })}
+            >
+              <Ionicons name="sparkles" size={13} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                {hasCues
+                  ? t('highlights.reAnalyze', 'Re-analyze')
+                  : t('highlights.analyze', 'Analyze with AI')}
+              </Text>
+            </Pressable>
+            {hasCues && !analysisBusy && (
+              <Pressable
+                onPress={() => {
+                  haptic.medium();
+                  setCueEditorOpen(true);
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.10)',
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Ionicons name="create-outline" size={13} color="#f1f2f2" />
+                <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+                  {t('highlights.editCues', 'Edit cues')}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
+
+      <CueEditorModal
+        visible={cueEditorOpen}
+        cues={cues}
+        onClose={() => setCueEditorOpen(false)}
+        onSave={(nextCues) => {
+          const existing = project.subtitles ?? DEFAULT_SUBTITLES;
+          useProjectsStore.getState().updateProject(project.id, {
+            subtitles: { ...existing, cues: nextCues },
+          });
+        }}
+      />
 
       {/* Multi-Select Action-Bar */}
       {project.clips.length > 0 && (
@@ -1108,6 +1289,10 @@ function TikTokTab({
   useEffect(() => {
     setSplitRatio(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
   }, [project.splitRatio]);
+  const [fullOffsetX, setFullOffsetX] = useState(project.fullOffsetX ?? 0.5);
+  useEffect(() => {
+    setFullOffsetX(project.fullOffsetX ?? 0.5);
+  }, [project.fullOffsetX]);
   // Subtitle-State aus project.subtitles ableiten. Echter DEFAULT-Merge: fehlende
   // Fields (z.B. weil project alt ist und neue Fields nicht hat) bekommen den
   // Default-Wert. Sonst gibt's false-positives wo undefined-fields den
@@ -1259,6 +1444,7 @@ function TikTokTab({
             gameplayRegion={gameplayRegion}
             showOverlay={showOverlay}
             splitRatio={splitRatio}
+            fullOffsetX={fullOffsetX}
             subtitles={subSettings}
             musicTracks={project.musicTracks?.map((m) => ({ path: m.path, volume: m.volume }))}
             introUri={project.intro?.path ?? undefined}
@@ -1462,6 +1648,65 @@ function TikTokTab({
           }}
         />
       </View>
+
+      {/* Full-Layout: horizontaler Offset-Slider (Phase 9.5.8.4).
+          Bei landscape-Source der zu 9:16 gecroppt wird, kann der User links/
+          rechts den sichtbaren Ausschnitt verschieben. Default 0.5 = Mitte. */}
+      {layout === 'full' && (
+        <View
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            gap: 10,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+              {t('tiktok.fullOffsetX', 'Horizontal position')}
+            </Text>
+            <Text
+              style={{
+                color: '#a1a1aa',
+                fontSize: 11,
+                fontWeight: '600',
+                fontVariant: ['tabular-nums'],
+              }}
+            >
+              {fullOffsetX <= 0.05
+                ? t('tiktok.fullOffsetLeft', 'Left')
+                : fullOffsetX >= 0.95
+                  ? t('tiktok.fullOffsetRight', 'Right')
+                  : `${Math.round(fullOffsetX * 100)}%`}
+            </Text>
+          </View>
+          <SimpleSlider
+            value={fullOffsetX}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={setFullOffsetX}
+            onCommit={(v) => {
+              haptic.selection();
+              updateProject(project.id, { fullOffsetX: v });
+            }}
+          />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: -4 }}>
+            <Text style={{ color: '#52525b', fontSize: 9 }}>{t('common.left', 'Left')}</Text>
+            <Text style={{ color: '#52525b', fontSize: 9 }}>{t('common.center', 'Center')}</Text>
+            <Text style={{ color: '#52525b', fontSize: 9 }}>{t('common.right', 'Right')}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Facecam-Größe (nur stacked + split) — analog Desktop's SplitRatioSlider.
           Live-Update der Pane-Aufteilung in der Preview, persistierte Commit
@@ -1841,6 +2086,7 @@ function LayoutPreview({
   gameplayRegion,
   showOverlay,
   splitRatio,
+  fullOffsetX = 0.5,
   subtitles,
   musicTracks,
   introUri,
@@ -1854,6 +2100,7 @@ function LayoutPreview({
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
   splitRatio: number;
+  fullOffsetX?: number;
   subtitles?: SubtitleSettings;
   musicTracks?: { path: string; volume: number }[];
   introUri?: string;
@@ -1881,12 +2128,37 @@ function LayoutPreview({
   }
 
   if (layout === 'full') {
-    // Full-Mode: 9:16 cover-crop des ganzen Source, KEIN Region-Overlay.
-    // Bei Full gibt's keine Facecam/Gameplay-Aufteilung — der gesamte Frame
-    // wird zentriert gecroppt, Regions sind irrelevant.
+    // Full-Mode: 9:16 cover-crop mit horizontalem Offset-Slider (Phase 9.5.8.4).
+    // Annahme: Source ist 16:9. Inner-View 316% Breite = 16:9 in 9:16-Container
+    // by-height-fit. Movable horizontal range = 216% of container.width.
+    // translateX bei offsetX=0 → 0 (linker Source-Edge sichtbar),
+    //              bei offsetX=1 → -216% (rechter Source-Edge sichtbar),
+    //              bei offsetX=0.5 → -108% (center).
+    const offX = Math.min(1, Math.max(0, fullOffsetX));
+    const leftPct = -216 * offX;
     return (
-      <View style={{ position: 'relative' }}>
-        <VideoPlayer uri={sourceUri} resizeMode="cover" aspectRatio={9 / 16} />
+      <View
+        style={{
+          position: 'relative',
+          aspectRatio: 9 / 16,
+          overflow: 'hidden',
+          borderRadius: 18,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.08)',
+          backgroundColor: '#000',
+        }}
+      >
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            width: '316%',
+            left: `${leftPct}%` as `${number}%`,
+          }}
+        >
+          <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
+        </View>
       </View>
     );
   }

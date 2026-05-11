@@ -195,6 +195,11 @@ export interface TikTokExportOpts {
   /** Stacked: Höhenanteil der Facecam-Pane (0.2..0.8). Default 0.4. Split: Width-Anteil. */
   splitRatio?: number;
 
+  /** Phase 9.5.8.4: Horizontaler Offset für layout='full' (0..1, default 0.5 = Mitte).
+   *  Bei landscape-Source der zu 9:16 gecroppt wird, verschiebt der Slider den
+   *  sichtbaren Ausschnitt. 0 = ganz links, 1 = ganz rechts. */
+  fullOffsetX?: number;
+
   /* ─── Phase 9.6.4: Audio ─────────────────────────────────────── */
   /** Lautstärke des Source-Audio 0..1.5. Default 1. */
   sourceAudioVolume?: number;
@@ -204,9 +209,12 @@ export interface TikTokExportOpts {
   voiceOvers?: { path: string; startSec: number; volume: number }[];
 
   /* ─── Phase 9.6.5: Subtitle Burn-In ──────────────────────────── */
-  /** Wenn gesetzt: Subtitle wird via drawtext aufgebrannt. */
+  /** Wenn gesetzt: Subtitle wird via drawtext aufgebrannt.
+   *  - Wenn `cues[]` gegeben → multi-cue burn-in mit enable=between(t,start,end).
+   *  - Sonst → single-line `text` (legacy / Manual). */
   subtitle?: {
     text: string;
+    cues?: { startSec: number; endSec: number; text: string }[];
     fontSize?: number;
     color?: string;
     strokeColor?: string;
@@ -321,9 +329,14 @@ export function buildTikTokExportArgs(
 
   // Video-Composition: layout-spezifisch. Endet auf [vmain].
   if (opts.layout === 'full') {
-    // Center-cover-crop auf 9:16.
+    // Cover-crop auf 9:16 mit horizontalem Offset (Phase 9.5.8.4).
+    // x = (iw - cropW) * offsetX → Slider verschiebt sichtbaren Ausschnitt.
+    // y bleibt zentriert (User-Wunsch: nur links/rechts beweglich).
+    const offX = clamp(opts.fullOffsetX ?? 0.5, 0, 1);
+    const cropW = `min(iw,ih*${W}/${H})`;
+    const cropH = `min(ih,iw*${H}/${W})`;
     filters.push(
-      `${srcVLabel}crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})',` +
+      `${srcVLabel}crop=${cropW}:${cropH}:(iw-${cropW})*${offX}:(ih-${cropH})/2,` +
         `scale=${W}:${H}:flags=lanczos,fps=${fps},setsar=1[vmain]`,
     );
   } else if (opts.layout === 'stacked') {
@@ -360,9 +373,10 @@ export function buildTikTokExportArgs(
 
   // ─── Subtitle Burn-In (drawtext) ────────────────────────────────────
   let videoComposed = '[vmain]';
-  if (opts.subtitle && opts.subtitle.text.trim().length > 0) {
-    const sub = opts.subtitle;
-    const text = (sub.uppercase ? sub.text.toUpperCase() : sub.text).replace(/'/g, "\\'");
+  const sub = opts.subtitle;
+  const hasCues = !!sub?.cues && sub.cues.length > 0;
+  const hasText = !!sub?.text && sub.text.trim().length > 0;
+  if (sub && (hasCues || hasText)) {
     const fontSize = sub.fontSize ?? 64;
     const fontColor = (sub.color ?? '#ffffff').replace('#', '');
     const strokeColor = (sub.strokeColor ?? '#000000').replace('#', '');
@@ -372,13 +386,37 @@ export function buildTikTokExportArgs(
     else if (sub.position === 'center') yExpr = '(h-text_h)/2';
     else if (typeof sub.position === 'number') yExpr = `h*${sub.position}-text_h/2`;
     else yExpr = `h*0.85-text_h/2`; // bottom default
-    filters.push(
-      `[vmain]drawtext=text='${text}':fontsize=${fontSize}:` +
-        `fontcolor=0x${fontColor}:` +
-        `bordercolor=0x${strokeColor}:borderw=${strokeWidth}:` +
-        `x=(w-text_w)/2:y=${yExpr}[vsub]`,
-    );
-    videoComposed = '[vsub]';
+
+    if (hasCues) {
+      // Multi-Cue: chain N drawtext-Filter mit enable=between(t,start,end).
+      // Jeder Filter nimmt das vorige als Input, der letzte gibt [vsub].
+      let prevLabel = '[vmain]';
+      const cues = sub.cues!;
+      for (let i = 0; i < cues.length; i++) {
+        const c = cues[i];
+        const text = (sub.uppercase ? c.text.toUpperCase() : c.text).replace(/'/g, "\\'");
+        const outLabel = i === cues.length - 1 ? '[vsub]' : `[vsub${i}]`;
+        filters.push(
+          `${prevLabel}drawtext=text='${text}':fontsize=${fontSize}:` +
+            `fontcolor=0x${fontColor}:` +
+            `bordercolor=0x${strokeColor}:borderw=${strokeWidth}:` +
+            `x=(w-text_w)/2:y=${yExpr}:` +
+            `enable='between(t,${c.startSec.toFixed(3)},${c.endSec.toFixed(3)})'${outLabel}`,
+        );
+        prevLabel = outLabel;
+      }
+      videoComposed = '[vsub]';
+    } else {
+      // Legacy single-line text (manual Subtitle).
+      const text = (sub.uppercase ? sub.text.toUpperCase() : sub.text).replace(/'/g, "\\'");
+      filters.push(
+        `[vmain]drawtext=text='${text}':fontsize=${fontSize}:` +
+          `fontcolor=0x${fontColor}:` +
+          `bordercolor=0x${strokeColor}:borderw=${strokeWidth}:` +
+          `x=(w-text_w)/2:y=${yExpr}[vsub]`,
+      );
+      videoComposed = '[vsub]';
+    }
   }
 
   // ─── Audio-Mix (Source + Music + VoiceOvers) ──────────────────────
