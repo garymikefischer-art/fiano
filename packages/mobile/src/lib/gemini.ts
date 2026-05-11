@@ -18,13 +18,15 @@ import { useAppStore } from '../stores/appStore';
 
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Image-Generation-Models in Reihenfolge der Präferenz. Update wenn Google
-// neue rolloutet — analog Desktop src/main/ipc.ts:235.
+// Image-Generation-Models in Reihenfolge der Präferenz. Google rolloutet
+// regelmäßig neue + retiret alte; die 'preview'-Aliases sind oft 404 nach
+// einem Cycle. Update bei Bedarf via Desktop's `gemini.listModels` oder
+// https://ai.google.dev/gemini-api/docs/models.
 const TRY_MODELS = [
-  'gemini-2.5-flash-image-preview',
-  'gemini-2.5-flash-image',
-  'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-preview-image-generation',
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-exp',
+  'gemini-2.5-flash-image-preview',
 ];
 
 const TIMEOUT_MS = 60_000;
@@ -54,14 +56,19 @@ export async function generateThumbnail(
   }
 
   // ─── Parts aufbauen ───────────────────────────────────────────────
+  // Gemini v1beta nimmt BEIDE Cases (snake_case + camelCase) — wir senden
+  // camelCase (inlineData/mimeType) weil das auf den neueren Modellen die
+  // konsistente Variante ist. Desktop nutzt snake_case via Node-fetch und
+  // funktioniert auch — beide sind valid.
   const partsWithRef: Array<Record<string, unknown>> = [{ text: opts.prompt }];
   if (opts.referenceImageBase64) {
     partsWithRef.push({
-      inline_data: {
-        mime_type: opts.referenceMime ?? 'image/jpeg',
+      inlineData: {
+        mimeType: opts.referenceMime ?? 'image/jpeg',
         data: opts.referenceImageBase64,
       },
     });
+    console.log(`[gemini] ref-image included (${(opts.referenceImageBase64.length / 1024).toFixed(1)} KB base64)`);
   }
 
   // ─── Pass 1: mit Reference-Image (falls vorhanden) ───────────────
@@ -70,7 +77,9 @@ export async function generateThumbnail(
 
   // ─── Pass 2: ohne Reference-Image bei allNoImage (Safety-Trigger) ─
   if (!('image' in result) && result.allNoImage && opts.referenceImageBase64) {
-    console.log('[gemini] retry without reference-image (safety-fallback)');
+    console.warn(
+      '[gemini] PASS-1 all models returned no-image with ref-image — retry WITHOUT ref (safety-fallback). Result will ignore your reference image.',
+    );
     result = await tryAllModels([{ text: opts.prompt }], apiKey, 'pass2');
     if (!('image' in result)) combinedError = result.lastError;
   }
@@ -78,6 +87,7 @@ export async function generateThumbnail(
   if (!('image' in result)) {
     throw new Error(combinedError || 'All Gemini models failed to return an image.');
   }
+  console.log(`[gemini] SUCCESS model=${result.model} mime=${result.image.mime}`);
 
   // ─── Speichern in documentDirectory/thumbnails/{projectId}/ ──────
   const projectDir = `${THUMBS_DIR}${opts.projectId}/`;
