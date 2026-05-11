@@ -4318,8 +4318,6 @@ function InspectorPanel({
                   <div className="text-[9px] text-zinc-600 mt-1 leading-relaxed">
                     Mixed gegen darunter liegende Layer. Bei Track-0-Clip wirkt es gegen
                     Test-Pattern. Voller Effekt bei Overlay-Clips über Video-Layern.
-                    <br />
-                    <span className="text-amber-400">⚠ Aktuell nur Live-Preview — Export rendert ohne Blend-Mode (FFmpeg-Pipeline-Refactor offen).</span>
                   </div>
                 </Field>
 

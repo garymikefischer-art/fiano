@@ -196,6 +196,19 @@ export function SettingsPage() {
       {/* DEFAULT GAMEPLAY */}
       <DefaultGameplaySection />
 
+      {/* URL IMPORT DISCLAIMER (Phase 9.5.8.2 — rechtliche Absicherung) */}
+      <section className="bg-panel rounded-xl p-6 border border-zinc-800">
+        <h3 className="text-sm font-medium mb-2">URL Import Disclaimer</h3>
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          Importing videos from YouTube, Twitch or similar platforms uses yt-dlp.
+          You are solely responsible for compliance with each platform's Terms of
+          Service and applicable copyright law. Download and edit only content
+          you own or have explicit permission to use. fiano provides the tool —
+          you decide what to import. Do not distribute downloaded material
+          without the rights-holder's consent.
+        </p>
+      </section>
+
       {/* BINARIES */}
       <BinariesSection refreshHealth={refreshHealth} binaries={binaries} />
 
