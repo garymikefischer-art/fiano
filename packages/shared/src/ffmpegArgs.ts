@@ -183,12 +183,38 @@ export interface TikTokExportOpts {
   bitrate?: string;
   encoder?: Encoder;
   layout: TikTokLayout;
-  /** Facecam-Region (für stacked + split). Default = top-left 28×32% wenn fehlt. */
+  /** Facecam-Region (für stacked + split). */
   facecamRegion: RegionRect;
-  /** Gameplay-Region (für stacked + split). Default = full frame. */
+  /** Gameplay-Region (für stacked + split). */
   gameplayRegion: RegionRect;
   /** Stacked: Höhenanteil der Facecam-Pane (0.2..0.8). Default 0.4. Split: Width-Anteil. */
   splitRatio?: number;
+
+  /* ─── Phase 9.6.4: Audio ─────────────────────────────────────── */
+  /** Lautstärke des Source-Audio 0..1.5. Default 1. */
+  sourceAudioVolume?: number;
+  /** Music-Tracks die parallel zum Source-Audio laufen. Mit volume je Track. */
+  music?: { path: string; volume: number }[];
+  /** Voice-Over-Tracks mit position (startSec im Output) + volume. */
+  voiceOvers?: { path: string; startSec: number; volume: number }[];
+
+  /* ─── Phase 9.6.5: Subtitle Burn-In ──────────────────────────── */
+  /** Wenn gesetzt: Subtitle wird via drawtext aufgebrannt. */
+  subtitle?: {
+    text: string;
+    fontSize?: number;
+    color?: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    /** 'top' = y=120, 'center' = h/2, 'bottom' = 85%, number = yPercent 0..1. */
+    position?: 'top' | 'center' | 'bottom' | number;
+    /** Uppercase erzwingen. */
+    uppercase?: boolean;
+  };
+
+  /* ─── Phase 9.6.6: Intro ─────────────────────────────────────── */
+  /** Intro-Video das VOR dem Main-Clip eingeblendet wird ('before'-mode). */
+  intro?: { path: string };
 }
 
 /**
@@ -215,9 +241,12 @@ export function buildTikTokExportArgs(
   const encoder = opts.encoder ?? 'software';
   const codec = ENCODER_FOR_PLATFORM[platform][encoder];
   const splitRatio = clamp(opts.splitRatio ?? 0.4, 0.1, 0.9);
+  const sourceVol = opts.sourceAudioVolume ?? 1;
 
   const fc = opts.facecamRegion;
   const gp = opts.gameplayRegion;
+  const music = opts.music ?? [];
+  const voiceOvers = opts.voiceOvers ?? [];
 
   const args: string[] = ['-y'];
 
@@ -231,46 +260,143 @@ export function buildTikTokExportArgs(
 
   args.push('-i', opts.src);
 
-  // Filter-Complex je Layout. Region-Crops mit `iw*X` / `ih*Y` resolved
-  // FFmpeg zur Laufzeit (no need to probe Source dimensions).
-  let filterComplex: string;
+  // ─── Zusätzliche Inputs: Intro + Music + VoiceOvers ─────────────────
+  // Input-Indizes: 0=Source, [optional 1]=Intro, dann Music+VoiceOvers
+  // {SRC_N} Platzhalter für Server-Side-Replacement bei dynamischen Pfaden —
+  // hier sind alle Pfade als reale Werte gesetzt (vom Caller schon ersetzt).
+  let inputIdx = 1;
+  let introInputIdx = -1;
+  if (opts.intro) {
+    args.push('-i', opts.intro.path);
+    introInputIdx = inputIdx++;
+  }
+  const musicInputIndices: number[] = [];
+  for (const m of music) {
+    args.push('-i', m.path);
+    musicInputIndices.push(inputIdx++);
+  }
+  const voInputIndices: number[] = [];
+  for (const vo of voiceOvers) {
+    args.push('-i', vo.path);
+    voInputIndices.push(inputIdx++);
+  }
 
+  // ─── Filter-Complex aufbauen ────────────────────────────────────────
+  const filters: string[] = [];
+
+  // Video-Composition: layout-spezifisch. Endet auf [vmain].
   if (opts.layout === 'full') {
-    // Center-cover-crop auf 9:16. Identisch zu buildMobileExportArgs aber als
-    // filter_complex damit's konsistent zur Stacked/Split-Pipeline ist.
-    const cropExpr = `crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})'`;
-    filterComplex = `[0:v]${cropExpr},scale=${W}:${H}:flags=lanczos,fps=${fps}[out]`;
+    // Center-cover-crop auf 9:16.
+    filters.push(
+      `[0:v]crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})',` +
+        `scale=${W}:${H}:flags=lanczos,fps=${fps},setsar=1[vmain]`,
+    );
   } else if (opts.layout === 'stacked') {
     const topH = Math.round(H * splitRatio);
     const botH = H - topH;
-    // Step 1: split video in 2 streams
-    // Step 2a: top = crop facecam region + scale to (W x topH)
-    // Step 2b: bot = crop gameplay region + scale to (W x botH)
-    // Step 3: vstack top+bot → 9:16
-    filterComplex =
+    // Aspect-Fix: scale mit force_original_aspect_ratio=increase + crop —
+    // erhält die Region-Aspect-Ratio (kein Stretch). Center-crop trimmt zur
+    // Pane-Größe. Fix für User-Report 'export ist gestreckt'.
+    filters.push(
       `[0:v]split=2[base1][base2];` +
       `[base1]crop=iw*${fc.w}:ih*${fc.h}:iw*${fc.x}:ih*${fc.y},` +
-        `scale=${W}:${topH}:flags=lanczos,setsar=1[top];` +
+        `scale=${W}:${topH}:force_original_aspect_ratio=increase,` +
+        `crop=${W}:${topH},setsar=1[top];` +
       `[base2]crop=iw*${gp.w}:ih*${gp.h}:iw*${gp.x}:ih*${gp.y},` +
-        `scale=${W}:${botH}:flags=lanczos,setsar=1[bot];` +
-      `[top][bot]vstack=inputs=2,fps=${fps}[out]`;
+        `scale=${W}:${botH}:force_original_aspect_ratio=increase,` +
+        `crop=${W}:${botH},setsar=1[bot];` +
+      `[top][bot]vstack=inputs=2,fps=${fps}[vmain]`,
+    );
   } else {
     // split (side-by-side)
     const leftW = Math.round(W * splitRatio);
     const rightW = W - leftW;
-    filterComplex =
+    filters.push(
       `[0:v]split=2[base1][base2];` +
       `[base1]crop=iw*${fc.w}:ih*${fc.h}:iw*${fc.x}:ih*${fc.y},` +
-        `scale=${leftW}:${H}:flags=lanczos,setsar=1[left];` +
+        `scale=${leftW}:${H}:force_original_aspect_ratio=increase,` +
+        `crop=${leftW}:${H},setsar=1[left];` +
       `[base2]crop=iw*${gp.w}:ih*${gp.h}:iw*${gp.x}:ih*${gp.y},` +
-        `scale=${rightW}:${H}:flags=lanczos,setsar=1[right];` +
-      `[left][right]hstack=inputs=2,fps=${fps}[out]`;
+        `scale=${rightW}:${H}:force_original_aspect_ratio=increase,` +
+        `crop=${rightW}:${H},setsar=1[right];` +
+      `[left][right]hstack=inputs=2,fps=${fps}[vmain]`,
+    );
   }
 
-  args.push('-filter_complex', filterComplex);
-  args.push('-map', '[out]');
-  // Audio aus dem Source übernehmen (optional — '?' = wenn kein Audio: skip).
-  args.push('-map', '0:a?');
+  // ─── Subtitle Burn-In (drawtext) ────────────────────────────────────
+  let videoComposed = '[vmain]';
+  if (opts.subtitle && opts.subtitle.text.trim().length > 0) {
+    const sub = opts.subtitle;
+    const text = (sub.uppercase ? sub.text.toUpperCase() : sub.text).replace(/'/g, "\\'");
+    const fontSize = sub.fontSize ?? 64;
+    const fontColor = (sub.color ?? '#ffffff').replace('#', '');
+    const strokeColor = (sub.strokeColor ?? '#000000').replace('#', '');
+    const strokeWidth = sub.strokeWidth ?? 4;
+    let yExpr: string;
+    if (sub.position === 'top') yExpr = '120';
+    else if (sub.position === 'center') yExpr = '(h-text_h)/2';
+    else if (typeof sub.position === 'number') yExpr = `h*${sub.position}-text_h/2`;
+    else yExpr = `h*0.85-text_h/2`; // bottom default
+    filters.push(
+      `[vmain]drawtext=text='${text}':fontsize=${fontSize}:` +
+        `fontcolor=0x${fontColor}:` +
+        `bordercolor=0x${strokeColor}:borderw=${strokeWidth}:` +
+        `x=(w-text_w)/2:y=${yExpr}[vsub]`,
+    );
+    videoComposed = '[vsub]';
+  }
+
+  // ─── Audio-Mix (Source + Music + VoiceOvers) ──────────────────────
+  // Erzeugt [aMain] das Source-Audio + Music + VoiceOvers gemischt enthält.
+  filters.push(`[0:a]volume=${sourceVol}[srcA]`);
+  const audioMixInputs: string[] = ['[srcA]'];
+  music.forEach((m, i) => {
+    const idx = musicInputIndices[i];
+    filters.push(`[${idx}:a]volume=${m.volume}[m${i}]`);
+    audioMixInputs.push(`[m${i}]`);
+  });
+  voiceOvers.forEach((vo, i) => {
+    const idx = voInputIndices[i];
+    const delayMs = Math.max(0, Math.round(vo.startSec * 1000));
+    filters.push(
+      `[${idx}:a]volume=${vo.volume},adelay=${delayMs}|${delayMs}[vo${i}]`,
+    );
+    audioMixInputs.push(`[vo${i}]`);
+  });
+  if (audioMixInputs.length > 1) {
+    filters.push(
+      `${audioMixInputs.join('')}amix=inputs=${audioMixInputs.length}:` +
+        `duration=longest:normalize=0[aMain]`,
+    );
+  } else {
+    filters.push(`[srcA]anull[aMain]`);
+  }
+
+  // ─── Intro-before-Mode: concat Intro + Main ────────────────────────
+  // 'before' = Intro spielt komplett, dann Main-Composition. Beide auf 9:16.
+  let finalVideo: string;
+  let finalAudio: string;
+  if (opts.intro && introInputIdx >= 0) {
+    // Intro auf 9:16 cover-cropped
+    filters.push(
+      `[${introInputIdx}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,` +
+        `crop=${W}:${H},fps=${fps},setsar=1[introV]`,
+    );
+    filters.push(`[${introInputIdx}:a]aresample=async=1[introA]`);
+    // concat n=2 mit beiden video + audio streams
+    filters.push(
+      `[introV]${videoComposed}[introA][aMain]concat=n=2:v=1:a=1[vfinal][afinal]`,
+    );
+    finalVideo = '[vfinal]';
+    finalAudio = '[afinal]';
+  } else {
+    finalVideo = videoComposed;
+    finalAudio = '[aMain]';
+  }
+
+  args.push('-filter_complex', filters.join(';'));
+  args.push('-map', finalVideo);
+  args.push('-map', finalAudio);
 
   args.push('-c:v', codec);
   args.push('-b:v', bitrate);

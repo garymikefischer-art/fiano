@@ -73,13 +73,27 @@ export function ExportScreen() {
       // 1. Lokale Source sicherstellen (file://-URI nicht asset://)
       const localSrc = await ensureLocalCopy(params.sourceUri);
 
-      // 2. Layout + Regions vom Project ableiten (Fallback auf Settings-Defaults).
+      // 2. Layout + Regions + Subtitle vom Project ableiten.
       const layout = project?.tiktokLayout ?? 'stacked';
       const facecamRegion = project?.facecamRegion ?? defaultFacecam ?? { x: 0.06, y: 0.06, w: 0.28, h: 0.32 };
       const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
       const splitRatio = project?.splitRatio ?? DEFAULT_SPLIT_RATIO;
 
-      // 3. FFmpeg-Args mit {SRC}/{DST}-Platzhaltern (Server ersetzt mit tmp-Pfaden)
+      // 3. Subtitle-Burn-In args wenn enabled.
+      const subSettings = project?.subtitles;
+      const subtitleArg = subSettings?.enabled
+        ? {
+            text: 'SUBTITLE PREVIEW' /* placeholder bis Whisper-Pipeline echte Cues liefert */,
+            fontSize: subSettings.fontSize ?? 64,
+            color: subSettings.textColor ?? '#ffffff',
+            strokeColor: subSettings.strokeColor ?? '#000000',
+            strokeWidth: subSettings.strokeEnabled === true ? subSettings.strokeWidth ?? 4 : 0,
+            position: subSettings.position as 'top' | 'center' | 'bottom' | undefined,
+            uppercase: subSettings.uppercase ?? false,
+          }
+        : undefined;
+
+      // 4. FFmpeg-Args mit {SRC}/{DST}-Platzhaltern (Server ersetzt mit tmp-Pfaden)
       const args = buildTikTokExportArgs(
         {
           src: '{SRC}',
@@ -90,7 +104,7 @@ export function ExportScreen() {
           height: 1920,
           fps: 30,
           bitrate: '10M',
-          encoder: 'software', // libx264 server-side für Codec-Konsistenz
+          encoder: 'software',
           layout,
           facecamRegion: {
             x: facecamRegion.x,
@@ -105,6 +119,7 @@ export function ExportScreen() {
             h: gameplayRegion.h,
           },
           splitRatio,
+          subtitle: subtitleArg,
         },
         'other',
       );
