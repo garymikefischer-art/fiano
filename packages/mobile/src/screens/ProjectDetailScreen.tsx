@@ -84,9 +84,14 @@ export function ProjectDetailScreen() {
   const [activeTab, setActiveTab] = useState<TabId>(params.initialTab ?? 'highlights');
   const [selectedClipIds, setSelectedClipIds] = useState<Set<string>>(new Set());
 
+  const setLastOpenedProjectId = useAppStore((s) => s.setLastOpenedProjectId);
+
   useEffect(() => {
     sounds.projectOpen();
-  }, [params.projectId]);
+    if (params.projectId) {
+      void setLastOpenedProjectId(params.projectId);
+    }
+  }, [params.projectId, setLastOpenedProjectId]);
 
   const onDelete = () => {
     if (!project) return;
@@ -1782,6 +1787,7 @@ function StackedSplitPreview({
 }) {
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
+  const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
 
   // Click-to-play (Phase 9.5.4-hotfix2): erst nach erstem Play mounten wir die
   // beiden <Video>-Decoder. Vorher zeigen die Panes nur das Poster (thumbUri),
@@ -1847,11 +1853,18 @@ function StackedSplitPreview({
     }
   };
 
-  // Explicit Restart-from-Start (Replay): seek beide auf 0 + Intro neu starten.
+  // Explicit Restart-from-Start (Replay): seek alle Videos auf 0 + Intro neu
+  // starten. Wichtig: das intro-<Video> hat onEnd → paused=true intern. Wir
+  // müssen seek(0) auf den Intro-Ref machen sonst spielt's nicht.
   const restartFromStart = () => {
     haptic.selection();
     facecamRef.current?.seek(0);
     gameplayRef.current?.seek(0);
+    try {
+      introRef.current?.seek(0);
+    } catch {
+      /* ignore */
+    }
     setCurrentSec(0);
     if (introUri) setIntroPlaying(true);
     setPaused(false);
@@ -1947,6 +1960,7 @@ function StackedSplitPreview({
       {videosActive && introUri && (
         <Video
           key={introUri}
+          ref={(r) => { introRef.current = r; }}
           source={{ uri: introUri }}
           paused={paused || !introPlaying}
           repeat={false}
