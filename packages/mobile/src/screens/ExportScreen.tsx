@@ -16,8 +16,9 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { ensureLocalCopy, makeOutputPath, saveToCameraRoll } from '../lib/mediaPicker';
-import { exportMobile, cancelFfmpeg } from '../lib/ffmpeg';
+import { ensureLocalCopy, saveToCameraRoll } from '../lib/mediaPicker';
+import { runRenderJob } from '../lib/renderJob';
+import { buildMobileExportArgs } from '@fiano/shared/ffmpegArgs';
 import { BrandButton } from '../components/BrandButton';
 import { ProgressBar } from '../components/ProgressBar';
 import { BackgroundGlow } from '../components/BackgroundGlow';
@@ -32,7 +33,7 @@ import type { RootStackParamList } from '../navigation/types';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Export'>;
 type R = RouteProp<RootStackParamList, 'Export'>;
 
-type Phase = 'idle' | 'exporting' | 'saving' | 'done' | 'failed' | 'canceled';
+type Phase = 'idle' | 'uploading' | 'rendering' | 'saving' | 'done' | 'failed' | 'canceled';
 
 export function ExportScreen() {
   const nav = useNavigation<Nav>();
@@ -56,34 +57,54 @@ export function ExportScreen() {
   }, []);
 
   const run = async () => {
-    setPhase('exporting');
+    setPhase('uploading');
     setError(null);
-    const dst = makeOutputPath(`fiano-${Date.now()}.mp4`);
-    setCurrent({ id: dst, step: 'export', percent: 0, outputPath: dst });
+    setPercent(0);
+    const outputName = `fiano-${Date.now()}.mp4`;
+    setCurrent({ id: outputName, step: 'export', percent: 0, outputPath: outputName });
 
     try {
+      // 1. Lokale Source sicherstellen (file://-URI nicht asset://)
       const localSrc = await ensureLocalCopy(params.sourceUri);
-      await exportMobile(
+
+      // 2. FFmpeg-Args mit {SRC}/{DST}-Platzhaltern (Server ersetzt mit tmp-Pfaden)
+      const args = buildMobileExportArgs(
         {
-          src: localSrc,
-          dst,
+          src: '{SRC}',
+          dst: '{DST}',
           trimStart: params.trimStart,
           trimEnd: params.trimEnd,
           width: 1080,
           height: 1920,
           fps: 30,
           bitrate: '10M',
-          encoder: 'hardware',
+          encoder: 'software', // libx264 server-side für Codec-Konsistenz
         },
-        {
-          expectedDuration: params.trimEnd - params.trimStart,
-          onProgress: setPercent,
-        },
+        'other',
       );
 
+      // 3. Cloud-Render: Upload → Render → Download
+      const result = await runRenderJob({
+        sourceUri: localSrc,
+        args,
+        projectId: params.projectId ?? 'no-project',
+        outputName,
+        onUploadProgress: (frac) => {
+          // Upload-Phase = 0-30% Gesamtprogress (Render selbst ist sync auf Server,
+          // kein per-frame-Progress verfügbar in der aktuellen API)
+          setPercent(frac * 30);
+          if (frac >= 1) setPhase('rendering');
+        },
+      });
+
+      // 4. Render-Done — Progress 30→90 wurde während Server-Render gehalten.
+      setPercent(90);
       setPhase('saving');
-      const assetUri = await saveToCameraRoll(dst);
+
+      // 5. Save zu Camera-Roll
+      const assetUri = await saveToCameraRoll(result.localUri);
       setSavedAssetUri(assetUri);
+      setPercent(100);
       setPhase('done');
       sounds.exportDone();
 
@@ -132,7 +153,11 @@ export function ExportScreen() {
   };
 
   const onCancel = () => {
-    cancelFfmpeg();
+    // Cloud-Render auf Server kann mobile-seitig nicht cancelled werden — der Worker
+    // läuft seinen ffmpeg-Job zu Ende. Wir setzen mobile-seitig 'canceled' damit User
+    // raus aus dem Screen kann. Server-side cleanup nach MAX_DURATION_SEC.
+    setPhase('canceled');
+    if (params.projectId) updateProject(params.projectId, { status: 'failed', errorMessage: 'Canceled by user' });
   };
 
   const meta = phaseMeta(phase, t);
@@ -223,7 +248,7 @@ export function ExportScreen() {
             )}
           </View>
 
-          {(phase === 'exporting' || phase === 'saving') && (
+          {(phase === 'uploading' || phase === 'rendering' || phase === 'saving') && (
             <View style={{ width: '100%', gap: 8 }}>
               <ProgressBar percent={job?.percent ?? 0} />
               <Text
@@ -259,7 +284,7 @@ export function ExportScreen() {
             <Text style={{ color: '#71717a', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
               {t(
                 'export.phaseNote',
-                'UI is complete — the native FFmpeg bridge (iOS Swift Package + Android NDK) lands in Phase 9.4.x. Clip will export then.',
+                'Check ob EXPO_PUBLIC_RENDER_WORKER_URL gesetzt ist und der /health-Endpoint antwortet (siehe services/render-worker/README.md).',
               )}
             </Text>
           </View>
@@ -267,7 +292,7 @@ export function ExportScreen() {
 
         {/* Action-Row */}
         <View style={{ gap: 10, marginTop: 'auto' }}>
-          {(phase === 'exporting' || phase === 'saving') && (
+          {(phase === 'uploading' || phase === 'rendering' || phase === 'saving') && (
             <BrandButton
               title={t('common.cancel', 'Cancel')}
               variant="secondary"
@@ -328,14 +353,23 @@ function phaseMeta(
   subtitle?: string;
 } {
   switch (phase) {
-    case 'exporting':
+    case 'uploading':
+      return {
+        icon: 'cloud-upload-outline',
+        iconColor: '#60a5fa',
+        iconBg: 'rgba(96,165,250,0.15)',
+        ringColor: 'rgba(96,165,250,0.32)',
+        title: t('export.phaseUploading', 'Lade Source zur Cloud…'),
+        subtitle: t('export.phaseUploadingSub', 'Source-Video wird zum Render-Worker geschickt.'),
+      };
+    case 'rendering':
       return {
         icon: 'sync',
         iconColor: '#ff1039',
         iconBg: 'rgba(255,16,57,0.12)',
         ringColor: 'rgba(255,16,57,0.32)',
-        title: t('export.phaseExporting', 'Exporting 9:16…'),
-        subtitle: t('export.phaseExportingSub', 'Rendering your clip locally — no upload.'),
+        title: t('export.phaseRendering', 'Rendere 9:16 in der Cloud…'),
+        subtitle: t('export.phaseRenderingSub', 'FFmpeg läuft auf dem Render-Worker. Dauert ~30s pro Minute Clip.'),
       };
     case 'saving':
       return {
