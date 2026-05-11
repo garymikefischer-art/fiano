@@ -14,6 +14,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Image,
   PanResponder,
   Pressable,
   ScrollView,
@@ -1202,9 +1203,36 @@ function TikTokTab({
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Clip-Selector (Phase 9.5.8.1) — analog Desktop-9:16-Tab: oben alle
-          highlight-Clips als horizontal scrollbare Cards, mit Time-Badge und
-          aktiven roten Border. User wählt einen → Preview + Export passt sich an. */}
+      {/* 9:16-Aspect-Preview ganz oben (User-Wunsch Phase 9.5.8.1).
+          Width 75% = identisch zur Modal-Preview-Card → User sieht
+          Subtitle-Overlay in gleicher Proportion in beiden Previews. */}
+      <View style={{ alignItems: 'center' }}>
+        <View style={{ width: '75%' }}>
+          <LayoutPreview
+            key={effectiveSourceUri /* re-mount bei Clip-Wechsel damit Video reloaded */}
+            layout={layout}
+            sourceUri={effectiveSourceUri}
+            thumbHue={project.thumbHue}
+            thumbUri={selectedClip?.thumbUri ?? project.thumbUri}
+            facecamRegion={facecamRegion}
+            gameplayRegion={gameplayRegion}
+            showOverlay={showOverlay}
+            splitRatio={splitRatio}
+            subtitles={subSettings}
+            musicTracks={project.musicTracks?.map((m) => ({ path: m.path, volume: m.volume }))}
+            introUri={project.intro?.path ?? undefined}
+            voiceOvers={project.voiceOvers?.map((vo) => ({
+              path: vo.path,
+              startSec: vo.startSec,
+              volume: vo.volume,
+            }))}
+          />
+        </View>
+      </View>
+
+      {/* Clip-Selector (Phase 9.5.8.1) — UNTER Preview: horizontal scrollbare
+          Cards mit Thumbnail + Time-Badge + roter Active-Border. User wählt
+          einen Clip → Preview + Export werden auf den Clip umgestellt. */}
       {showClipSelector && (
         <View style={{ gap: 8 }}>
           <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
@@ -1241,6 +1269,13 @@ function TikTokTab({
                       position: 'relative',
                     }}
                   >
+                    {c.thumbUri && (
+                      <Image
+                        source={{ uri: c.thumbUri }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    )}
                     <View
                       style={{
                         position: 'absolute',
@@ -1291,33 +1326,6 @@ function TikTokTab({
           </ScrollView>
         </View>
       )}
-
-      {/* 9:16-Aspect-Preview mit Layout-spezifischer Darstellung.
-          Width 75% = identisch zur Modal-Preview-Card → User sieht
-          Subtitle-Overlay in gleicher Proportion in beiden Previews. */}
-      <View style={{ alignItems: 'center' }}>
-        <View style={{ width: '75%' }}>
-          <LayoutPreview
-            key={effectiveSourceUri /* re-mount bei Clip-Wechsel damit Video reloaded */}
-            layout={layout}
-            sourceUri={effectiveSourceUri}
-            thumbHue={project.thumbHue}
-            thumbUri={project.thumbUri}
-            facecamRegion={facecamRegion}
-            gameplayRegion={gameplayRegion}
-            showOverlay={showOverlay}
-            splitRatio={splitRatio}
-            subtitles={subSettings}
-            musicTracks={project.musicTracks?.map((m) => ({ path: m.path, volume: m.volume }))}
-            introUri={project.intro?.path ?? undefined}
-            voiceOvers={project.voiceOvers?.map((vo) => ({
-              path: vo.path,
-              startSec: vo.startSec,
-              volume: vo.volume,
-            }))}
-          />
-        </View>
-      </View>
 
       {/* Per-Project-Region-Override-Toggle */}
       <View
