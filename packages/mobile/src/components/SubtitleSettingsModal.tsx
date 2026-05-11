@@ -293,7 +293,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                   </>
                 )}
                 <ToggleRow
-                  label="Metallic effect (export-only)"
+                  label="Metallic effect"
                   value={local.metallic ?? false}
                   onChange={(v) => patch({ metallic: v })}
                 />
@@ -429,7 +429,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                     onChange={(v) => patch({ highlightDropShadow: Math.round(v) })}
                   />
                   <ToggleRow
-                    label="Metallic (export-only)"
+                    label="Metallic"
                     value={local.highlightMetallic ?? false}
                     onChange={(v) => patch({ highlightMetallic: v })}
                   />
