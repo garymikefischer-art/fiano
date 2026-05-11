@@ -60,6 +60,7 @@ import { MusicPreviewPlayer } from '../components/MusicPreviewPlayer';
 import { VoiceOverPreviewPlayer } from '../components/VoiceOverPreviewPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
+import { extractVideoThumbnail } from '../lib/thumbnails';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { ExportSettingsModal } from '../components/ExportSettingsModal';
@@ -1172,6 +1173,46 @@ function TikTokTab({
   const selectedClip = clips[safeIdx];
   const projectSourceUris = project.sourceUris ?? [];
   const isMultiSource = projectSourceUris.length >= 2;
+
+  // Thumbnail-Auto-Generate (Phase 9.5.8.3): wenn ein clip noch kein thumbUri
+  // hat, extrahiere on-demand sequenziell. Deckt Multi-Clip-Projects ab wo
+  // der Initial-Extract beim Import gefailt ist (Codec) UND alte Projekte
+  // ohne thumbnails. Läuft 1× pro project-Mount.
+  useEffect(() => {
+    const needsThumb = (clips ?? []).some((c, i) => {
+      if (c.thumbUri) return false;
+      const src = isMultiSource ? projectSourceUris[i] : project.sourceUri;
+      return !!src;
+    });
+    if (!needsThumb) return;
+    let cancelled = false;
+    void (async () => {
+      for (let i = 0; i < clips.length; i++) {
+        if (cancelled) return;
+        const c = clips[i];
+        if (c.thumbUri) continue;
+        const sourceForClip = isMultiSource ? projectSourceUris[i] : project.sourceUri;
+        if (!sourceForClip) continue;
+        // Frame-Zeit: 500ms ab Clip-Start (vermeidet schwarzen Intro-Frame).
+        const timeMs = Math.max(0, Math.round((c.startSec || 0) * 1000 + 500));
+        const t = await extractVideoThumbnail(sourceForClip, timeMs).catch(() => null);
+        if (!t || cancelled) continue;
+        const latest = useProjectsStore.getState().projects.find((p) => p.id === project.id);
+        if (!latest) return;
+        const nextClips = (latest.clips ?? []).map((cc) =>
+          cc.id === c.id ? { ...cc, thumbUri: t } : cc,
+        );
+        updateProject(project.id, {
+          clips: nextClips,
+          thumbUri: i === 0 && !latest.thumbUri ? t : latest.thumbUri,
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
   const effectiveSourceUri = isMultiSource
     ? projectSourceUris[Math.min(safeIdx, projectSourceUris.length - 1)]
     : project.sourceUri;

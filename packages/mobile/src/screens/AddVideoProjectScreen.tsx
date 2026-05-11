@@ -234,23 +234,25 @@ export function AddVideoProjectScreen() {
           score: 1,
         })),
       });
-      // Async Thumbnails für alle clips (parallel) — Selector-Cards füllen sich
-      // wenn die Frames extrahiert sind. extractVideoThumbnail @ 1000ms = 1s frame.
-      void Promise.all(
-        picked.map((p) => extractVideoThumbnail(p.uri, 1000).catch(() => null)),
-      ).then((thumbs) => {
-        const current = useProjectsStore.getState().projects.find((pr) => pr.id === project.id);
-        if (!current) return;
-        const nextClips = (current.clips ?? []).map((c, i) => {
-          const t = thumbs[i];
-          return t ? { ...c, thumbUri: t } : c;
-        });
-        useProjectsStore.getState().updateProject(project.id, {
-          clips: nextClips,
-          // Project-Thumbnail = erstes Clip-Thumbnail (für Library-Card).
-          thumbUri: thumbs[0] ?? undefined,
-        });
-      });
+      // Async Thumbnails: sequenziell statt parallel — auf Vivo+Mediatek crasht
+      // der HEVC-Decoder bei parallel-extract, plus sequenziell schreibt die
+      // store-updates incremental sodass User sofort die ersten thumbs sieht.
+      void (async () => {
+        for (let i = 0; i < picked.length; i++) {
+          const t = await extractVideoThumbnail(picked[i].uri, 1000).catch(() => null);
+          if (!t) continue;
+          const cur = useProjectsStore.getState().projects.find((pr) => pr.id === project.id);
+          if (!cur) return;
+          const nextClips = (cur.clips ?? []).map((c, idx) =>
+            idx === i ? { ...c, thumbUri: t } : c,
+          );
+          useProjectsStore.getState().updateProject(project.id, {
+            clips: nextClips,
+            // Project-Thumbnail = erstes Clip-Thumbnail (für Library-Card).
+            thumbUri: i === 0 ? t : (cur.thumbUri ?? undefined),
+          });
+        }
+      })();
       haptic.success();
       nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
     } catch (err: any) {

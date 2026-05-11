@@ -10,7 +10,7 @@
  *  - Delete account (destructive, mit Confirm-Alert)
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View, StatusBar as RNStatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +28,7 @@ import {
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { RegionPreview } from '../components/RegionPreview';
 import { RegionPickerModal } from '../components/RegionPickerModal';
+import { YouTubeLoginModal } from '../components/YouTubeLoginModal';
 import { haptic } from '../lib/haptics';
 import { useT, useLanguage, LANGUAGES } from '../lib/i18n';
 import { ensureNotificationPermissions, scheduleLocalNotification } from '../lib/pushNotifications';
@@ -62,6 +63,13 @@ export function SettingsScreen() {
   const [openaiVisible, setOpenaiVisible] = useState(false);
   const [geminiVisible, setGeminiVisible] = useState(false);
   const [youtubeCookiesVisible, setYoutubeCookiesVisible] = useState(false);
+  const [ytLoginVisible, setYtLoginVisible] = useState(false);
+
+  // Sync local cookies-input with store wenn das YouTubeLoginModal die cookies
+  // schreibt (externe state-Quelle).
+  useEffect(() => {
+    setYoutubeCookiesInput(youtubeCookies);
+  }, [youtubeCookies]);
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [soundsEnabled, setSoundsEnabled] = useState(!sounds.isMuted());
   const [regionModalVisible, setRegionModalVisible] = useState(false);
@@ -405,25 +413,117 @@ export function SettingsScreen() {
             saved={geminiKey}
           />
           <Divider />
-          <ApiKeyRow
-            label={t('settings.youtubeCookies', 'YouTube cookies (optional)')}
-            value={youtubeCookiesInput}
-            onChange={setYoutubeCookiesInput}
-            onSave={() => setYoutubeCookies(youtubeCookiesInput.trim())}
-            onClear={() => {
-              setYoutubeCookiesInput('');
-              void setYoutubeCookies('');
-            }}
-            visible={youtubeCookiesVisible}
-            onToggleVisible={() => setYoutubeCookiesVisible((v) => !v)}
-            saved={youtubeCookies}
-            multiline
-            placeholder={'# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t…'}
-            hint={t(
-              'settings.youtubeCookiesHint',
-              'Optional: bypass YouTube bot-detection. Export via "Get cookies.txt LOCALLY" Chrome/Firefox extension while logged in to youtube.com, then paste the full text here. Cookies are stored on your device only — use of own account & content is your responsibility.',
+          {/* YouTube Login: in-app WebView (primary) + manual-paste (fallback). */}
+          <View style={{ paddingVertical: 12, paddingHorizontal: 14, gap: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}>
+                {t('settings.youtubeCookies', 'YouTube cookies (optional)')}
+              </Text>
+              {youtubeCookies.length > 0 && (
+                <Text style={{ color: '#22c55e', fontSize: 10, fontWeight: '700' }}>● saved</Text>
+              )}
+            </View>
+            <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>
+              {t(
+                'settings.youtubeCookiesHint',
+                'Bypass YouTube bot-detection. Cookies stay on your device only. Use of your own account & content is your responsibility.',
+              )}
+            </Text>
+            <Pressable
+              onPress={() => {
+                haptic.medium();
+                setYtLoginVisible(true);
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+                paddingVertical: 11,
+                borderRadius: 8,
+              })}
+            >
+              <Ionicons name="logo-youtube" size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                {youtubeCookies.length > 0
+                  ? t('settings.youtubeReSignIn', 'Re-sign in to YouTube')
+                  : t('settings.youtubeSignIn', 'Sign in to YouTube')}
+              </Text>
+            </Pressable>
+            {youtubeCookies.length > 0 && (
+              <Pressable
+                onPress={() => {
+                  haptic.selection();
+                  setYoutubeCookiesInput('');
+                  void setYoutubeCookies('');
+                }}
+                style={({ pressed }) => ({
+                  paddingVertical: 8,
+                  alignItems: 'center',
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '600' }}>
+                  {t('settings.youtubeClearCookies', 'Clear saved cookies')}
+                </Text>
+              </Pressable>
             )}
-          />
+            <Pressable
+              onPress={() => setYoutubeCookiesVisible((v) => !v)}
+              style={{ paddingVertical: 4, alignItems: 'center' }}
+            >
+              <Text style={{ color: '#71717a', fontSize: 10 }}>
+                {youtubeCookiesVisible
+                  ? t('settings.youtubeHideManual', 'Hide manual paste')
+                  : t('settings.youtubeShowManual', 'Or paste cookies manually')}
+              </Text>
+            </Pressable>
+            {youtubeCookiesVisible && (
+              <View style={{ gap: 8 }}>
+                <TextInput
+                  value={youtubeCookiesInput}
+                  onChangeText={setYoutubeCookiesInput}
+                  placeholder={'# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t…'}
+                  placeholderTextColor="#52525b"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  multiline
+                  numberOfLines={4}
+                  style={{
+                    backgroundColor: 'rgba(0,0,0,0.25)',
+                    borderRadius: 8,
+                    paddingHorizontal: 10,
+                    paddingVertical: 8,
+                    color: '#f1f2f2',
+                    fontSize: 11,
+                    minHeight: 80,
+                    textAlignVertical: 'top',
+                  }}
+                />
+                <Pressable
+                  onPress={() => setYoutubeCookies(youtubeCookiesInput.trim())}
+                  disabled={youtubeCookiesInput.trim() === youtubeCookies}
+                  style={({ pressed }) => ({
+                    paddingVertical: 8,
+                    borderRadius: 8,
+                    backgroundColor:
+                      youtubeCookiesInput.trim() === youtubeCookies
+                        ? 'rgba(255,255,255,0.04)'
+                        : pressed
+                          ? '#cc0d2e'
+                          : '#ff1039',
+                    alignItems: 'center',
+                    opacity: youtubeCookiesInput.trim() === youtubeCookies ? 0.5 : 1,
+                  })}
+                >
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>
+                    {t('settings.youtubeManualSave', 'Save pasted cookies')}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Export-Settings */}
@@ -531,6 +631,11 @@ export function SettingsScreen() {
           void setGameplayRegion(gp);
           setRegionModalVisible(false);
         }}
+      />
+
+      <YouTubeLoginModal
+        visible={ytLoginVisible}
+        onClose={() => setYtLoginVisible(false)}
       />
     </SafeAreaView>
   );
