@@ -106,10 +106,25 @@ export function SubtitleOverlay({
           highlightGlow={settings.highlightGlow ?? false}
           highlightGlowColor={settings.highlightGlowColor ?? '#ffffff'}
           highlightGlowStrength={settings.highlightGlowStrength ?? 0.6}
-          useGradientRender={useGradientRender}
-          gradientFrom={settings.gradientFrom ?? settings.textColor ?? '#ff1039'}
-          gradientTo={settings.gradientTo ?? '#ff8c00'}
-          metallic={settings.metallic ?? false}
+          useGradientRender={
+            useGradientRender ||
+            (settings.highlightUseGradient ?? false) ||
+            (settings.highlightMetallic ?? false)
+          }
+          gradientFrom={
+            settings.highlightGradientFrom ??
+            settings.gradientFrom ??
+            settings.highlightColor ??
+            '#ff1039'
+          }
+          gradientTo={
+            settings.highlightGradientTo ??
+            settings.gradientTo ??
+            '#ff8c00'
+          }
+          metallic={
+            (settings.metallic ?? false) || (settings.highlightMetallic ?? false)
+          }
           upper={upper}
         />
       ) : useGradientRender ? (

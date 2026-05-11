@@ -1120,9 +1120,11 @@ function TikTokTab({
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* 9:16-Aspect-Preview mit Layout-spezifischer Darstellung. */}
+      {/* 9:16-Aspect-Preview mit Layout-spezifischer Darstellung.
+          Width 75% = identisch zur Modal-Preview-Card → User sieht
+          Subtitle-Overlay in gleicher Proportion in beiden Previews. */}
       <View style={{ alignItems: 'center' }}>
-        <View style={{ width: '65%' }}>
+        <View style={{ width: '75%' }}>
           <LayoutPreview
             layout={layout}
             sourceUri={project.sourceUri}
