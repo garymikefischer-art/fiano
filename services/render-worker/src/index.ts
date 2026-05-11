@@ -37,20 +37,45 @@ import {
 } from './r2.js';
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
-const SUPABASE_URL = required('SUPABASE_URL');
-const SUPABASE_SERVICE_ROLE_KEY = required('SUPABASE_SERVICE_ROLE_KEY');
+const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const MAX_DURATION_SEC = parseInt(process.env.MAX_DURATION_SEC ?? '300', 10);
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+// Soft-Check: log warnings statt exit(1). Damit /health antwortet auch wenn
+// env-vars fehlen — Cloud Run macht so wenigstens den Listen-Probe success.
+// Echte Requests an /v1/* failen dann mit klarer 500-Fehlermeldung.
+const ENV_OK = !!(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+if (!ENV_OK) {
+  console.error(
+    '[boot] WARNING: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing — /v1/* endpoints will fail.',
+  );
+}
+
+// Wenn env fehlt: erstelle trotzdem einen client mit placeholder values.
+// Beim ersten echten Request kommt dann ein klarer 401-Auth-Failure statt
+// startup-Crash. /health antwortet weiterhin mit env: { supabase: false }.
+const supabase = createClient(
+  SUPABASE_URL || 'https://placeholder.supabase.co',
+  SUPABASE_SERVICE_ROLE_KEY || 'placeholder',
+  { auth: { autoRefreshToken: false, persistSession: false } },
+);
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
 
-// Liveness probe.
+// Liveness probe. Returns env-status damit man von außen sieht ob env-vars
+// gesetzt sind. Falls fehlt: env=false in der Response, dann den Cloud-Run-
+// Deploy nochmal mit --set-env-vars korrigieren.
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, version: '0.2.0', storage: 'r2' });
+  res.json({
+    ok: true,
+    version: '0.2.0',
+    storage: 'r2',
+    env: {
+      supabase: !!SUPABASE_URL && !!SUPABASE_SERVICE_ROLE_KEY,
+      r2: !!process.env.R2_ACCOUNT_ID && !!process.env.R2_ACCESS_KEY_ID,
+    },
+  });
 });
 
 /**
@@ -182,12 +207,3 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`fiano-render-worker v0.2.0 (R2) listening on :${PORT}`);
 });
-
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v) {
-    console.error(`Missing required env var: ${name}`);
-    process.exit(1);
-  }
-  return v;
-}
