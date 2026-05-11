@@ -67,15 +67,20 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
         elevation: 12,
       }}
     >
-      <BlurView intensity={100} tint="dark" style={{ flex: 1 }}>
+      <BlurView
+        intensity={100}
+        tint="dark"
+        experimentalBlurMethod="dimezisBlurView"
+        style={{ flex: 1 }}
+      >
         <View
           style={{
             flexDirection: 'row',
             paddingVertical: 7,
             paddingHorizontal: 6,
-            backgroundColor: 'rgba(13,16,20,0.15)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.12)',
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            borderWidth: 1.5,
+            borderColor: 'rgba(255,255,255,0.22)',
             borderRadius: 28,
           }}
         >

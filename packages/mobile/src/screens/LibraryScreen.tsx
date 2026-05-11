@@ -12,7 +12,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuthStore } from '../stores/authStore';
-import { useProjects, useProjectsStore, type Project } from '../stores/projectsStore';
+import { useProjects, useProjectsStore, flushProjectsNow, type Project } from '../stores/projectsStore';
 import { useUnreadCount } from '../stores/notificationsStore';
 import { FianoLogo } from '../components/FianoLogo';
 import { BackgroundGlow } from '../components/BackgroundGlow';
@@ -110,6 +110,7 @@ export function LibraryScreen() {
                 status: 'ready',
                 errorMessage: undefined,
               });
+              await flushProjectsNow();
               haptic.success();
               Alert.alert(
                 t('library.analyzeDoneTitle', 'AI analysis complete'),
