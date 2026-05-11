@@ -19,5 +19,6 @@ export const ENV = {
   REVENUECAT_ANDROID_KEY: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? '',
   // Phase 9.6 Cloud-Render-Worker URL (Google Cloud Run). Optional — wenn leer,
   // ist Cloud-Render deaktiviert (ExportScreen zeigt 'coming soon').
-  RENDER_WORKER_URL: process.env.EXPO_PUBLIC_RENDER_WORKER_URL ?? '',
+  // .trim() für trailing whitespace / newlines aus malformed .env files.
+  RENDER_WORKER_URL: (process.env.EXPO_PUBLIC_RENDER_WORKER_URL ?? '').trim(),
 };

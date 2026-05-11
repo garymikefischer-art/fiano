@@ -42,11 +42,25 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     );
   }
 
+  // Validiere URL-Format um klare Errors zu geben statt fetch-internal "invalid URL".
+  let base: string;
+  try {
+    const u = new URL(ENV.RENDER_WORKER_URL);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+      throw new Error('protocol must be http/https');
+    }
+    base = `${u.protocol}//${u.host}${u.pathname.replace(/\/$/, '')}`;
+  } catch (e) {
+    throw new Error(
+      `RENDER_WORKER_URL ist ungültig: "${ENV.RENDER_WORKER_URL}" ` +
+      `(${e instanceof Error ? e.message : 'unbekannter Fehler'}). ` +
+      'Prüfe packages/mobile/.env — die Zeile muss auf eigener Zeile stehen + mit https:// anfangen.',
+    );
+  }
+
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) throw new Error('Nicht eingeloggt — Login zuerst.');
   const token = session.session.access_token;
-
-  const base = ENV.RENDER_WORKER_URL.replace(/\/$/, '');
 
   // ─── 1. Pre-Signed Upload-URL holen ───────────────────────────────
   opts.onUploadProgress?.(0);
