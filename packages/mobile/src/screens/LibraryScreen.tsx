@@ -148,22 +148,22 @@ export function LibraryScreen() {
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
-      {/* Header — paddingHorizontal 12 statt 20 plus negative-marginLeft für
-          das SVG-Inner-Padding (Logo hat ~75px Whitespace im viewBox). Damit
-          fluchtet das fiano-Logo bündig mit dem Title "Bibliothek" unten. */}
+      {/* Header — paddingHorizontal=20 ident mit body. marginLeft=-9 gleicht
+          das SVG-viewBox-Inner-Padding (~75/1000 = 7.5% bei height=72) aus.
+          Damit beginnt das sichtbare Logo-Pixel bei exakt 20px (= Body-Title). */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingHorizontal: 12,
+          paddingHorizontal: 20,
           paddingTop: 4,
           paddingBottom: 6,
           borderBottomWidth: 1,
           borderBottomColor: 'rgba(255,255,255,0.06)',
         }}
       >
-        <View style={{ marginLeft: -10 }}>
+        <View style={{ marginLeft: -9 }}>
           <FianoLogo height={72} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

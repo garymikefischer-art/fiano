@@ -1320,6 +1320,7 @@ function TikTokTab({
     updateProject(project.id, { subtitles: { ...subSettings, enabled: next } });
   };
   const [subModalOpen, setSubModalOpen] = useState(false);
+  const [tiktokCueEditorOpen, setTiktokCueEditorOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const exportSettings = useAppStore((s) => s.exportSettings);
   const setExportSettingsStore = useAppStore((s) => s.setExportSettings);
@@ -1452,9 +1453,13 @@ function TikTokTab({
       <View style={{ alignItems: 'center' }}>
         <View style={{ width: '75%' }}>
           <LayoutPreview
-            key={effectiveSourceUri /* re-mount bei Clip-Wechsel damit Video reloaded */}
+            /* Re-Mount bei Clip-Wechsel: key inkludiert trim, sodass auch bei
+               single-source-multi-clips (Highlights) der Player neu lädt und
+               via seekToSec ab clip.startSec spielt. */
+            key={`${effectiveSourceUri}-${effectiveTrimStart}`}
             layout={layout}
             sourceUri={effectiveSourceUri}
+            seekToSec={effectiveTrimStart}
             thumbHue={project.thumbHue}
             thumbUri={selectedClip?.thumbUri ?? project.thumbUri}
             facecamRegion={facecamRegion}
@@ -1875,6 +1880,32 @@ function TikTokTab({
             <Ionicons name="options-outline" size={16} color="#a1a1aa" />
           </Pressable>
         </View>
+        {/* Phase 9.6.7f — Edit-Cues-Button direkt im 9:16-Tab sichtbar wenn
+            cues vorhanden, ohne Subtitle-Modal-Umweg. Bearbeitet einzelne
+            Untertitel-Texte (Wörter pro Cue). */}
+        {(subSettings.cues?.length ?? 0) > 0 && (
+          <Pressable
+            onPress={() => {
+              haptic.medium();
+              setTiktokCueEditorOpen(true);
+            }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'rgba(255,16,57,0.10)',
+              borderTopWidth: 1,
+              borderTopColor: 'rgba(255,16,57,0.25)',
+            })}
+          >
+            <Ionicons name="create-outline" size={14} color="#ff1039" />
+            <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '700' }}>
+              {t('tiktok.editCuesInline', `Edit subtitle text (${subSettings.cues!.length} cues)`)}
+            </Text>
+          </Pressable>
+        )}
         <Divider />
         <MultiAudioPicker
           tracks={musicTracks}
@@ -2067,6 +2098,16 @@ function TikTokTab({
         />
       )}
 
+      {/* Inline-Cue-Editor (Phase 9.6.7f) — direkt vom 9:16-Tab erreichbar. */}
+      <CueEditorModal
+        visible={tiktokCueEditorOpen}
+        cues={subSettings.cues ?? []}
+        onClose={() => setTiktokCueEditorOpen(false)}
+        onSave={(nextCues) =>
+          updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
+        }
+      />
+
       {/* Export-Settings-Modal vor Export-Click. */}
       {exportModalOpen && effectiveSourceUri && (
         <ExportSettingsModal
@@ -2104,6 +2145,7 @@ function LayoutPreview({
   showOverlay,
   splitRatio,
   fullOffsetX = 0.5,
+  seekToSec = 0,
   subtitles,
   musicTracks,
   introUri,
@@ -2118,6 +2160,11 @@ function LayoutPreview({
   showOverlay: boolean;
   splitRatio: number;
   fullOffsetX?: number;
+  /** Phase 9.6.7f: Beim Highlight-Clip-Click springt das Video auf clip.startSec.
+   *  Bei single-source-multi-clips (AI-Highlights) ändert sich nur seekToSec
+   *  (sourceUri bleibt gleich) — der key={...seekToSec} im Parent erzwingt
+   *  re-mount, beim onLoad seekt das Video. */
+  seekToSec?: number;
   subtitles?: SubtitleSettings;
   musicTracks?: { path: string; volume: number }[];
   introUri?: string;
@@ -2145,7 +2192,7 @@ function LayoutPreview({
   }
 
   if (layout === 'full') {
-    return <FullModePreview sourceUri={sourceUri} offsetX={fullOffsetX} />;
+    return <FullModePreview sourceUri={sourceUri} offsetX={fullOffsetX} seekToSec={seekToSec} />;
   }
 
   // stacked + split: ein gemeinsamer Wrapper mit zentralem Control-Overlay.
@@ -2161,6 +2208,7 @@ function LayoutPreview({
       gameplayRegion={gameplayRegion}
       showOverlay={showOverlay}
       splitRatio={splitRatio}
+      seekToSec={seekToSec}
       subtitles={subtitles}
       musicTracks={musicTracks}
       introUri={introUri}
@@ -2177,9 +2225,11 @@ function LayoutPreview({
 function FullModePreview({
   sourceUri,
   offsetX,
+  seekToSec = 0,
 }: {
   sourceUri?: string;
   offsetX: number;
+  seekToSec?: number;
 }) {
   const [paused, setPaused] = useState(true);
   const videoRef = useRef<VideoRef>(null);
@@ -2217,6 +2267,12 @@ function FullModePreview({
             style={StyleSheet.absoluteFill}
             ignoreSilentSwitch="ignore"
             disableFocus
+            onLoad={() => {
+              // Seek zum Clip-Start (für single-source-multi-clips Highlights).
+              if (seekToSec > 0 && videoRef.current) {
+                videoRef.current.seek(seekToSec);
+              }
+            }}
             bufferConfig={{
               minBufferMs: 1500,
               maxBufferMs: 3000,
@@ -2263,6 +2319,7 @@ function StackedSplitPreview({
   gameplayRegion,
   showOverlay,
   splitRatio,
+  seekToSec = 0,
   subtitles,
   musicTracks,
   introUri,
@@ -2276,6 +2333,8 @@ function StackedSplitPreview({
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
   splitRatio: number;
+  /** Phase 9.6.7f: seek-Position beim Mount (Highlight-Clip-Start). */
+  seekToSec?: number;
   subtitles?: SubtitleSettings;
   /** Music-Tracks für Live-Preview-Audio (Phase 9.6.4). Spielt nur den ersten Track. */
   musicTracks?: { path: string; volume: number }[];
@@ -2319,6 +2378,12 @@ function StackedSplitPreview({
   // Master = facecam-Pane (treibt Scrubber + Slave-Sync).
   const handleMasterLoad = (d: OnLoadData) => {
     setDurationSec(d.duration);
+    // Phase 9.6.7f: Highlight-Clip-Start — beide Panes auf seekToSec springen.
+    if (seekToSec > 0) {
+      facecamRef.current?.seek(seekToSec);
+      gameplayRef.current?.seek(seekToSec);
+      setCurrentSec(seekToSec);
+    }
   };
   const handleMasterProgress = (d: OnProgressData) => {
     setCurrentSec(d.currentTime);
