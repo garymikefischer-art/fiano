@@ -18,7 +18,10 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { ensureLocalCopy, saveToCameraRoll } from '../lib/mediaPicker';
 import { runRenderJob } from '../lib/renderJob';
-import { buildMobileExportArgs } from '@fiano/shared/ffmpegArgs';
+import { buildTikTokExportArgs } from '@fiano/shared/ffmpegArgs';
+import { useAppStore } from '../stores/appStore';
+import { useProject } from '../stores/projectsStore';
+import { DEFAULT_SPLIT_RATIO } from '../data/demoProjects';
 import { BrandButton } from '../components/BrandButton';
 import { ProgressBar } from '../components/ProgressBar';
 import { BackgroundGlow } from '../components/BackgroundGlow';
@@ -44,6 +47,9 @@ export function ExportScreen() {
   const job = useJobStore((s) => s.current);
   const addNotification = useNotificationsStore((s) => s.add);
   const updateProject = useProjectsStore((s) => s.updateProject);
+  const project = useProject(params.projectId);
+  const defaultFacecam = useAppStore((s) => s.facecamRegion);
+  const defaultGameplay = useAppStore((s) => s.gameplayRegion);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +73,14 @@ export function ExportScreen() {
       // 1. Lokale Source sicherstellen (file://-URI nicht asset://)
       const localSrc = await ensureLocalCopy(params.sourceUri);
 
-      // 2. FFmpeg-Args mit {SRC}/{DST}-Platzhaltern (Server ersetzt mit tmp-Pfaden)
-      const args = buildMobileExportArgs(
+      // 2. Layout + Regions vom Project ableiten (Fallback auf Settings-Defaults).
+      const layout = project?.tiktokLayout ?? 'stacked';
+      const facecamRegion = project?.facecamRegion ?? defaultFacecam ?? { x: 0.06, y: 0.06, w: 0.28, h: 0.32 };
+      const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
+      const splitRatio = project?.splitRatio ?? DEFAULT_SPLIT_RATIO;
+
+      // 3. FFmpeg-Args mit {SRC}/{DST}-Platzhaltern (Server ersetzt mit tmp-Pfaden)
+      const args = buildTikTokExportArgs(
         {
           src: '{SRC}',
           dst: '{DST}',
@@ -79,6 +91,20 @@ export function ExportScreen() {
           fps: 30,
           bitrate: '10M',
           encoder: 'software', // libx264 server-side für Codec-Konsistenz
+          layout,
+          facecamRegion: {
+            x: facecamRegion.x,
+            y: facecamRegion.y,
+            w: facecamRegion.w,
+            h: facecamRegion.h,
+          },
+          gameplayRegion: {
+            x: gameplayRegion.x,
+            y: gameplayRegion.y,
+            w: gameplayRegion.w,
+            h: gameplayRegion.h,
+          },
+          splitRatio,
         },
         'other',
       );

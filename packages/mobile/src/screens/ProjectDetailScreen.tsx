@@ -1081,7 +1081,18 @@ function TikTokTab({
   const gameplayRegion = project.gameplayRegion ?? defaultGameplay;
   const usingOverride = project.gameplayRegion != null || project.facecamRegion !== undefined;
 
-  const [layout, setLayout] = useState<Layout>('stacked');
+  const [layout, setLayoutState] = useState<Layout>(project.tiktokLayout ?? 'stacked');
+  // Sync wenn project von außen aktualisiert wird (anderer Tab/Device)
+  useEffect(() => {
+    if (project.tiktokLayout && project.tiktokLayout !== layout) {
+      setLayoutState(project.tiktokLayout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.tiktokLayout]);
+  const setLayout = (next: Layout) => {
+    setLayoutState(next);
+    updateProject(project.id, { tiktokLayout: next });
+  };
   const [splitRatio, setSplitRatio] = useState(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
   // Sync wenn das Project von außen aktualisiert wird (z.B. anderer Tab).
   useEffect(() => {

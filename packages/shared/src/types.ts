@@ -28,7 +28,10 @@ export interface FacecamRegion {
   height: number;
 }
 
-export type TikTokLayout = 'full' | 'stacked';
+/** Layout-Mode für 9:16-TikTok-Export. 'split' ist Mobile-spezifisch — Desktop
+ *  rendert 'full' und 'stacked'. Beide Plattformen nutzen den gleichen Type damit
+ *  shared/ffmpegArgs.ts unified bleibt. */
+export type TikTokLayout = 'full' | 'stacked' | 'split';
 
 /** Ein wiedergegebener Bereich des Master-Clips (in Sekunden ab Clip-Anfang). */
 export interface ClipSegment {
