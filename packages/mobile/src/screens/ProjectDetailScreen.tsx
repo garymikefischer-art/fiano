@@ -56,6 +56,7 @@ import {
   type RegionCroppedVideoHandle,
 } from '../components/RegionCroppedVideoPlayer';
 import { MusicPreviewPlayer } from '../components/MusicPreviewPlayer';
+import { VoiceOverPreviewPlayer } from '../components/VoiceOverPreviewPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
@@ -1192,6 +1193,11 @@ function TikTokTab({
             subtitles={subSettings}
             musicTracks={project.musicTracks?.map((m) => ({ path: m.path, volume: m.volume }))}
             introUri={project.intro?.path ?? undefined}
+            voiceOvers={project.voiceOvers?.map((vo) => ({
+              path: vo.path,
+              startSec: vo.startSec,
+              volume: vo.volume,
+            }))}
           />
         </View>
       </View>
@@ -1674,6 +1680,7 @@ function LayoutPreview({
   subtitles,
   musicTracks,
   introUri,
+  voiceOvers,
 }: {
   layout: Layout;
   sourceUri?: string;
@@ -1686,6 +1693,7 @@ function LayoutPreview({
   subtitles?: SubtitleSettings;
   musicTracks?: { path: string; volume: number }[];
   introUri?: string;
+  voiceOvers?: { path: string; startSec: number; volume: number }[];
 }) {
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
   // in einer nativen Phase — hier zeigen wir die Aufteilung via 1–2 Player +
@@ -1735,6 +1743,7 @@ function LayoutPreview({
       subtitles={subtitles}
       musicTracks={musicTracks}
       introUri={introUri}
+      voiceOvers={voiceOvers}
     />
   );
 }
@@ -1753,6 +1762,7 @@ function StackedSplitPreview({
   subtitles,
   musicTracks,
   introUri,
+  voiceOvers,
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
@@ -1767,6 +1777,8 @@ function StackedSplitPreview({
   musicTracks?: { path: string; volume: number }[];
   /** Intro-Video für Live-Preview (Phase 9.6.6). Wird VOR der Stacked-Preview gezeigt. */
   introUri?: string;
+  /** Voice-Overs für Live-Preview-Audio (Phase 9.6.4). Synchron zur Master-Position. */
+  voiceOvers?: { path: string; startSec: number; volume: number }[];
 }) {
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
@@ -1827,6 +1839,22 @@ function StackedSplitPreview({
     facecamRef.current?.seek(next);
     gameplayRef.current?.seek(next);
     setCurrentSec(next);
+    setControlsVisible(true);
+    // Wenn User zum Anfang zurück skipt (currentSec=0) + Intro vorhanden →
+    // Intro nochmal abspielen (analog Davinci-Resolve-Behaviour).
+    if (next === 0 && introUri) {
+      setIntroPlaying(true);
+    }
+  };
+
+  // Explicit Restart-from-Start (Replay): seek beide auf 0 + Intro neu starten.
+  const restartFromStart = () => {
+    haptic.selection();
+    facecamRef.current?.seek(0);
+    gameplayRef.current?.seek(0);
+    setCurrentSec(0);
+    if (introUri) setIntroPlaying(true);
+    setPaused(false);
     setControlsVisible(true);
   };
 
@@ -1912,18 +1940,30 @@ function StackedSplitPreview({
           Während Intro-Phase aus (Subtitle gehört zum Main-Clip). */}
       {subtitles && !introPlaying && <SubtitleOverlay settings={subtitles} />}
 
-      {/* Intro-Video (Phase 9.6.6 Preview) — full-screen cover, spielt vor Main.
-          onEnd → switch zu Main-Stacked-Preview. */}
-      {videosActive && introPlaying && introUri && (
+      {/* Intro-Video (Phase 9.6.6 Preview) — pre-mounted für weniger Stutter
+          beim zweiten+ Play. Sichtbarkeit via opacity-Toggle statt mount-unmount.
+          - introPlaying=true + opacity 1 + paused-Steuerung wie Main
+          - introPlaying=false + opacity 0 (decoder bleibt warm) */}
+      {videosActive && introUri && (
         <Video
           key={introUri}
           source={{ uri: introUri }}
-          paused={paused}
+          paused={paused || !introPlaying}
           repeat={false}
           resizeMode="cover"
           onEnd={() => setIntroPlaying(false)}
           onError={() => setIntroPlaying(false)}
-          style={StyleSheet.absoluteFill}
+          style={[
+            StyleSheet.absoluteFill,
+            { opacity: introPlaying ? 1 : 0 },
+          ]}
+          bufferConfig={{
+            // Größerer Buffer fürs Intro damit der zweite Play smooth läuft.
+            minBufferMs: 3000,
+            maxBufferMs: 6000,
+            bufferForPlaybackMs: 500,
+            bufferForPlaybackAfterRebufferMs: 1500,
+          }}
           ignoreSilentSwitch="ignore"
           disableFocus
         />
@@ -1938,6 +1978,22 @@ function StackedSplitPreview({
           paused={paused}
         />
       )}
+
+      {/* Voice-Over-Player (Phase 9.6.4 Preview) — synchron zur Master-Video-
+          Position. Nur während Main-Stacked-Preview, nicht im Intro. */}
+      {videosActive &&
+        !introPlaying &&
+        voiceOvers &&
+        voiceOvers.map((vo, i) => (
+          <VoiceOverPreviewPlayer
+            key={`${vo.path}-${i}`}
+            uri={vo.path}
+            startSec={vo.startSec}
+            volume={vo.volume}
+            currentSec={currentSec}
+            paused={paused}
+          />
+        ))}
 
       {/* Tap-Layer: toggelt Controls-Sichtbarkeit. Vor erstem Play sind die
           Controls IMMER sichtbar (User braucht den Play-Button). */}
@@ -1964,6 +2020,20 @@ function StackedSplitPreview({
             size={16}
             color="#fff"
           />
+        </Pressable>
+      )}
+
+      {/* Restart-Pill oben links — replay from start inkl. Intro. */}
+      {videosActive && (
+        <Pressable
+          onPress={restartFromStart}
+          hitSlop={6}
+          style={({ pressed }) => [
+            stackedStyles.mutePill,
+            { left: 10, right: undefined, opacity: pressed ? 0.6 : 0.9 },
+          ]}
+        >
+          <Ionicons name="refresh" size={16} color="#fff" />
         </Pressable>
       )}
 
