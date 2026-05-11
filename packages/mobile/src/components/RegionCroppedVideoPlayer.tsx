@@ -168,14 +168,14 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
           />
         )}
 
-        {/* Poster (Thumbnail) — wird nur gezeigt während des Initial-Loads des
-            VIDEOS (kurz bevor erste Frames kommen). Bei !enabled (Click-to-play)
-            zeigen wir KEIN Image mehr, sondern einen einfachen farbigen Background
-            — andernfalls dekodieren 4 Image-Komponenten dasselbe 1080p/4K-Frame
-            in 4 separate Bitmaps, was den Heap auf Mediatek-Phones sprengt.
-            Der Parent (StackedSplitPreview) rendert den Pill-Label + Play-Button
-            sowieso obendrüber. */}
-        {enabled && !videoSize && posterUri && (
+        {/* Poster (Thumbnail) — wird gezeigt:
+              - bei !enabled (Click-to-play, Stacked-Preview vor Tap-Play)
+              - oder als Fallback solange das Video noch keine Maße hat
+            cover-fit statt Region-Crop: Image-Decoder-Surface bleibt in Pane-
+            Größe (klein). Region-Cropping kommt erst beim Tap-Play durchs Video.
+            Mit largeHeap=true (app.config.js) ist 4× Image-Decode auf Mediatek-
+            Phones OK; ohne hatte es den Java-Heap gesprengt. */}
+        {(!enabled || (enabled && !videoSize)) && posterUri && (
           <Image
             source={{ uri: posterUri }}
             style={StyleSheet.absoluteFill}
