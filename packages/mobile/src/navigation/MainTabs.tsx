@@ -60,6 +60,31 @@ function quickOpenProject(
   );
 }
 
+/** Phase 9.8: Thumbs-Tab — Quick-Open zum ThumbnailGenerator des aktuellen Projekts. */
+function quickOpenThumbs(
+  navigation: { dispatch: (action: ReturnType<typeof CommonActions.navigate>) => void },
+) {
+  const target = pickProject();
+  if (!target) {
+    Alert.alert(
+      'Noch kein Projekt',
+      'Erstelle erst ein Projekt — Thumbnails werden pro Projekt generiert.',
+      [
+        {
+          text: 'Projekt erstellen',
+          onPress: () =>
+            navigation.dispatch(CommonActions.navigate({ name: 'AddVideoProject' })),
+        },
+        { text: 'Abbrechen', style: 'cancel' },
+      ],
+    );
+    return;
+  }
+  navigation.dispatch(
+    CommonActions.navigate({ name: 'ThumbnailGenerator', params: { projectId: target.id } }),
+  );
+}
+
 export function MainTabs() {
   return (
     <Tab.Navigator
@@ -95,6 +120,16 @@ export function MainTabs() {
           tabPress: (e) => {
             e.preventDefault();
             quickOpenProject(navigation.getParent() ?? navigation, 'builder');
+          },
+        })}
+      />
+      <Tab.Screen
+        name="Thumbs"
+        component={BuilderScreen /* placeholder — tabPress navigates direkt zum ThumbnailGenerator */}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            quickOpenThumbs(navigation.getParent() ?? navigation);
           },
         })}
       />
