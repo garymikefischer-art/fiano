@@ -18,21 +18,21 @@ interface Props {
 }
 
 export function SubtitlePreviewCard({ settings, demoBig, demoSmall }: Props) {
-  // In der Modal-Preview wollen wir den Text auch sehen wenn der User das
-  // Subtitle-Feature global aus hat — sonst weiß er nicht wie's aussähe.
-  const previewSettings = { ...settings, enabled: true };
   return (
     <View style={styles.card}>
       <View style={styles.frame}>
         <SubtitleOverlay
-          settings={previewSettings}
+          settings={settings}
           demoBig={demoBig}
           demoSmall={demoSmall}
+          forceVisible
         />
       </View>
-      <Text style={styles.note}>
-        ⓘ Preview zeigt ~80% der Effekte. Gradient/Metallic kommen beim Export.
-      </Text>
+      {!settings.enabled && (
+        <Text style={styles.note}>
+          ⓘ Untertitel sind aktuell deaktiviert — Toggle oben drüber, um sie im Export zu aktivieren.
+        </Text>
+      )}
     </View>
   );
 }

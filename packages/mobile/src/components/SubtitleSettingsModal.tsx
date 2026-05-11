@@ -153,6 +153,28 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
               {/* Live-Preview oben */}
               <SubtitlePreviewCard settings={local} />
 
+              {/* 0. Enable-Toggle als Erstes — sonst sieht der User Subtitle nur im
+                  Modal-Preview, nicht in der echten Stacked-Preview oben im Tab. */}
+              <View style={styles.enableRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.enableTitle}>Enable subtitles</Text>
+                  <Text style={styles.enableSub}>
+                    {local.enabled
+                      ? 'Untertitel werden in der 9:16-Preview & beim Export angezeigt.'
+                      : 'Aktivieren, um den Untertitel im Video sichtbar zu machen.'}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    haptic.selection();
+                    patch({ enabled: !local.enabled });
+                  }}
+                  style={[styles.toggleTrack, local.enabled && styles.toggleTrackOn]}
+                >
+                  <View style={[styles.toggleThumb, local.enabled && styles.toggleThumbOn]} />
+                </Pressable>
+              </View>
+
               {/* 1. Preset */}
               <Section title="STYLE">
                 <View style={styles.optionGrid}>
@@ -796,6 +818,28 @@ const styles = StyleSheet.create({
     color: '#52525b',
     fontSize: 10,
     fontStyle: 'italic',
+  },
+  enableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,16,57,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,16,57,0.18)',
+  },
+  enableTitle: {
+    color: '#f1f2f2',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  enableSub: {
+    color: '#a1a1aa',
+    fontSize: 11,
+    marginTop: 3,
+    lineHeight: 15,
   },
   doneBtn: {
     backgroundColor: '#ff1039',
