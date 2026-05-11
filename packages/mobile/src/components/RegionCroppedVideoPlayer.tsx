@@ -168,13 +168,14 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
           />
         )}
 
-        {/* Poster (Thumbnail) — wird gezeigt wenn !enabled (click-to-play) ODER als
-            Fallback solange das Video noch keine Maße hat.
-            WICHTIG: cover-fit statt Region-Crop. Bei Region-Crop hätte das Image-
-            Decoder-Surface die scaled Größe (z.B. 4× Pane = 16× RGBA-RAM) und
-            Android-Heap explodiert. Wer das echte Region-Cropping will, tippt auf
-            Play — dann macht der Video-Decoder das. */}
-        {(!enabled || (enabled && !videoSize)) && posterUri && (
+        {/* Poster (Thumbnail) — wird nur gezeigt während des Initial-Loads des
+            VIDEOS (kurz bevor erste Frames kommen). Bei !enabled (Click-to-play)
+            zeigen wir KEIN Image mehr, sondern einen einfachen farbigen Background
+            — andernfalls dekodieren 4 Image-Komponenten dasselbe 1080p/4K-Frame
+            in 4 separate Bitmaps, was den Heap auf Mediatek-Phones sprengt.
+            Der Parent (StackedSplitPreview) rendert den Pill-Label + Play-Button
+            sowieso obendrüber. */}
+        {enabled && !videoSize && posterUri && (
           <Image
             source={{ uri: posterUri }}
             style={StyleSheet.absoluteFill}
