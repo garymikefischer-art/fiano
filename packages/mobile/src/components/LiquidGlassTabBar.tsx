@@ -29,8 +29,8 @@ const TAB_ICONS: Record<string, { active: IconName; inactive: IconName }> = {
 const TAB_I18N_KEYS: Record<string, { key: string; fallback: string }> = {
   Home: { key: 'sidebar.home', fallback: 'Home' },
   Library: { key: 'sidebar.projects', fallback: 'Projects' },
-  Clips: { key: 'sidebar.clips', fallback: 'Clips' },
-  TikTok: { key: 'tab.tiktok', fallback: 'TikTok' },
+  Clips: { key: 'tab.highlights', fallback: 'Highlights' },
+  TikTok: { key: 'tab.nineSixteen', fallback: '9:16' },
   Builder: { key: 'sidebar.builder', fallback: 'Builder' },
 };
 

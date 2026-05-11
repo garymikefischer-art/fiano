@@ -18,6 +18,7 @@ const GAMEPLAY_KEY = 'fiano.region.gameplay';
 const OPENAI_KEY = 'fiano.api.openai';
 const GEMINI_KEY = 'fiano.api.gemini';
 const EXPORT_KEY = 'fiano.export.settings';
+const LAST_PROJECT_KEY = 'fiano.lastOpenedProject';
 
 /** Region-Coords als Anteile (0..1) auf der Source-Video-Fläche. */
 export interface Region {
@@ -72,6 +73,8 @@ interface AppState {
   geminiKey: string;
   /** Default-Export-Settings für 9:16 + Builder Renders. */
   exportSettings: ExportSettings;
+  /** Letzte projectId die der User in ProjectDetail geöffnet hat — für Tab-Quick-Open. */
+  lastOpenedProjectId: string | null;
 
   init: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -81,6 +84,7 @@ interface AppState {
   setOpenaiKey: (k: string) => Promise<void>;
   setGeminiKey: (k: string) => Promise<void>;
   setExportSettings: (s: ExportSettings) => Promise<void>;
+  setLastOpenedProjectId: (id: string) => Promise<void>;
 }
 
 /** Liest entweder einen JSON-Region oder einen Legacy-Preset-String. */
@@ -118,16 +122,18 @@ export const useAppStore = create<AppState>((set) => ({
   openaiKey: '',
   geminiKey: '',
   exportSettings: DEFAULT_EXPORT,
+  lastOpenedProjectId: null,
 
   init: async () => {
     try {
-      const [onboarding, facecam, gameplay, openai, gemini, exportRaw] = await Promise.all([
+      const [onboarding, facecam, gameplay, openai, gemini, exportRaw, lastProject] = await Promise.all([
         SecureStore.getItemAsync(ONBOARDING_KEY),
         SecureStore.getItemAsync(FACECAM_KEY),
         SecureStore.getItemAsync(GAMEPLAY_KEY),
         SecureStore.getItemAsync(OPENAI_KEY),
         SecureStore.getItemAsync(GEMINI_KEY),
         SecureStore.getItemAsync(EXPORT_KEY),
+        SecureStore.getItemAsync(LAST_PROJECT_KEY),
       ]);
       let exportSettings = DEFAULT_EXPORT;
       if (exportRaw) {
@@ -146,6 +152,7 @@ export const useAppStore = create<AppState>((set) => ({
         openaiKey: openai ?? '',
         geminiKey: gemini ?? '',
         exportSettings,
+        lastOpenedProjectId: lastProject ?? null,
         initializing: false,
       });
     } catch {
@@ -217,6 +224,15 @@ export const useAppStore = create<AppState>((set) => ({
     set({ exportSettings: s });
     try {
       await SecureStore.setItemAsync(EXPORT_KEY, JSON.stringify(s));
+    } catch {
+      /* ignore */
+    }
+  },
+
+  setLastOpenedProjectId: async (id) => {
+    set({ lastOpenedProjectId: id });
+    try {
+      await SecureStore.setItemAsync(LAST_PROJECT_KEY, id);
     } catch {
       /* ignore */
     }
