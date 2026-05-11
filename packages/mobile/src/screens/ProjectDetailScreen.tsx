@@ -23,7 +23,12 @@ import {
   View,
   StatusBar as RNStatusBar,
 } from 'react-native';
-import Video, { type OnLoadData, type OnProgressData, type OnVideoErrorData } from 'react-native-video';
+import Video, {
+  type OnLoadData,
+  type OnProgressData,
+  type OnVideoErrorData,
+  type VideoRef,
+} from 'react-native-video';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -343,16 +348,27 @@ function HighlightsTab({
         onUploadProgress: setUploadProgress,
       });
       const existing = project.subtitles ?? DEFAULT_SUBTITLES;
+      // Phase 9.6.7b: AI-Highlights als project.clips persistieren.
+      // Fallback wenn 0 highlights: behalte existing clips (z.B. Multi-Clip-Sources).
+      const newClips =
+        result.highlights.length > 0
+          ? result.highlights.map((h, i) => ({
+              id: `ai-${Date.now().toString(36)}-${i}`,
+              startSec: h.startSec,
+              endSec: h.endSec,
+              label: h.label,
+              score: h.score,
+            }))
+          : project.clips;
       useProjectsStore.getState().updateProject(project.id, {
         subtitles: { ...existing, enabled: true, cues: result.cues },
+        clips: newClips,
+        status: 'ready',
       });
       haptic.success();
       Alert.alert(
         t('highlights.analyzeDoneTitle', 'AI analysis complete'),
-        t(
-          'highlights.analyzeDoneBody',
-          `${result.cues.length} subtitle cues generated. Tap 'Edit cues' to refine.`,
-        ).replace('${count}', String(result.cues.length)),
+        `${result.cues.length} cues · ${result.highlights.length} highlight clips detected. Tap 'Edit cues' to refine subtitles.`,
       );
     } catch (err: any) {
       haptic.error();
@@ -2128,39 +2144,7 @@ function LayoutPreview({
   }
 
   if (layout === 'full') {
-    // Full-Mode: 9:16 cover-crop mit horizontalem Offset-Slider (Phase 9.5.8.4).
-    // Annahme: Source ist 16:9. Inner-View 316% Breite = 16:9 in 9:16-Container
-    // by-height-fit. Movable horizontal range = 216% of container.width.
-    // translateX bei offsetX=0 → 0 (linker Source-Edge sichtbar),
-    //              bei offsetX=1 → -216% (rechter Source-Edge sichtbar),
-    //              bei offsetX=0.5 → -108% (center).
-    const offX = Math.min(1, Math.max(0, fullOffsetX));
-    const leftPct = -216 * offX;
-    return (
-      <View
-        style={{
-          position: 'relative',
-          aspectRatio: 9 / 16,
-          overflow: 'hidden',
-          borderRadius: 18,
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
-          backgroundColor: '#000',
-        }}
-      >
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            width: '316%',
-            left: `${leftPct}%` as `${number}%`,
-          }}
-        >
-          <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
-        </View>
-      </View>
-    );
+    return <FullModePreview sourceUri={sourceUri} offsetX={fullOffsetX} />;
   }
 
   // stacked + split: ein gemeinsamer Wrapper mit zentralem Control-Overlay.
@@ -2181,6 +2165,89 @@ function LayoutPreview({
       introUri={introUri}
       voiceOvers={voiceOvers}
     />
+  );
+}
+
+/**
+ * Full-Mode Preview (Phase 9.5.8.4) — separater Player damit die Tap-to-Play
+ * Controls AUSSERHALB der translated Inner-View liegen. Sonst würden die
+ * Controls mit dem Video-Crop nach links/rechts wandern (User-Report).
+ */
+function FullModePreview({
+  sourceUri,
+  offsetX,
+}: {
+  sourceUri?: string;
+  offsetX: number;
+}) {
+  const [paused, setPaused] = useState(true);
+  const videoRef = useRef<VideoRef>(null);
+  const off = Math.min(1, Math.max(0, offsetX));
+  const leftPct = -216 * off;
+  return (
+    <View
+      style={{
+        position: 'relative',
+        aspectRatio: 9 / 16,
+        overflow: 'hidden',
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: '#000',
+      }}
+    >
+      {/* Transformed Inner-View — ONLY the video, NOT the controls. */}
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          width: '316%',
+          left: `${leftPct}%` as `${number}%`,
+        }}
+      >
+        {sourceUri ? (
+          <Video
+            ref={videoRef}
+            source={{ uri: sourceUri }}
+            paused={paused}
+            repeat
+            resizeMode="cover"
+            style={StyleSheet.absoluteFill}
+            ignoreSilentSwitch="ignore"
+            disableFocus
+            bufferConfig={{
+              minBufferMs: 1500,
+              maxBufferMs: 3000,
+              bufferForPlaybackMs: 500,
+              bufferForPlaybackAfterRebufferMs: 1500,
+            }}
+          />
+        ) : null}
+      </View>
+      {/* Tap-to-Play Overlay — stays fixed in 9:16 container. */}
+      <Pressable
+        onPress={() => setPaused((p) => !p)}
+        style={StyleSheet.absoluteFill}
+      >
+        {paused && (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: 'rgba(255,16,57,0.85)',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons name="play" size={28} color="#fff" style={{ marginLeft: 3 }} />
+            </View>
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 

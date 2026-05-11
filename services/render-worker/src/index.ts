@@ -357,11 +357,14 @@ app.post('/v1/transcribe', authMiddleware(supabase), async (req: AuthedRequest, 
       jobId,
     });
     await unlink(sourceTmp).catch(() => {});
-    console.log(`[${jobId}] transcribe done cues=${result.cues.length} audioBytes=${result.audioBytes}`);
+    console.log(
+      `[${jobId}] transcribe done cues=${result.cues.length} highlights=${result.highlights.length} audioBytes=${result.audioBytes}`,
+    );
     return res.json({
       ok: true,
       jobId,
       cues: result.cues,
+      highlights: result.highlights,
       durationSec: result.durationSec,
     });
   } catch (e) {

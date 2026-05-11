@@ -21,6 +21,8 @@ import { SearchBar } from '../components/SearchBar';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge';
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
+import { transcribeVideo } from '../lib/whisper';
+import { DEFAULT_SUBTITLES } from '../data/demoProjects';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -33,6 +35,7 @@ export function LibraryScreen() {
   const removeProject = useProjectsStore((s) => s.removeProject);
   const unreadCount = useUnreadCount();
   const [query, setQuery] = useState('');
+  const [analyzingProjectId, setAnalyzingProjectId] = useState<string | null>(null);
 
   const onLongPressProject = (p: Project) => {
     haptic.warning();
@@ -47,6 +50,83 @@ export function LibraryScreen() {
           onPress: () => {
             haptic.success();
             removeProject(p.id);
+          },
+        },
+      ],
+    );
+  };
+
+  // Re-Analyze (Phase 9.6.7c) — Whisper-Transcribe + Highlight-Detection direkt
+  // aus der Library-Card. Bei done: project.clips + project.subtitles.cues.
+  const onReAnalyzeProject = (p: Project) => {
+    if (!p.sourceUri) {
+      Alert.alert(
+        t('library.noSourceTitle', 'No source video'),
+        t('library.noSourceBody', 'This project has no source video to analyze.'),
+      );
+      return;
+    }
+    if (analyzingProjectId) {
+      Alert.alert(
+        t('library.busyTitle', 'Already analyzing'),
+        t('library.busyBody', 'Wait for the current analysis to finish.'),
+      );
+      return;
+    }
+    Alert.alert(
+      t('library.reAnalyzeTitle', 'Re-analyze with AI'),
+      t(
+        'library.reAnalyzeBody',
+        'Run Whisper transcription + highlight detection. Existing cues and clips will be replaced. Uses your OpenAI API key.',
+      ),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('library.reAnalyzeConfirm', 'Analyze'),
+          onPress: async () => {
+            haptic.medium();
+            setAnalyzingProjectId(p.id);
+            useProjectsStore.getState().updateProject(p.id, { status: 'processing' });
+            try {
+              const result = await transcribeVideo({
+                sourceUri: p.sourceUri!,
+                projectId: p.id,
+              });
+              const existing = p.subtitles ?? DEFAULT_SUBTITLES;
+              const newClips =
+                result.highlights.length > 0
+                  ? result.highlights.map((h, i) => ({
+                      id: `ai-${Date.now().toString(36)}-${i}`,
+                      startSec: h.startSec,
+                      endSec: h.endSec,
+                      label: h.label,
+                      score: h.score,
+                    }))
+                  : p.clips;
+              useProjectsStore.getState().updateProject(p.id, {
+                subtitles: { ...existing, enabled: true, cues: result.cues },
+                clips: newClips,
+                status: 'ready',
+                errorMessage: undefined,
+              });
+              haptic.success();
+              Alert.alert(
+                t('library.analyzeDoneTitle', 'AI analysis complete'),
+                `${result.cues.length} cues · ${result.highlights.length} highlight clips`,
+              );
+            } catch (err: any) {
+              haptic.error();
+              useProjectsStore.getState().updateProject(p.id, {
+                status: 'failed',
+                errorMessage: err?.message ?? String(err),
+              });
+              Alert.alert(
+                t('library.analyzeFailed', 'Analysis failed'),
+                err?.message ?? String(err),
+              );
+            } finally {
+              setAnalyzingProjectId(null);
+            }
           },
         },
       ],
@@ -169,6 +249,8 @@ export function LibraryScreen() {
               project={p}
               onOpen={() => nav.navigate('ProjectDetail', { projectId: p.id })}
               onLongPress={() => onLongPressProject(p)}
+              onAnalyze={() => onReAnalyzeProject(p)}
+              analyzing={analyzingProjectId === p.id}
               t={t}
             />
           ))}
@@ -203,11 +285,15 @@ function ProjectCard({
   project,
   onOpen,
   onLongPress,
+  onAnalyze,
+  analyzing,
   t,
 }: {
   project: Project;
   onOpen: () => void;
   onLongPress: () => void;
+  onAnalyze: () => void;
+  analyzing: boolean;
   t: (k: string, f?: string) => string;
 }) {
   return (
@@ -270,20 +356,44 @@ function ProjectCard({
           {project.clips.length} {t('library.highlightsDetected', 'highlights detected')}
         </Text>
 
-        <Pressable
-          onPress={onOpen}
-          style={({ pressed }) => ({
-            marginTop: 6,
-            backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
-            borderRadius: 10,
-            paddingVertical: 8,
-            alignItems: 'center',
-          })}
-        >
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-            {t('library.openProject', 'Open')}
-          </Text>
-        </Pressable>
+        {/* Phase 9.6.7c: Open + Re-Analyze nebeneinander analog Desktop ProjectCard. */}
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+          <Pressable
+            onPress={onOpen}
+            style={({ pressed }) => ({
+              flex: 1,
+              backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+              borderRadius: 10,
+              paddingVertical: 8,
+              alignItems: 'center',
+            })}
+          >
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+              {t('library.openProject', 'Open')}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={onAnalyze}
+            disabled={analyzing || !project.sourceUri}
+            style={({ pressed }) => ({
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 10,
+              backgroundColor: 'rgba(255,255,255,0.06)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.10)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: analyzing || !project.sourceUri ? 0.5 : pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons
+              name={analyzing ? 'hourglass-outline' : 'sparkles-outline'}
+              size={14}
+              color="#f1f2f2"
+            />
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );

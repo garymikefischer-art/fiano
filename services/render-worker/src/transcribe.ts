@@ -20,6 +20,8 @@ import { createReadStream } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { detectHighlights, type Highlight } from './highlights.js';
+
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB Whisper-API-Limit
 
@@ -39,6 +41,8 @@ export interface TranscribeOpts {
 
 export interface TranscribeResult {
   cues: SubtitleCue[];
+  /** Phase 9.6.7b: erkannte Highlight-Clips aus den Cues (text-density-Heuristik). */
+  highlights: Highlight[];
   /** Vollständige Whisper-Response für debug/persist (optional Cache). */
   raw: unknown;
   audioBytes: number;
@@ -91,7 +95,11 @@ export async function transcribeAudio(opts: TranscribeOpts): Promise<TranscribeR
         ? (raw as { duration: number }).duration
         : 0;
 
-    return { cues, raw, audioBytes: audioStats.size, durationSec: duration };
+    // Phase 9.6.7b — Highlight-Detection als Heuristik auf den Cues.
+    const highlights = detectHighlights(cues);
+    console.log(`[${jobId}] highlights detected: ${highlights.length}`);
+
+    return { cues, highlights, raw, audioBytes: audioStats.size, durationSec: duration };
   } finally {
     await unlink(audioPath).catch(() => {});
   }
