@@ -55,6 +55,9 @@ export interface DemoProject {
   splitRatio?: number;
   /** 9:16 Layout-Mode beim Export — analog zum Layout-Picker im TikTok-Tab. */
   tiktokLayout?: 'stacked' | 'full' | 'split';
+  /** Horizontaler Offset für Layout='full' (0..1, default 0.5 = Mitte).
+   *  0 = ganz links sichtbar, 1 = ganz rechts. Phase 9.5.8.4. */
+  fullOffsetX?: number;
   /** AI-Voice-Overs (Phase 9.5.5). Mehrere TTS-Spuren mit Position im Output. */
   voiceOvers?: ProjectVoiceOver[];
   /** Subtitle-Styling (Phase 9.5.6). Alle Properties analog Desktop. */

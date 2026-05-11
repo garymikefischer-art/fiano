@@ -195,6 +195,11 @@ export interface TikTokExportOpts {
   /** Stacked: Höhenanteil der Facecam-Pane (0.2..0.8). Default 0.4. Split: Width-Anteil. */
   splitRatio?: number;
 
+  /** Phase 9.5.8.4: Horizontaler Offset für layout='full' (0..1, default 0.5 = Mitte).
+   *  Bei landscape-Source der zu 9:16 gecroppt wird, verschiebt der Slider den
+   *  sichtbaren Ausschnitt. 0 = ganz links, 1 = ganz rechts. */
+  fullOffsetX?: number;
+
   /* ─── Phase 9.6.4: Audio ─────────────────────────────────────── */
   /** Lautstärke des Source-Audio 0..1.5. Default 1. */
   sourceAudioVolume?: number;
@@ -321,9 +326,14 @@ export function buildTikTokExportArgs(
 
   // Video-Composition: layout-spezifisch. Endet auf [vmain].
   if (opts.layout === 'full') {
-    // Center-cover-crop auf 9:16.
+    // Cover-crop auf 9:16 mit horizontalem Offset (Phase 9.5.8.4).
+    // x = (iw - cropW) * offsetX → Slider verschiebt sichtbaren Ausschnitt.
+    // y bleibt zentriert (User-Wunsch: nur links/rechts beweglich).
+    const offX = clamp(opts.fullOffsetX ?? 0.5, 0, 1);
+    const cropW = `min(iw,ih*${W}/${H})`;
+    const cropH = `min(ih,iw*${H}/${W})`;
     filters.push(
-      `${srcVLabel}crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})',` +
+      `${srcVLabel}crop=${cropW}:${cropH}:(iw-${cropW})*${offX}:(ih-${cropH})/2,` +
         `scale=${W}:${H}:flags=lanczos,fps=${fps},setsar=1[vmain]`,
     );
   } else if (opts.layout === 'stacked') {

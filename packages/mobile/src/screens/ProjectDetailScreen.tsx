@@ -1108,6 +1108,10 @@ function TikTokTab({
   useEffect(() => {
     setSplitRatio(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
   }, [project.splitRatio]);
+  const [fullOffsetX, setFullOffsetX] = useState(project.fullOffsetX ?? 0.5);
+  useEffect(() => {
+    setFullOffsetX(project.fullOffsetX ?? 0.5);
+  }, [project.fullOffsetX]);
   // Subtitle-State aus project.subtitles ableiten. Echter DEFAULT-Merge: fehlende
   // Fields (z.B. weil project alt ist und neue Fields nicht hat) bekommen den
   // Default-Wert. Sonst gibt's false-positives wo undefined-fields den
@@ -1259,6 +1263,7 @@ function TikTokTab({
             gameplayRegion={gameplayRegion}
             showOverlay={showOverlay}
             splitRatio={splitRatio}
+            fullOffsetX={fullOffsetX}
             subtitles={subSettings}
             musicTracks={project.musicTracks?.map((m) => ({ path: m.path, volume: m.volume }))}
             introUri={project.intro?.path ?? undefined}
@@ -1462,6 +1467,65 @@ function TikTokTab({
           }}
         />
       </View>
+
+      {/* Full-Layout: horizontaler Offset-Slider (Phase 9.5.8.4).
+          Bei landscape-Source der zu 9:16 gecroppt wird, kann der User links/
+          rechts den sichtbaren Ausschnitt verschieben. Default 0.5 = Mitte. */}
+      {layout === 'full' && (
+        <View
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            gap: 10,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+              {t('tiktok.fullOffsetX', 'Horizontal position')}
+            </Text>
+            <Text
+              style={{
+                color: '#a1a1aa',
+                fontSize: 11,
+                fontWeight: '600',
+                fontVariant: ['tabular-nums'],
+              }}
+            >
+              {fullOffsetX <= 0.05
+                ? t('tiktok.fullOffsetLeft', 'Left')
+                : fullOffsetX >= 0.95
+                  ? t('tiktok.fullOffsetRight', 'Right')
+                  : `${Math.round(fullOffsetX * 100)}%`}
+            </Text>
+          </View>
+          <SimpleSlider
+            value={fullOffsetX}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={setFullOffsetX}
+            onCommit={(v) => {
+              haptic.selection();
+              updateProject(project.id, { fullOffsetX: v });
+            }}
+          />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: -4 }}>
+            <Text style={{ color: '#52525b', fontSize: 9 }}>{t('common.left', 'Left')}</Text>
+            <Text style={{ color: '#52525b', fontSize: 9 }}>{t('common.center', 'Center')}</Text>
+            <Text style={{ color: '#52525b', fontSize: 9 }}>{t('common.right', 'Right')}</Text>
+          </View>
+        </View>
+      )}
 
       {/* Facecam-Größe (nur stacked + split) — analog Desktop's SplitRatioSlider.
           Live-Update der Pane-Aufteilung in der Preview, persistierte Commit
@@ -1841,6 +1905,7 @@ function LayoutPreview({
   gameplayRegion,
   showOverlay,
   splitRatio,
+  fullOffsetX = 0.5,
   subtitles,
   musicTracks,
   introUri,
@@ -1854,6 +1919,7 @@ function LayoutPreview({
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
   splitRatio: number;
+  fullOffsetX?: number;
   subtitles?: SubtitleSettings;
   musicTracks?: { path: string; volume: number }[];
   introUri?: string;
@@ -1881,12 +1947,37 @@ function LayoutPreview({
   }
 
   if (layout === 'full') {
-    // Full-Mode: 9:16 cover-crop des ganzen Source, KEIN Region-Overlay.
-    // Bei Full gibt's keine Facecam/Gameplay-Aufteilung — der gesamte Frame
-    // wird zentriert gecroppt, Regions sind irrelevant.
+    // Full-Mode: 9:16 cover-crop mit horizontalem Offset-Slider (Phase 9.5.8.4).
+    // Annahme: Source ist 16:9. Inner-View 316% Breite = 16:9 in 9:16-Container
+    // by-height-fit. Movable horizontal range = 216% of container.width.
+    // translateX bei offsetX=0 → 0 (linker Source-Edge sichtbar),
+    //              bei offsetX=1 → -216% (rechter Source-Edge sichtbar),
+    //              bei offsetX=0.5 → -108% (center).
+    const offX = Math.min(1, Math.max(0, fullOffsetX));
+    const leftPct = -216 * offX;
     return (
-      <View style={{ position: 'relative' }}>
-        <VideoPlayer uri={sourceUri} resizeMode="cover" aspectRatio={9 / 16} />
+      <View
+        style={{
+          position: 'relative',
+          aspectRatio: 9 / 16,
+          overflow: 'hidden',
+          borderRadius: 18,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.08)',
+          backgroundColor: '#000',
+        }}
+      >
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            width: '316%',
+            left: `${leftPct}%` as `${number}%`,
+          }}
+        >
+          <VideoPlayer uri={sourceUri} resizeMode="cover" fill />
+        </View>
       </View>
     );
   }

@@ -122,6 +122,7 @@ export function ExportScreen() {
           facecamRegion: { x: facecamRegion.x, y: facecamRegion.y, w: facecamRegion.w, h: facecamRegion.h },
           gameplayRegion: { x: gameplayRegion.x, y: gameplayRegion.y, w: gameplayRegion.w, h: gameplayRegion.h },
           splitRatio,
+          fullOffsetX: project?.fullOffsetX,
           subtitle: subtitleArg,
           music: musicTracks.map((m, i) => ({ path: `{MUSIC_${i}}`, volume: m.volume })),
           voiceOvers: voiceOvers.map((vo, i) => ({
