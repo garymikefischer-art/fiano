@@ -22,7 +22,14 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, {
+  Defs,
+  FeGaussianBlur,
+  Filter,
+  LinearGradient,
+  Stop,
+  Text as SvgText,
+} from 'react-native-svg';
 import type {
   SubtitleFontFamily,
   SubtitleSettings,
@@ -78,7 +85,10 @@ export function SubtitleOverlay({
 
   const shadowStyle = buildShadowStyle(settings);
   const strokeApprox = strokeApproxStyle(settings);
-  const demoText = upper ? 'SUBTITLE PREVIEW' : 'Subtitle preview';
+  // Kurzer Demo-Text damit er auch in schmalen Preview-Containern (Modal-Mini-
+  // Preview, Stacked-Preview-Pane) komplett sichtbar bleibt — Width-Math im
+  // SvgGradientText kalkuliert grosszuegig aber wir wollen kein Overflow.
+  const demoText = upper ? 'SUBTITLE' : 'Subtitle';
 
   return (
     <View style={[styles.positioner, positionStyle, containerStyle]} pointerEvents="none">
@@ -113,6 +123,15 @@ export function SubtitleOverlay({
           metallic={settings.metallic ?? false}
           strokeWidth={settings.strokeWidth ?? 0}
           strokeColor={settings.strokeColor ?? '#000000'}
+          glowEnabled={settings.glowEnabled ?? false}
+          glowColor={settings.glowColor ?? '#ff1039'}
+          glowBlur={settings.glowBlur ?? 8}
+          glowStrength={settings.glowStrength ?? 0.7}
+          shadowEnabled={settings.shadowEnabled ?? false}
+          shadowColor={settings.shadowColor ?? '#000000'}
+          shadowOffsetX={settings.shadowOffsetX ?? 0}
+          shadowOffsetY={settings.shadowOffsetY ?? 2}
+          shadowBlur={settings.shadowBlur ?? 4}
         />
       ) : (
         <Text style={[baseTextStyle, shadowStyle, strokeApprox]}>{demoText}</Text>
@@ -133,6 +152,15 @@ interface SvgGradientTextProps {
   metallic: boolean;
   strokeWidth: number;
   strokeColor: string;
+  glowEnabled?: boolean;
+  glowColor?: string;
+  glowBlur?: number;
+  glowStrength?: number;
+  shadowEnabled?: boolean;
+  shadowColor?: string;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowBlur?: number;
 }
 
 function SvgGradientText({
@@ -145,11 +173,34 @@ function SvgGradientText({
   metallic,
   strokeWidth,
   strokeColor,
+  glowEnabled = false,
+  glowColor = '#ff1039',
+  glowBlur = 8,
+  glowStrength = 0.7,
+  shadowEnabled = false,
+  shadowColor = '#000000',
+  shadowOffsetX = 0,
+  shadowOffsetY = 2,
+  shadowBlur = 4,
 }: SvgGradientTextProps) {
-  // Approximate Text-Box: width ~ 0.6×fontSize×chars + letterSpacing×(chars-1)
-  const w = Math.ceil(text.length * fontSize * 0.62 + letterSpacing * Math.max(0, text.length - 1));
-  const h = Math.ceil(fontSize * 1.25);
-  const gradId = `grad-${gradientFrom}-${gradientTo}-${metallic ? 'm' : 'g'}`.replace(/#/g, '');
+  // Großzügige Box damit Stroke/Glow/Shadow nicht abgeschnitten werden.
+  // 0.7×fontSize×chars + 20% padding + extra für stroke/shadow-offset.
+  const extraPad = Math.max(strokeWidth * 2, Math.abs(shadowOffsetX) + shadowBlur * 2, glowBlur);
+  const w = Math.ceil(
+    text.length * fontSize * 0.7 +
+      letterSpacing * Math.max(0, text.length - 1) +
+      extraPad * 2,
+  );
+  const h = Math.ceil(fontSize * 1.5 + extraPad);
+  const cx = w / 2;
+  const cy = h * 0.7;
+  const gradId = `grad-${text.length}-${metallic ? 'm' : 'g'}`;
+  const glowFilterId = `glow-${text.length}`;
+  const shadowFilterId = `shadow-${text.length}`;
+
+  const glowAlpha = Math.round((glowStrength ?? 0.7) * 255)
+    .toString(16)
+    .padStart(2, '0');
 
   return (
     <Svg width={w} height={h}>
@@ -171,10 +222,57 @@ function SvgGradientText({
             <Stop offset="1" stopColor={gradientTo} />
           </LinearGradient>
         )}
+        {glowEnabled && glowBlur > 0 && (
+          <Filter id={glowFilterId} x="-50%" y="-50%" width="200%" height="200%">
+            <FeGaussianBlur stdDeviation={glowBlur / 2} />
+          </Filter>
+        )}
+        {shadowEnabled && shadowBlur > 0 && (
+          <Filter id={shadowFilterId} x="-50%" y="-50%" width="200%" height="200%">
+            <FeGaussianBlur stdDeviation={shadowBlur / 2} />
+          </Filter>
+        )}
       </Defs>
+
+      {/* Drop-Shadow Pass: separater Text-Layer mit shadow-color + offset + blur */}
+      {shadowEnabled && (
+        <SvgText
+          x={cx + shadowOffsetX}
+          y={cy + shadowOffsetY}
+          textAnchor="middle"
+          fontFamily={fontFamily}
+          fontSize={fontSize}
+          fontWeight="900"
+          fill={shadowColor}
+          opacity={0.6}
+          letterSpacing={letterSpacing}
+          filter={shadowBlur > 0 ? `url(#${shadowFilterId})` : undefined}
+        >
+          {text}
+        </SvgText>
+      )}
+
+      {/* Glow Pass: Text in glow-color mit blur-Filter (Halo hinter dem Haupt-Text) */}
+      {glowEnabled && glowBlur > 0 && (
+        <SvgText
+          x={cx}
+          y={cy}
+          textAnchor="middle"
+          fontFamily={fontFamily}
+          fontSize={fontSize}
+          fontWeight="900"
+          fill={`${glowColor}${glowAlpha}`}
+          letterSpacing={letterSpacing}
+          filter={`url(#${glowFilterId})`}
+        >
+          {text}
+        </SvgText>
+      )}
+
+      {/* Main Text mit Gradient-Fill + optional Stroke */}
       <SvgText
-        x={w / 2}
-        y={h * 0.82}
+        x={cx}
+        y={cy}
         textAnchor="middle"
         fontFamily={fontFamily}
         fontSize={fontSize}

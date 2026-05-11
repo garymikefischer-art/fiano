@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   },
   frame: {
     aspectRatio: 9 / 16,
-    width: '60%',
+    width: '75%',
     alignSelf: 'center',
     backgroundColor: '#0d0509',
     borderRadius: 12,
