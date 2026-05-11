@@ -11,13 +11,19 @@
  */
 
 import { spawn } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { stat, writeFile, unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 export interface YtDownloadOpts {
   url: string;
   outputPath: string;
   jobId: string;
   maxDurationSec?: number;
+  /** Optionale Netscape cookies.txt-Format Cookies vom User (Phase 9.5.8.2).
+   *  Wenn gesetzt → tempfile schreiben + yt-dlp --cookies. Bypass-Mechanismus
+   *  für YouTube Bot-Detection ohne den der Server-Download oft blocked. */
+  cookies?: string;
 }
 
 export interface YtDownloadResult {
@@ -41,6 +47,21 @@ export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadRes
     throw new Error('Only YouTube and Twitch URLs are supported');
   }
 
+  // Cookie-File schreiben falls vom User mitgegeben (Phase 9.5.8.2).
+  // Netscape cookies.txt-Format wird direkt durchgereicht. Tempfile wird
+  // nach Download (oder Error) gelöscht.
+  let cookieFile: string | null = null;
+  if (opts.cookies && opts.cookies.length > 0) {
+    cookieFile = path.join(tmpdir(), `${opts.jobId}-cookies.txt`);
+    let content = opts.cookies;
+    // yt-dlp ist sehr streng — Header-Zeile muss erste Zeile sein.
+    if (!content.startsWith('# Netscape HTTP Cookie File')) {
+      content = `# Netscape HTTP Cookie File\n${content}`;
+    }
+    await writeFile(cookieFile, content, { mode: 0o600 });
+    console.log(`[${opts.jobId}] yt-dlp using user cookies (${content.length} bytes)`);
+  }
+
   // Format-Selektor:
   //   bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a] → merge via ffmpeg
   //   fallback best[height<=1080][ext=mp4] (progressive mp4 wenn DASH nicht da)
@@ -53,7 +74,7 @@ export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadRes
   // YouTube blockt seit Mitte 2024 yt-dlp ohne Auth aggressiv ("Sign in to confirm").
   // Workaround: `tv_embedded` + `web` Player-Clients haben weniger Bot-Checks als
   // der default `android`-Client. Plus desktop user-agent.
-  // Wenn auch das fail't: User-Error-Message hint auf Twitch oder lokalen Download.
+  // Phase 9.5.8.2: zusätzlich --cookies wenn User welche bereitgestellt hat.
   const args = [
     '-f', 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best',
     '--merge-output-format', 'mp4',
@@ -63,6 +84,7 @@ export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadRes
     '--no-check-certificates',
     '--extractor-args', 'youtube:player_client=tv_embedded,web,default',
     '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    ...(cookieFile ? ['--cookies', cookieFile] : []),
     '-o', opts.outputPath,
     '--print', 'after_video:%(title)s',
     opts.url,
@@ -133,6 +155,12 @@ export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadRes
   const durationSec = await probeDuration(opts.outputPath);
   const stats = await stat(opts.outputPath);
   console.log(`[${jobId}] yt-dlp done size=${stats.size} dur=${durationSec.toFixed(1)}s title="${title.slice(0, 60)}"`);
+
+  // Cookie-Tempfile cleanup (success-path).
+  if (cookieFile) {
+    await unlink(cookieFile).catch(() => {});
+  }
+
   return {
     filePath: opts.outputPath,
     durationSec,

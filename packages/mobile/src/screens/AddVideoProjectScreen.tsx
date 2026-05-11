@@ -234,10 +234,22 @@ export function AddVideoProjectScreen() {
           score: 1,
         })),
       });
-      void extractVideoThumbnail(picked[0].uri, 1000).then((thumbUri) => {
-        if (thumbUri) {
-          useProjectsStore.getState().updateProject(project.id, { thumbUri });
-        }
+      // Async Thumbnails für alle clips (parallel) — Selector-Cards füllen sich
+      // wenn die Frames extrahiert sind. extractVideoThumbnail @ 1000ms = 1s frame.
+      void Promise.all(
+        picked.map((p) => extractVideoThumbnail(p.uri, 1000).catch(() => null)),
+      ).then((thumbs) => {
+        const current = useProjectsStore.getState().projects.find((pr) => pr.id === project.id);
+        if (!current) return;
+        const nextClips = (current.clips ?? []).map((c, i) => {
+          const t = thumbs[i];
+          return t ? { ...c, thumbUri: t } : c;
+        });
+        useProjectsStore.getState().updateProject(project.id, {
+          clips: nextClips,
+          // Project-Thumbnail = erstes Clip-Thumbnail (für Library-Card).
+          thumbUri: thumbs[0] ?? undefined,
+        });
       });
       haptic.success();
       nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });

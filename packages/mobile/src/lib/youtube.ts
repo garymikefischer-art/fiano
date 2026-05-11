@@ -14,6 +14,7 @@ import * as FileSystem from 'expo-file-system';
 
 import { ENV } from './env';
 import { supabase } from './supabase';
+import { useAppStore } from '../stores/appStore';
 
 const IMPORTS_DIR = `${FileSystem.documentDirectory}imports/`;
 
@@ -52,6 +53,10 @@ export async function downloadFromUrl(opts: DownloadFromUrlOpts): Promise<Downlo
   const token = sessionRes.data.session?.access_token;
   if (!token) throw new Error('Not authenticated');
 
+  // YouTube-Cookies aus Settings (optional) — bypass für Bot-Detection wenn
+  // der User in Settings → API Keys seine Browser-Cookies hinterlegt hat.
+  const cookies = useAppStore.getState().youtubeCookies?.trim() || undefined;
+
   opts.onPhase?.('requesting');
   const res = await fetch(`${ENV.RENDER_WORKER_URL}/v1/download`, {
     method: 'POST',
@@ -59,7 +64,7 @@ export async function downloadFromUrl(opts: DownloadFromUrlOpts): Promise<Downlo
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ url: trimmed }),
+    body: JSON.stringify({ url: trimmed, cookies }),
   });
 
   const data: {

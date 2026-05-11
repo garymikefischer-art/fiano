@@ -11,6 +11,7 @@
 
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ONBOARDING_KEY = 'fiano.onboarding.completed';
 const FACECAM_KEY = 'fiano.region.facecam';
@@ -19,6 +20,10 @@ const OPENAI_KEY = 'fiano.api.openai';
 const GEMINI_KEY = 'fiano.api.gemini';
 const EXPORT_KEY = 'fiano.export.settings';
 const LAST_PROJECT_KEY = 'fiano.lastOpenedProject';
+// YouTube-Cookies sind oft mehrere KB groß (SecureStore-Limit 2KB) — daher
+// in AsyncStorage statt SecureStore. Cookies sind session-bound + expiren —
+// kein Permanent-Credential-Leak-Risiko vergleichbar zu OpenAI-Keys.
+const YOUTUBE_COOKIES_KEY = 'fiano.api.youtube-cookies';
 
 /** Region-Coords als Anteile (0..1) auf der Source-Video-Fläche. */
 export interface Region {
@@ -71,6 +76,10 @@ interface AppState {
   openaiKey: string;
   /** Gemini API-Key für Thumbnail-Generation (im SecureStore). */
   geminiKey: string;
+  /** YouTube-Cookies (Netscape cookies.txt-Format) für yt-dlp Bot-Detection-
+   *  Bypass. User exportiert die mit 'Get cookies.txt LOCALLY' Browser-Extension
+   *  und pastet hier rein. Sehen Settings → API-Keys. */
+  youtubeCookies: string;
   /** Default-Export-Settings für 9:16 + Builder Renders. */
   exportSettings: ExportSettings;
   /** Letzte projectId die der User in ProjectDetail geöffnet hat — für Tab-Quick-Open. */
@@ -83,6 +92,7 @@ interface AppState {
   setGameplayRegion: (r: Region) => Promise<void>;
   setOpenaiKey: (k: string) => Promise<void>;
   setGeminiKey: (k: string) => Promise<void>;
+  setYoutubeCookies: (c: string) => Promise<void>;
   setExportSettings: (s: ExportSettings) => Promise<void>;
   setLastOpenedProjectId: (id: string) => Promise<void>;
 }
@@ -121,17 +131,19 @@ export const useAppStore = create<AppState>((set) => ({
   gameplayRegion: DEFAULT_GAMEPLAY,
   openaiKey: '',
   geminiKey: '',
+  youtubeCookies: '',
   exportSettings: DEFAULT_EXPORT,
   lastOpenedProjectId: null,
 
   init: async () => {
     try {
-      const [onboarding, facecam, gameplay, openai, gemini, exportRaw, lastProject] = await Promise.all([
+      const [onboarding, facecam, gameplay, openai, gemini, ytCookies, exportRaw, lastProject] = await Promise.all([
         SecureStore.getItemAsync(ONBOARDING_KEY),
         SecureStore.getItemAsync(FACECAM_KEY),
         SecureStore.getItemAsync(GAMEPLAY_KEY),
         SecureStore.getItemAsync(OPENAI_KEY),
         SecureStore.getItemAsync(GEMINI_KEY),
+        AsyncStorage.getItem(YOUTUBE_COOKIES_KEY),
         SecureStore.getItemAsync(EXPORT_KEY),
         SecureStore.getItemAsync(LAST_PROJECT_KEY),
       ]);
@@ -151,6 +163,7 @@ export const useAppStore = create<AppState>((set) => ({
           parseRegion(gameplay, GAMEPLAY_PRESETS, DEFAULT_GAMEPLAY) ?? DEFAULT_GAMEPLAY,
         openaiKey: openai ?? '',
         geminiKey: gemini ?? '',
+        youtubeCookies: ytCookies ?? '',
         exportSettings,
         lastOpenedProjectId: lastProject ?? null,
         initializing: false,
@@ -215,6 +228,16 @@ export const useAppStore = create<AppState>((set) => ({
     try {
       if (k) await SecureStore.setItemAsync(GEMINI_KEY, k);
       else await SecureStore.deleteItemAsync(GEMINI_KEY);
+    } catch {
+      /* ignore */
+    }
+  },
+
+  setYoutubeCookies: async (c) => {
+    set({ youtubeCookies: c });
+    try {
+      if (c) await AsyncStorage.setItem(YOUTUBE_COOKIES_KEY, c);
+      else await AsyncStorage.removeItem(YOUTUBE_COOKIES_KEY);
     } catch {
       /* ignore */
     }

@@ -11,6 +11,8 @@ export interface DemoClip {
   endSec: number;
   label: string;
   score: number; // 0..1 — KI-Highlight-Score
+  /** Optional Thumbnail-URI für 9:16-Selector (Phase 9.5.8.1). */
+  thumbUri?: string;
 }
 
 export type ProjectMode = 'highlights' | 'manual' | 'tiktok' | 'builder';

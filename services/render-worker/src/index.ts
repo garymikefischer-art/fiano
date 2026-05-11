@@ -272,7 +272,7 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
 app.post('/v1/download', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   const jobId = randomUUID();
-  const { url } = req.body as { url?: string };
+  const { url, cookies } = req.body as { url?: string; cookies?: string };
 
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ ok: false, error: 'url required' });
@@ -286,8 +286,13 @@ app.post('/v1/download', authMiddleware(supabase), async (req: AuthedRequest, re
   const tmpPath = path.join(tmpdir(), `${jobId}-yt.mp4`);
 
   try {
-    console.log(`[${jobId}] download user=${userId} url=${url}`);
-    const meta = await downloadVideo({ url, outputPath: tmpPath, jobId });
+    console.log(`[${jobId}] download user=${userId} url=${url}${cookies ? ' (with user cookies)' : ''}`);
+    const meta = await downloadVideo({
+      url,
+      outputPath: tmpPath,
+      jobId,
+      cookies: typeof cookies === 'string' && cookies.length > 0 ? cookies : undefined,
+    });
 
     const key = `sources/${userId}/yt-${jobId}.mp4`;
     await uploadFile(tmpPath, key, 'video/mp4');

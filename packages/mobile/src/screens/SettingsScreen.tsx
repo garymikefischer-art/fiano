@@ -50,14 +50,18 @@ export function SettingsScreen() {
   const setGameplayRegion = useAppStore((s) => s.setGameplayRegion);
   const openaiKey = useAppStore((s) => s.openaiKey);
   const geminiKey = useAppStore((s) => s.geminiKey);
+  const youtubeCookies = useAppStore((s) => s.youtubeCookies);
   const setOpenaiKey = useAppStore((s) => s.setOpenaiKey);
   const setGeminiKey = useAppStore((s) => s.setGeminiKey);
+  const setYoutubeCookies = useAppStore((s) => s.setYoutubeCookies);
   const exportSettings = useAppStore((s) => s.exportSettings);
   const setExportSettings = useAppStore((s) => s.setExportSettings);
   const [openaiInput, setOpenaiInput] = useState(openaiKey);
   const [geminiInput, setGeminiInput] = useState(geminiKey);
+  const [youtubeCookiesInput, setYoutubeCookiesInput] = useState(youtubeCookies);
   const [openaiVisible, setOpenaiVisible] = useState(false);
   const [geminiVisible, setGeminiVisible] = useState(false);
+  const [youtubeCookiesVisible, setYoutubeCookiesVisible] = useState(false);
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [soundsEnabled, setSoundsEnabled] = useState(!sounds.isMuted());
   const [regionModalVisible, setRegionModalVisible] = useState(false);
@@ -400,6 +404,26 @@ export function SettingsScreen() {
             onToggleVisible={() => setGeminiVisible((v) => !v)}
             saved={geminiKey}
           />
+          <Divider />
+          <ApiKeyRow
+            label={t('settings.youtubeCookies', 'YouTube cookies (optional)')}
+            value={youtubeCookiesInput}
+            onChange={setYoutubeCookiesInput}
+            onSave={() => setYoutubeCookies(youtubeCookiesInput.trim())}
+            onClear={() => {
+              setYoutubeCookiesInput('');
+              void setYoutubeCookies('');
+            }}
+            visible={youtubeCookiesVisible}
+            onToggleVisible={() => setYoutubeCookiesVisible((v) => !v)}
+            saved={youtubeCookies}
+            multiline
+            placeholder={'# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t…'}
+            hint={t(
+              'settings.youtubeCookiesHint',
+              'Optional: bypass YouTube bot-detection. Export via "Get cookies.txt LOCALLY" Chrome/Firefox extension while logged in to youtube.com, then paste the full text here. Cookies are stored on your device only — use of own account & content is your responsibility.',
+            )}
+          />
         </View>
 
         {/* Export-Settings */}
@@ -523,6 +547,9 @@ function ApiKeyRow({
   visible,
   onToggleVisible,
   saved,
+  multiline = false,
+  placeholder = 'sk-…',
+  hint,
 }: {
   label: string;
   value: string;
@@ -532,6 +559,9 @@ function ApiKeyRow({
   visible: boolean;
   onToggleVisible: () => void;
   saved: string;
+  multiline?: boolean;
+  placeholder?: string;
+  hint?: string;
 }) {
   const isStored = saved.length > 0;
   const dirty = value.trim() !== saved;
@@ -543,10 +573,13 @@ function ApiKeyRow({
           <Text style={{ color: '#22c55e', fontSize: 10, fontWeight: '700' }}>● saved</Text>
         )}
       </View>
+      {hint && (
+        <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>{hint}</Text>
+      )}
       <View
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
+          flexDirection: multiline ? 'column' : 'row',
+          alignItems: multiline ? 'stretch' : 'center',
           gap: 6,
           backgroundColor: 'rgba(0,0,0,0.25)',
           borderRadius: 8,
@@ -556,16 +589,27 @@ function ApiKeyRow({
         <TextInput
           value={value}
           onChangeText={onChange}
-          placeholder="sk-…"
+          placeholder={placeholder}
           placeholderTextColor="#52525b"
           autoCapitalize="none"
           autoCorrect={false}
-          secureTextEntry={!visible}
-          style={{ flex: 1, color: '#f1f2f2', fontSize: 12, paddingVertical: 8 }}
+          secureTextEntry={!visible && !multiline}
+          multiline={multiline}
+          numberOfLines={multiline ? 4 : 1}
+          style={{
+            flex: multiline ? undefined : 1,
+            color: '#f1f2f2',
+            fontSize: 12,
+            paddingVertical: 8,
+            minHeight: multiline ? 64 : undefined,
+            textAlignVertical: multiline ? 'top' : 'center',
+          }}
         />
-        <Pressable onPress={onToggleVisible} hitSlop={6} style={{ padding: 4 }}>
-          <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={14} color="#71717a" />
-        </Pressable>
+        {!multiline && (
+          <Pressable onPress={onToggleVisible} hitSlop={6} style={{ padding: 4 }}>
+            <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={14} color="#71717a" />
+          </Pressable>
+        )}
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Pressable
