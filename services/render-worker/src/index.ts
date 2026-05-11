@@ -63,17 +63,26 @@ const supabase = createClient(
 const app = express();
 app.use(express.json({ limit: '256kb' }));
 
-// Liveness probe. Returns env-status damit man von außen sieht ob env-vars
-// gesetzt sind. Falls fehlt: env=false in der Response, dann den Cloud-Run-
-// Deploy nochmal mit --set-env-vars korrigieren.
+// Liveness probe. Returns env-status mit Detail damit man von außen sieht
+// welche env-vars exakt gesetzt sind (Länge + erste paar chars). Falls eine
+// fehlt oder kaputt aussieht: redeploy mit korrekten --set-env-vars.
 app.get('/health', (_req, res) => {
+  const accountId = process.env.R2_ACCOUNT_ID ?? '';
+  const r2EndpointSample = accountId
+    ? `https://${accountId}.r2.cloudflarestorage.com`
+    : 'NOT_SET';
   res.json({
     ok: true,
-    version: '0.2.0',
+    version: '0.2.1',
     storage: 'r2',
     env: {
-      supabase: !!SUPABASE_URL && !!SUPABASE_SERVICE_ROLE_KEY,
-      r2: !!process.env.R2_ACCOUNT_ID && !!process.env.R2_ACCESS_KEY_ID,
+      supabaseUrl: SUPABASE_URL ? `${SUPABASE_URL.slice(0, 30)}...` : 'NOT_SET',
+      supabaseKey: SUPABASE_SERVICE_ROLE_KEY ? `len=${SUPABASE_SERVICE_ROLE_KEY.length}` : 'NOT_SET',
+      r2AccountId: accountId ? `${accountId.slice(0, 8)}...` : 'NOT_SET',
+      r2AccessKey: process.env.R2_ACCESS_KEY_ID ? `len=${(process.env.R2_ACCESS_KEY_ID ?? '').length}` : 'NOT_SET',
+      r2Secret: process.env.R2_SECRET_ACCESS_KEY ? `len=${(process.env.R2_SECRET_ACCESS_KEY ?? '').length}` : 'NOT_SET',
+      r2Bucket: process.env.R2_BUCKET ?? 'fiano-renders (default)',
+      r2EndpointWillBe: r2EndpointSample,
     },
   });
 });
@@ -106,8 +115,14 @@ app.post(
       return res.json({ ok: true, uploadUrl, sourceKey, jobId, expiresInSec: 3600 });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.error('upload-url failed:', msg);
-      return res.status(500).json({ ok: false, error: msg });
+      const stack = e instanceof Error ? e.stack : '';
+      console.error('upload-url failed:', msg, '\n', stack);
+      // Detail im Response damit User direkt sehen kann was los ist
+      return res.status(500).json({
+        ok: false,
+        error: msg,
+        hint: 'Check /health → r2EndpointWillBe für valid R2 endpoint URL',
+      });
     }
   },
 );
