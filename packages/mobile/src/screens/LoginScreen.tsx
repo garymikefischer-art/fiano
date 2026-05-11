@@ -42,6 +42,7 @@ export function LoginScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
   const signIn = useAuthStore((s) => s.signIn);
+  const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,11 +64,19 @@ export function LoginScreen() {
     }
   };
 
-  const onGoogle = () => {
-    Alert.alert(
-      t('auth.continueWithGoogle'),
-      t('auth.googleSoonMobile', 'Google Sign-In folgt in Phase 9.4.x (expo-auth-session).'),
-    );
+  const onGoogle = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await signInWithGoogle();
+      if (!res.ok && !res.canceled && res.error) setError(res.error);
+      // Bei Erfolg routet der Root-Navigator via onAuthStateChange automatisch.
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

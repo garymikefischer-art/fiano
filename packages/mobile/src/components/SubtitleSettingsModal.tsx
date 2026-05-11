@@ -160,8 +160,8 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                   <Text style={styles.enableTitle}>Enable subtitles</Text>
                   <Text style={styles.enableSub}>
                     {local.enabled
-                      ? 'Untertitel werden in der 9:16-Preview & beim Export angezeigt.'
-                      : 'Aktivieren, um den Untertitel im Video sichtbar zu machen.'}
+                      ? 'Style-Vorschau aktiv in der 9:16-Preview. Auto-Untertitel kommen mit Phase 9.6.7 (Whisper).'
+                      : 'Aktivieren, um die Subtitle-Styles in der Preview zu sehen.'}
                   </Text>
                 </View>
                 <Pressable
