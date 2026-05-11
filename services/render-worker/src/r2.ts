@@ -26,10 +26,14 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 
-const ACCOUNT_ID = process.env.R2_ACCOUNT_ID ?? '';
-const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID ?? '';
-const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY ?? '';
-const BUCKET = process.env.R2_BUCKET ?? 'fiano-renders';
+// .trim() um trailing/leading whitespace aus env-vars zu strippen — User-
+// Bug: 'gcloud run deploy --set-env-vars "R2_ACCOUNT_ID= 7a26875..."'
+// hatte ein leading space, was die R2-endpoint-URL auf 'https:// 7a26...'
+// kaputt machte → AWS SDK warf 'Invalid URL'.
+const ACCOUNT_ID = (process.env.R2_ACCOUNT_ID ?? '').trim();
+const ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID ?? '').trim();
+const SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY ?? '').trim();
+const BUCKET = (process.env.R2_BUCKET ?? 'fiano-renders').trim();
 const R2_OK = !!(ACCOUNT_ID && ACCESS_KEY_ID && SECRET_ACCESS_KEY);
 
 if (!R2_OK) {
