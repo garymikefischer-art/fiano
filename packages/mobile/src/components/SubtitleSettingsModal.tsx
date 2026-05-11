@@ -301,20 +301,29 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
 
               {/* 5. Stroke */}
               <Section title="STROKE / OUTLINE">
-                <SliderRow
-                  label="Width"
-                  value={local.strokeWidth ?? 3}
-                  min={0}
-                  max={8}
-                  step={0.5}
-                  display={`${(local.strokeWidth ?? 3).toFixed(1)}px`}
-                  onChange={(v) => patch({ strokeWidth: v })}
+                <ToggleRow
+                  label="Enabled"
+                  value={local.strokeEnabled ?? false}
+                  onChange={(v) => patch({ strokeEnabled: v })}
                 />
-                <MiniColorPicker
-                  label="Stroke color"
-                  value={local.strokeColor ?? '#000000'}
-                  onChange={(c) => patch({ strokeColor: c })}
-                />
+                {local.strokeEnabled && (
+                  <>
+                    <SliderRow
+                      label="Width"
+                      value={local.strokeWidth ?? 3}
+                      min={0.5}
+                      max={8}
+                      step={0.5}
+                      display={`${(local.strokeWidth ?? 3).toFixed(1)}px`}
+                      onChange={(v) => patch({ strokeWidth: v })}
+                    />
+                    <MiniColorPicker
+                      label="Stroke color"
+                      value={local.strokeColor ?? '#000000'}
+                      onChange={(c) => patch({ strokeColor: c })}
+                    />
+                  </>
+                )}
               </Section>
 
               {/* 6. Glow */}

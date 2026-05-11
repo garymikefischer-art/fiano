@@ -121,13 +121,14 @@ export function SubtitleOverlay({
           gradientFrom={settings.gradientFrom ?? settings.textColor ?? '#ff1039'}
           gradientTo={settings.gradientTo ?? '#ff8c00'}
           metallic={settings.metallic ?? false}
-          strokeWidth={settings.strokeWidth ?? 0}
+          /* strict checks: nur wenn explizit aktiviert greifen die Effekte */
+          strokeWidth={settings.strokeEnabled === true ? settings.strokeWidth ?? 0 : 0}
           strokeColor={settings.strokeColor ?? '#000000'}
-          glowEnabled={settings.glowEnabled ?? false}
+          glowEnabled={settings.glowEnabled === true}
           glowColor={settings.glowColor ?? '#ff1039'}
           glowBlur={settings.glowBlur ?? 8}
           glowStrength={settings.glowStrength ?? 0.7}
-          shadowEnabled={settings.shadowEnabled ?? false}
+          shadowEnabled={settings.shadowEnabled === true}
           shadowColor={settings.shadowColor ?? '#000000'}
           shadowOffsetX={settings.shadowOffsetX ?? 0}
           shadowOffsetY={settings.shadowOffsetY ?? 2}
@@ -372,14 +373,14 @@ function LayeredText({
 /* ─── Helpers ─────────────────────────────────────────────────────────── */
 
 function buildShadowStyle(s: SubtitleSettings): TextStyle {
-  const glowOn = s.glowEnabled ?? (s.glowBlur ?? 0) > 0;
-  const shadowOn =
-    s.shadowEnabled ??
-    ((s.shadowBlur ?? 0) > 0 ||
-      Math.abs(s.shadowOffsetX ?? 0) > 0 ||
-      Math.abs(s.shadowOffsetY ?? 0) > 0);
+  // STRICT checks: nur wenn enabled-flag explizit true ist greift der Effekt.
+  // Frueher: ?? fallback auf '(blur > 0)' — gab false-positives bei legacy data
+  // ohne enabled-field (e.g. Drop-Shadow-Slider triggerte fälschlich Glow weil
+  // default glowBlur=8 den fallback aktivierte).
+  const glowOn = s.glowEnabled === true && (s.glowBlur ?? 0) > 0;
+  const shadowOn = s.shadowEnabled === true;
 
-  if (glowOn && (s.glowBlur ?? 0) > 0) {
+  if (glowOn) {
     return {
       textShadowColor: s.glowColor ?? '#000000',
       textShadowRadius: s.glowBlur ?? 8,
@@ -400,13 +401,16 @@ function buildShadowStyle(s: SubtitleSettings): TextStyle {
 }
 
 function strokeApproxStyle(s: SubtitleSettings): TextStyle {
-  if (!s.strokeWidth || s.strokeWidth <= 0) return {};
-  const glowOn = s.glowEnabled ?? (s.glowBlur ?? 0) > 0;
-  const shadowOn = s.shadowEnabled ?? false;
+  // Stroke nur wenn strokeEnabled === true + width > 0. Kein implicit-on aus
+  // strokeWidth-default mehr.
+  const strokeOn = s.strokeEnabled === true && (s.strokeWidth ?? 0) > 0;
+  if (!strokeOn) return {};
+  const glowOn = s.glowEnabled === true && (s.glowBlur ?? 0) > 0;
+  const shadowOn = s.shadowEnabled === true;
   if (glowOn || shadowOn) return {};
   return {
     textShadowColor: s.strokeColor ?? '#000000',
-    textShadowRadius: Math.min(s.strokeWidth, 6),
+    textShadowRadius: Math.min(s.strokeWidth ?? 0, 6),
     textShadowOffset: { width: 0, height: 0 },
   };
 }

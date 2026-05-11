@@ -1086,8 +1086,11 @@ function TikTokTab({
   useEffect(() => {
     setSplitRatio(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
   }, [project.splitRatio]);
-  // Subtitle-State aus project.subtitles ableiten (mit DEFAULT-Merge).
-  const subSettings: SubtitleSettings = project.subtitles ?? DEFAULT_SUBTITLES;
+  // Subtitle-State aus project.subtitles ableiten. Echter DEFAULT-Merge: fehlende
+  // Fields (z.B. weil project alt ist und neue Fields nicht hat) bekommen den
+  // Default-Wert. Sonst gibt's false-positives wo undefined-fields den
+  // settings-Code in fallback-Pfade zwingen (siehe Drop-Shadow → Glow Bug).
+  const subSettings: SubtitleSettings = { ...DEFAULT_SUBTITLES, ...project.subtitles };
   const subtitles = subSettings.enabled;
   const setSubtitles = (next: boolean) => {
     updateProject(project.id, { subtitles: { ...subSettings, enabled: next } });

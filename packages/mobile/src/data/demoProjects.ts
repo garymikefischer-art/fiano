@@ -93,6 +93,7 @@ export interface SubtitleSettings {
   gradientFrom?: string;
   gradientTo?: string;
   // ── Stroke ─────────────────────────────────────────────────────
+  strokeEnabled?: boolean;
   strokeWidth?: number;
   strokeColor?: string;
   // ── Glow ───────────────────────────────────────────────────────
@@ -131,6 +132,7 @@ export const DEFAULT_SUBTITLES: SubtitleSettings = {
   uppercase: true,
   textColor: '#ffffff',
   highlightColor: '#ff1039',
+  strokeEnabled: true,
   strokeWidth: 3,
   strokeColor: '#000000',
   glowEnabled: false,
