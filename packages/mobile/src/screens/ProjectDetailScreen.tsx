@@ -1070,6 +1070,7 @@ function TikTokTab({
   project: DemoProject;
   t: (k: string, f?: string) => string;
 }) {
+  const nav = useNavigation<Nav>();
   const updateProject = useProjectsStore((s) => s.updateProject);
   const defaultFacecam = useAppStore((s) => s.facecamRegion);
   const defaultGameplay = useAppStore((s) => s.gameplayRegion);
@@ -1536,14 +1537,25 @@ function TikTokTab({
 
       <Pressable
         onPress={() => {
+          if (!project.sourceUri) {
+            haptic.warning();
+            Alert.alert(
+              t('tiktok.exportTitle', 'Export 9:16'),
+              t('tiktok.exportNoSource', 'Dieses Projekt hat noch kein Source-Video. Erst Video importieren.'),
+            );
+            return;
+          }
           haptic.medium();
-          Alert.alert(
-            t('tiktok.exportTitle', 'Export 9:16'),
-            t(
-              'tiktok.exportSoonBody',
-              'Picks every selected highlight, applies the layout + add-ons, exports as a single 9:16 reel. Wired up with the FFmpeg native bridge.',
-            ),
-          );
+          nav.navigate('Export', {
+            sourceUri: project.sourceUri,
+            projectId: project.id,
+            trimStart: project.trimStart ?? 0,
+            trimEnd:
+              project.trimEnd ??
+              (project.durationSec > 60 ? 60 : project.durationSec),
+            sourceDuration: project.durationSec,
+            mode: project.mode ?? 'tiktok',
+          });
         }}
         style={({ pressed }) => ({
           backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
