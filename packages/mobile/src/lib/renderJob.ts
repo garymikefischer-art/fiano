@@ -1,51 +1,36 @@
 /**
- * Cloud-Render-Client (Phase 9.6.1) — Mobile → Render-Worker via HTTPS.
+ * Cloud-Render-Client (Phase 9.6.1.5) — Mobile → R2 + Worker via HTTPS.
  *
- * Flow:
- *   1. Source-Video lokal → Supabase Storage Bucket hochladen (chunked upload
- *      via Storage-API).
- *   2. POST /v1/render an Cloud Run mit { sourceKey, args, projectId }.
- *      Auth via Supabase-Session-Token.
- *   3. Worker rendert → returnt signed-URL.
- *   4. signed-URL via FileSystem.downloadAsync nach documentDirectory ziehen.
- *   5. Optional: in Camera-Roll speichern via expo-media-library.
+ * 2-Step Flow weil Source-Videos oft >100 MB sind:
+ *   1. POST /v1/upload-url an Worker → bekommt pre-signed R2-PUT-URL
+ *   2. PUT source.mp4 direkt zu R2 (kein Worker-Hop, Cloudflare Egress free)
+ *   3. POST /v1/render an Worker mit sourceKey
+ *   4. Worker rendert (FFmpeg auf Cloud Run) → upload Result zu R2
+ *   5. Worker returnt pre-signed Download-URL
+ *   6. Mobile lädt Result direct von R2
  *
- * Args müssen `{SRC}` und `{DST}` als Platzhalter enthalten — Server-Side
- * werden die durch tmp-Pfade ersetzt (verhindert dass Mobile beliebige
- * Server-Paths setzen kann).
- *
- * Progress-Reporting: aktuell Sync-Request (Express blockt bis FFmpeg fertig).
- * Bei langen Renders (>30s) ggf. später auf Queue-System wechseln (z.B.
- * Supabase Queues + Polling-Endpoint).
+ * Vorteil ggü. proxy-upload: R2 hat unlimited free Egress, Cloud Run hat
+ * 32 MiB Request-Size-Limit. Direct-Upload zu R2 umgeht beides.
  */
 
 import * as FileSystem from 'expo-file-system';
 import { supabase } from './supabase';
 import { ENV } from './env';
 
-const SOURCE_BUCKET = 'source-uploads';
-
 export interface RenderJobOpts {
-  /** Lokales Source-Video (file:// URI). Wird zur Cloud hochgeladen. */
   sourceUri: string;
-  /** FFmpeg-Args mit {SRC} und {DST} als Platzhalter. */
+  /** FFmpeg-Args mit `{SRC}` und `{DST}` als Platzhalter. */
   args: string[];
-  /** Project-ID — wird Teil des Storage-Keys: ${userId}/${projectId}/${file}. */
   projectId: string;
-  /** Optional: Dateiname für Result. Default: timestamp.mp4. */
   outputName?: string;
-  /** Progress-Hook 0..1 für Upload-Phase (Server-Render-Progress kommt später). */
   onUploadProgress?: (frac: number) => void;
 }
 
 export interface RenderJobResult {
-  /** Lokales Result-Video (file:// URI in documentDirectory/exports/). */
+  /** Lokales Result-Video (file:// in documentDirectory/exports/). */
   localUri: string;
-  /** Server-side Job-ID für Logs. */
   jobId: string;
-  /** Server-Render-Dauer in ms. */
   durationMs: number;
-  /** Resultat-Dateigröße in Bytes. */
   sizeBytes: number;
 }
 
@@ -58,46 +43,70 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   }
 
   const { data: session } = await supabase.auth.getSession();
-  if (!session.session) {
-    throw new Error('Nicht eingeloggt — Login zuerst.');
-  }
-  const userId = session.session.user.id;
+  if (!session.session) throw new Error('Nicht eingeloggt — Login zuerst.');
   const token = session.session.access_token;
 
-  // 1. Source hochladen.
-  opts.onUploadProgress?.(0);
-  const sourceKey = `${userId}/${opts.projectId}/source-${Date.now()}.mp4`;
-  await uploadToSupabase(opts.sourceUri, sourceKey, opts.onUploadProgress);
-  opts.onUploadProgress?.(1);
+  const base = ENV.RENDER_WORKER_URL.replace(/\/$/, '');
 
-  // 2. Render-Request senden.
-  const endpoint = `${ENV.RENDER_WORKER_URL.replace(/\/$/, '')}/v1/render`;
-  const res = await fetch(endpoint, {
+  // ─── 1. Pre-Signed Upload-URL holen ───────────────────────────────
+  opts.onUploadProgress?.(0);
+  const urlRes = await fetch(`${base}/v1/upload-url`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ projectId: opts.projectId }),
+  });
+  if (!urlRes.ok) {
+    const msg = await safeErrorMessage(urlRes);
+    throw new Error(`upload-url failed: ${msg}`);
+  }
+  const urlBody = (await urlRes.json()) as {
+    uploadUrl: string;
+    sourceKey: string;
+  };
+
+  // ─── 2. Source direkt zu R2 PUTten ────────────────────────────────
+  const uploadTask = FileSystem.createUploadTask(
+    urlBody.uploadUrl,
+    opts.sourceUri,
+    {
+      httpMethod: 'PUT',
+      headers: { 'Content-Type': 'video/mp4' },
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    },
+    (p) => {
+      if (p.totalBytesExpectedToSend > 0) {
+        opts.onUploadProgress?.(p.totalBytesSent / p.totalBytesExpectedToSend);
+      }
+    },
+  );
+  const upRes = await uploadTask.uploadAsync();
+  if (!upRes || upRes.status >= 300) {
+    throw new Error(`R2 upload failed: HTTP ${upRes?.status ?? '?'}`);
+  }
+  opts.onUploadProgress?.(1);
+
+  // ─── 3. Render-Request ────────────────────────────────────────────
+  const renderRes = await fetch(`${base}/v1/render`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      sourceKey,
+      sourceKey: urlBody.sourceKey,
       args: opts.args,
       projectId: opts.projectId,
       outputName: opts.outputName ?? `${Date.now()}.mp4`,
     }),
   });
-
-  if (!res.ok) {
-    let msg = `render request failed (${res.status})`;
-    try {
-      const body = await res.json();
-      msg = body.error ?? msg;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg);
+  if (!renderRes.ok) {
+    const msg = await safeErrorMessage(renderRes);
+    throw new Error(`render failed: ${msg}`);
   }
-
-  const body = (await res.json()) as {
+  const renderBody = (await renderRes.json()) as {
     ok: boolean;
     jobId: string;
     outputKey: string;
@@ -106,67 +115,34 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     sizeBytes: number;
     error?: string;
   };
-  if (!body.ok) throw new Error(body.error ?? 'render failed');
+  if (!renderBody.ok) throw new Error(renderBody.error ?? 'render failed');
 
-  // 3. Result herunterladen.
+  // ─── 4. Result von R2 herunterladen ───────────────────────────────
   const exportsDir = `${FileSystem.documentDirectory}exports/`;
   const dirInfo = await FileSystem.getInfoAsync(exportsDir);
   if (!dirInfo.exists) {
     await FileSystem.makeDirectoryAsync(exportsDir, { intermediates: true });
   }
-  const localUri = `${exportsDir}${body.jobId}.mp4`;
+  const localUri = `${exportsDir}${renderBody.jobId}.mp4`;
 
-  const dl = await FileSystem.downloadAsync(body.signedUrl, localUri);
+  const dl = await FileSystem.downloadAsync(renderBody.signedUrl, localUri);
   if (dl.status !== 200) {
     throw new Error(`download failed: HTTP ${dl.status}`);
   }
 
   return {
     localUri,
-    jobId: body.jobId,
-    durationMs: body.durationMs,
-    sizeBytes: body.sizeBytes,
+    jobId: renderBody.jobId,
+    durationMs: renderBody.durationMs,
+    sizeBytes: renderBody.sizeBytes,
   };
 }
 
-/**
- * Upload eines lokalen file:// URI zu Supabase Storage.
- *
- * Wir nutzen FileSystem.uploadAsync mit POST + multipart (Supabase's REST-Upload-
- * Endpoint). supabase-js' storage.upload() liest das File in Memory, das ist bei
- * großen Videos (>100MB) RAM-grenzwertig — daher direkter HTTP-Upload.
- */
-async function uploadToSupabase(
-  localUri: string,
-  storageKey: string,
-  onProgress?: (frac: number) => void,
-): Promise<void> {
-  const { data: session } = await supabase.auth.getSession();
-  if (!session.session) throw new Error('Nicht eingeloggt.');
-
-  const uploadUrl = `${ENV.SUPABASE_URL}/storage/v1/object/${SOURCE_BUCKET}/${storageKey}`;
-
-  const task = FileSystem.createUploadTask(
-    uploadUrl,
-    localUri,
-    {
-      httpMethod: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.session.access_token}`,
-        'x-upsert': 'true',
-        'Content-Type': 'video/mp4',
-      },
-      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    },
-    (p) => {
-      if (p.totalBytesExpectedToSend > 0) {
-        onProgress?.(p.totalBytesSent / p.totalBytesExpectedToSend);
-      }
-    },
-  );
-
-  const result = await task.uploadAsync();
-  if (!result || result.status >= 300) {
-    throw new Error(`source upload failed: HTTP ${result?.status ?? '?'}`);
+async function safeErrorMessage(res: Response): Promise<string> {
+  try {
+    const body = await res.json();
+    return body.error ?? `HTTP ${res.status}`;
+  } catch {
+    return `HTTP ${res.status}`;
   }
 }

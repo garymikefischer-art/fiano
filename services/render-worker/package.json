@@ -12,6 +12,8 @@
     "docker:run": "docker run -p 8080:8080 --env-file .env fiano-render-worker"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.682.0",
+    "@aws-sdk/s3-request-presigner": "^3.682.0",
     "@supabase/supabase-js": "^2.45.4",
     "express": "^4.21.1",
     "node-fetch": "^3.3.2"
