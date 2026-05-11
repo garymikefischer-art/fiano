@@ -91,6 +91,7 @@ export function LibraryScreen() {
               const result = await transcribeVideo({
                 sourceUri: p.sourceUri!,
                 projectId: p.id,
+                videoType: p.videoType ?? 'auto',
               });
               const existing = p.subtitles ?? DEFAULT_SUBTITLES;
               const newClips =
@@ -147,20 +148,24 @@ export function LibraryScreen() {
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
-      {/* Header */}
+      {/* Header — paddingHorizontal 12 statt 20 plus negative-marginLeft für
+          das SVG-Inner-Padding (Logo hat ~75px Whitespace im viewBox). Damit
+          fluchtet das fiano-Logo bündig mit dem Title "Bibliothek" unten. */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingHorizontal: 20,
+          paddingHorizontal: 12,
           paddingTop: 4,
           paddingBottom: 6,
           borderBottomWidth: 1,
           borderBottomColor: 'rgba(255,255,255,0.06)',
         }}
       >
-        <FianoLogo height={88} />
+        <View style={{ marginLeft: -10 }}>
+          <FianoLogo height={72} />
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Pressable
             onPress={() => nav.navigate('Search')}

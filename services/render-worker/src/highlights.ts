@@ -1,21 +1,18 @@
 /**
- * Highlight-Detection (Phase 9.6.7b — full port).
+ * Highlight-Detection (Phase 9.6.7b + 9.6.7d — SHORT/LONG-Profile-Splitting).
  *
  * Erkennt "interessante" Stellen im Video aus Whisper-Transcript + Audio-Energy.
- * Vereinfachter Port von src/main/core/pipeline/highlights.ts (Desktop) — ohne
- * SHORT/LONG-Profile-Splitting (Server-Side MVP), aber MIT den vollen Phrase-
- * Listen + Audio-Peak-Bonus.
+ * Voller Port von src/main/core/pipeline/highlights.ts (Desktop) mit zwei
+ * parallelen Profilen je nach videoType:
  *
- * Algorithm:
- *   1. Gruppiere Whisper-Segments in Cluster (gap-Threshold 2.5s, max 22s).
- *   2. Score-Bestandteile pro Cluster:
- *      - text-density (base, 0..1)
- *      - kill-phrase-hits × 1.3 weight
- *      - reaction-phrase-hits × 1.2 weight
- *      - audio-peak-count × 1.6 weight (peaks in seinem time-range)
- *      - duration-fit (closer to 12s target = better)
- *   3. Filter: duration 4..22s, min 1 segment.
- *   4. Sort by score desc, take top 15, re-sort by start-time.
+ * - SHORT (Gaming, 6-20s): Spike-driven Kill-Phrasen + Audio-Peaks treiben
+ *   den Score. Kurze, intensive Clips für TikTok/Reels.
+ * - LONG (Podcast, 20-60s): Sustained Speech-Density über glättere Windows.
+ *   Längere Clips für YouTube. Weniger Spike-aggressiv.
+ * - AUTO: beide Profile parallel + dedupe-overlapping.
+ *
+ * mode wird vom Mobile-Client als project.videoType ('gaming'|'podcast'|'auto')
+ * durchgereicht.
  */
 
 interface InputCue {
@@ -24,19 +21,17 @@ interface InputCue {
   text: string;
 }
 
+export type HighlightMode = 'gaming' | 'podcast' | 'auto';
+
 export interface Highlight {
   startSec: number;
   endSec: number;
-  /** 0..1 — relative Score, höher = relevanter. */
   score: number;
-  /** Erste paar Wörter als Label. */
   label: string;
-  /** Debug: warum dieser Highlight gewählt wurde. */
   reason: string;
 }
 
-// Direkt portiert von src/main/core/pipeline/highlights.ts:13-72.
-// Multi-language (DE + EN) Gaming-Kill-Phrasen.
+// Phrase-Listen direkt portiert aus src/main/core/pipeline/highlights.ts:13-95.
 const KILL_PHRASES: string[] = [
   // Deutsch
   'hab ihn', 'hab den', 'hab einen', 'hab jemand', 'hab da einen', 'hab den da',
@@ -120,23 +115,87 @@ const REACTION_PHRASES: string[] = [
   'na endlich', 'na komm', 'jaaa',
 ];
 
-const MIN_WINDOW_SEC = 4;
-const MAX_WINDOW_SEC = 22;
-const GAP_THRESHOLD_SEC = 2.5;
-const TARGET_WINDOW_SEC = 12;
-const MAX_HIGHLIGHTS = 15;
+interface ProfileParams {
+  minDur: number;
+  maxDur: number;
+  targetDur: number;
+  gapThreshold: number;
+  /** Score-Gewicht für Kill-Phrasen (exponent). */
+  wKill: number;
+  wReaction: number;
+  wAudioPeak: number;
+  /** Max-Anzahl Highlights aus diesem Profil. */
+  maxCount: number;
+}
 
-// Score-Gewichte (analog Desktop SHORT-Profile aber gemischt).
-const W_KILL = 1.3;
-const W_REACTION = 1.2;
-const W_AUDIO_PEAK = 1.6;
+// SHORT-Profile: Gaming-Style — Spike-driven, kurze Clips.
+const SHORT_PROFILE: ProfileParams = {
+  minDur: 6,
+  maxDur: 20,
+  targetDur: 12,
+  gapThreshold: 2.5,
+  wKill: 1.3,
+  wReaction: 1.2,
+  wAudioPeak: 1.6,
+  maxCount: 15,
+};
+
+// LONG-Profile: Podcast-Style — sustained, längere Clips, weniger Spike-Bonus.
+const LONG_PROFILE: ProfileParams = {
+  minDur: 20,
+  maxDur: 60,
+  targetDur: 30,
+  gapThreshold: 4.0,
+  wKill: 0.7, // Phrasen weniger gewichtet — Podcast hat selten Gaming-Vokab
+  wReaction: 1.1, // aber Reaktionen ("krass", "wow") sind relevant
+  wAudioPeak: 0.8, // Audio-Spikes weniger relevant für Speech
+  maxCount: 10,
+};
 
 export function detectHighlights(
   cues: InputCue[],
   audioPeaks: number[] = [],
+  mode: HighlightMode = 'auto',
 ): Highlight[] {
   if (cues.length === 0) return [];
 
+  // Mode-Mapping zu Profilen.
+  const shortResults =
+    mode === 'gaming' || mode === 'auto' ? computeProfile(cues, audioPeaks, SHORT_PROFILE) : [];
+  const longResults =
+    mode === 'podcast' || mode === 'auto' ? computeProfile(cues, audioPeaks, LONG_PROFILE) : [];
+
+  // Bei single-mode: direkt zurückgeben (top-N by score, sortiert by time).
+  if (mode === 'gaming') {
+    shortResults.sort((a, b) => a.startSec - b.startSec);
+    return shortResults;
+  }
+  if (mode === 'podcast') {
+    longResults.sort((a, b) => a.startSec - b.startSec);
+    return longResults;
+  }
+
+  // AUTO: merge + dedupe (overlap > 4s = duplicate, keep higher-score).
+  const merged = [...shortResults, ...longResults];
+  merged.sort((a, b) => b.score - a.score);
+  const accepted: Highlight[] = [];
+  for (const h of merged) {
+    const overlaps = accepted.some((a) => {
+      const overlap = Math.min(h.endSec, a.endSec) - Math.max(h.startSec, a.startSec);
+      return overlap > 4;
+    });
+    if (!overlaps) accepted.push(h);
+    if (accepted.length >= 15) break;
+  }
+  accepted.sort((a, b) => a.startSec - b.startSec);
+  return accepted;
+}
+
+function computeProfile(
+  cues: InputCue[],
+  audioPeaks: number[],
+  params: ProfileParams,
+): Highlight[] {
   interface Window {
     start: number;
     end: number;
@@ -148,7 +207,6 @@ export function detectHighlights(
   }
   const windows: Window[] = [];
 
-  // 1. Gruppiere consecutive cues mit gap-threshold.
   for (const cue of cues) {
     const text = cue.text.toLowerCase();
     const killHit = countMatches(text, KILL_PHRASES) > 0 ? 1 : 0;
@@ -157,8 +215,8 @@ export function detectHighlights(
     const last = windows[windows.length - 1];
     const fitsInLast =
       last &&
-      cue.startSec - last.end < GAP_THRESHOLD_SEC &&
-      cue.endSec - last.start <= MAX_WINDOW_SEC;
+      cue.startSec - last.end < params.gapThreshold &&
+      cue.endSec - last.start <= params.maxDur;
 
     if (fitsInLast) {
       last.end = Math.max(last.end, cue.endSec);
@@ -179,7 +237,7 @@ export function detectHighlights(
     }
   }
 
-  // 2. Audio-Peak-Count pro Window (peaks in [start, end]).
+  // Audio-Peak-Count pro Window.
   if (audioPeaks.length > 0) {
     for (const w of windows) {
       let count = 0;
@@ -192,26 +250,26 @@ export function detectHighlights(
     }
   }
 
-  // 3. Filter Mindest- und Max-Dauer.
+  // Profile-spezifische Duration-Filter.
   const candidates = windows.filter((w) => {
     const dur = w.end - w.start;
-    return dur >= MIN_WINDOW_SEC && dur <= MAX_WINDOW_SEC && w.segments.length >= 1;
+    return dur >= params.minDur && dur <= params.maxDur && w.segments.length >= 1;
   });
   if (candidates.length === 0) return [];
 
-  // 4. Score-Berechnung.
+  // Score.
   const maxTextLen = candidates.reduce((m, w) => Math.max(m, w.textLen), 1);
   const scored = candidates.map((w) => {
     const segCount = w.segments.length;
     const dur = w.end - w.start;
-    const durationFit = 1 - Math.abs(dur - TARGET_WINDOW_SEC) / TARGET_WINDOW_SEC;
+    const durationFit = 1 - Math.abs(dur - params.targetDur) / params.targetDur;
     const lengthScore = w.textLen / maxTextLen;
     const segCountScore = Math.min(1, Math.log(segCount + 1) / Math.log(8));
 
     let score = lengthScore * 0.4 + segCountScore * 0.15 + Math.max(0, durationFit) * 0.15;
-    if (w.killHits > 0) score *= W_KILL ** Math.min(w.killHits, 3);
-    if (w.reactionHits > 0) score *= W_REACTION ** Math.min(w.reactionHits, 3);
-    if (w.audioPeakCount > 0) score *= W_AUDIO_PEAK ** Math.min(w.audioPeakCount / 3, 1.5);
+    if (w.killHits > 0) score *= params.wKill ** Math.min(w.killHits, 3);
+    if (w.reactionHits > 0) score *= params.wReaction ** Math.min(w.reactionHits, 3);
+    if (w.audioPeakCount > 0) score *= params.wAudioPeak ** Math.min(w.audioPeakCount / 3, 1.5);
     score = Math.min(1, score);
 
     const firstText = w.segments[0]?.text ?? '';
@@ -224,20 +282,19 @@ export function detectHighlights(
     if (w.reactionHits > 0) reasons.push(`${w.reactionHits} reaction`);
     if (w.audioPeakCount > 0) reasons.push(`${w.audioPeakCount} audio-peak`);
     if (reasons.length === 0 && lengthScore > 0.6) reasons.push('high-density');
+    const profileTag = params === SHORT_PROFILE ? 'short' : 'long';
 
     return {
       startSec: w.start,
-      endSec: Math.min(w.end, w.start + MAX_WINDOW_SEC),
+      endSec: Math.min(w.end, w.start + params.maxDur),
       score,
       label: label || `Clip @ ${Math.floor(w.start)}s`,
-      reason: reasons.join(', ') || 'speech-density',
+      reason: `${profileTag}: ${reasons.join(', ') || 'speech-density'}`,
     };
   });
 
   scored.sort((a, b) => b.score - a.score);
-  const top = scored.slice(0, MAX_HIGHLIGHTS);
-  top.sort((a, b) => a.startSec - b.startSec);
-  return top;
+  return scored.slice(0, params.maxCount);
 }
 
 function countMatches(text: string, phrases: string[]): number {

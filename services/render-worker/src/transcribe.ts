@@ -20,7 +20,7 @@ import { createReadStream } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { detectHighlights, type Highlight } from './highlights.js';
+import { detectHighlights, type Highlight, type HighlightMode } from './highlights.js';
 import { extractAudioEnergy, normalizeEnergy, detectPeaks } from './audioEnergy.js';
 
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -36,6 +36,8 @@ export interface TranscribeOpts {
   sourcePath: string;
   openaiApiKey: string;
   jobId: string;
+  /** Phase 9.6.7d: 'gaming' (SHORT 6-20s), 'podcast' (LONG 20-60s), 'auto' (both). */
+  highlightMode?: HighlightMode;
   /** Default 300s — Audio-Extract + Whisper-Call zusammen. */
   maxDurationSec?: number;
 }
@@ -110,9 +112,11 @@ export async function transcribeAudio(opts: TranscribeOpts): Promise<TranscribeR
         ? (raw as { duration: number }).duration
         : 0;
 
-    // Phase 9.6.7b — Highlight-Detection mit Cues + Audio-Peaks (combined score).
-    const highlights = detectHighlights(cues, audioPeaks);
-    console.log(`[${jobId}] highlights detected: ${highlights.length}`);
+    // Phase 9.6.7b+d — Highlight-Detection mit Cues + Audio-Peaks + Mode.
+    const highlights = detectHighlights(cues, audioPeaks, opts.highlightMode ?? 'auto');
+    console.log(
+      `[${jobId}] highlights detected: ${highlights.length} (mode=${opts.highlightMode ?? 'auto'})`,
+    );
 
     return { cues, highlights, raw, audioBytes: audioStats.size, durationSec: duration };
   } finally {

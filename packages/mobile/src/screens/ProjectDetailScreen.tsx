@@ -344,6 +344,7 @@ function HighlightsTab({
       const result = await transcribeVideo({
         sourceUri: project.sourceUri,
         projectId: project.id,
+        videoType: project.videoType ?? 'auto',
         onPhase: setAnalysisPhase,
         onUploadProgress: setUploadProgress,
       });

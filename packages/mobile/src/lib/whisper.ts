@@ -22,6 +22,8 @@ const TRANSCRIPTS_DIR = `${FileSystem.documentDirectory}transcripts/`;
 export interface TranscribeOpts {
   sourceUri: string;
   projectId: string;
+  /** Phase 9.6.7d: 'gaming' = SHORT-Clips, 'podcast' = LONG-Clips, 'auto' = both. */
+  videoType?: 'gaming' | 'podcast' | 'auto';
   onPhase?: (phase: 'uploading' | 'transcribing') => void;
   onUploadProgress?: (frac: number) => void;
 }
@@ -97,7 +99,7 @@ export async function transcribeVideo(opts: TranscribeOpts): Promise<TranscribeR
   const trRes = await fetch(`${base}/v1/transcribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ sourceKey: key, openaiApiKey }),
+    body: JSON.stringify({ sourceKey: key, openaiApiKey, videoType: opts.videoType ?? 'auto' }),
   });
   const trData = (await trRes.json().catch(() => ({}))) as {
     ok?: boolean;

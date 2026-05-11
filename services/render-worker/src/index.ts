@@ -331,9 +331,10 @@ app.post('/v1/download', authMiddleware(supabase), async (req: AuthedRequest, re
 app.post('/v1/transcribe', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   const jobId = randomUUID();
-  const { sourceKey, openaiApiKey } = req.body as {
+  const { sourceKey, openaiApiKey, videoType } = req.body as {
     sourceKey?: string;
     openaiApiKey?: string;
+    videoType?: 'gaming' | 'podcast' | 'auto';
   };
 
   if (!sourceKey || typeof sourceKey !== 'string') {
@@ -345,16 +346,18 @@ app.post('/v1/transcribe', authMiddleware(supabase), async (req: AuthedRequest, 
   if (!sourceKey.startsWith(`sources/${userId}/`)) {
     return res.status(403).json({ ok: false, error: 'source key not owned' });
   }
+  const mode = videoType === 'gaming' || videoType === 'podcast' ? videoType : 'auto';
 
   const sourceTmp = path.join(tmpdir(), `${jobId}-transcribe-src.mp4`);
 
   try {
-    console.log(`[${jobId}] transcribe user=${userId} sourceKey=${sourceKey}`);
+    console.log(`[${jobId}] transcribe user=${userId} mode=${mode} sourceKey=${sourceKey}`);
     await downloadToFile(sourceKey, sourceTmp);
     const result = await transcribeAudio({
       sourcePath: sourceTmp,
       openaiApiKey,
       jobId,
+      highlightMode: mode,
     });
     await unlink(sourceTmp).catch(() => {});
     console.log(

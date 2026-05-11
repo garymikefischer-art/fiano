@@ -13,6 +13,8 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { SubtitleSettings } from '../data/demoProjects';
+
 const ONBOARDING_KEY = 'fiano.onboarding.completed';
 const FACECAM_KEY = 'fiano.region.facecam';
 const GAMEPLAY_KEY = 'fiano.region.gameplay';
@@ -24,6 +26,7 @@ const LAST_PROJECT_KEY = 'fiano.lastOpenedProject';
 // in AsyncStorage statt SecureStore. Cookies sind session-bound + expiren —
 // kein Permanent-Credential-Leak-Risiko vergleichbar zu OpenAI-Keys.
 const YOUTUBE_COOKIES_KEY = 'fiano.api.youtube-cookies';
+const SUBTITLE_PRESETS_KEY = 'fiano.subtitle.presets';
 
 /** Region-Coords als Anteile (0..1) auf der Source-Video-Fläche. */
 export interface Region {
@@ -67,6 +70,14 @@ export interface ExportSettings {
 
 const DEFAULT_EXPORT: ExportSettings = { fps: 30, resolution: '1080p', bitrate: '20M' };
 
+/** Custom Subtitle-Preset (Phase 9.6.7e) — User-saved styling für Re-Use. */
+export interface CustomSubtitlePreset {
+  id: string;
+  name: string;
+  settings: SubtitleSettings;
+  createdAt: number;
+}
+
 interface AppState {
   initializing: boolean;
   onboardingCompleted: boolean;
@@ -80,6 +91,8 @@ interface AppState {
    *  Bypass. User exportiert die mit 'Get cookies.txt LOCALLY' Browser-Extension
    *  und pastet hier rein. Sehen Settings → API-Keys. */
   youtubeCookies: string;
+  /** User-saved Subtitle-Styling-Presets (Phase 9.6.7e). */
+  customSubtitlePresets: CustomSubtitlePreset[];
   /** Default-Export-Settings für 9:16 + Builder Renders. */
   exportSettings: ExportSettings;
   /** Letzte projectId die der User in ProjectDetail geöffnet hat — für Tab-Quick-Open. */
@@ -95,6 +108,9 @@ interface AppState {
   setYoutubeCookies: (c: string) => Promise<void>;
   setExportSettings: (s: ExportSettings) => Promise<void>;
   setLastOpenedProjectId: (id: string) => Promise<void>;
+  /** Subtitle-Preset speichern (cues werden NICHT mit-persistiert, nur styling). */
+  saveSubtitlePreset: (name: string, settings: SubtitleSettings) => Promise<void>;
+  removeSubtitlePreset: (id: string) => Promise<void>;
 }
 
 /** Liest entweder einen JSON-Region oder einen Legacy-Preset-String. */
@@ -132,18 +148,30 @@ export const useAppStore = create<AppState>((set) => ({
   openaiKey: '',
   geminiKey: '',
   youtubeCookies: '',
+  customSubtitlePresets: [],
   exportSettings: DEFAULT_EXPORT,
   lastOpenedProjectId: null,
 
   init: async () => {
     try {
-      const [onboarding, facecam, gameplay, openai, gemini, ytCookies, exportRaw, lastProject] = await Promise.all([
+      const [
+        onboarding,
+        facecam,
+        gameplay,
+        openai,
+        gemini,
+        ytCookies,
+        presetsRaw,
+        exportRaw,
+        lastProject,
+      ] = await Promise.all([
         SecureStore.getItemAsync(ONBOARDING_KEY),
         SecureStore.getItemAsync(FACECAM_KEY),
         SecureStore.getItemAsync(GAMEPLAY_KEY),
         SecureStore.getItemAsync(OPENAI_KEY),
         SecureStore.getItemAsync(GEMINI_KEY),
         AsyncStorage.getItem(YOUTUBE_COOKIES_KEY),
+        AsyncStorage.getItem(SUBTITLE_PRESETS_KEY),
         SecureStore.getItemAsync(EXPORT_KEY),
         SecureStore.getItemAsync(LAST_PROJECT_KEY),
       ]);
@@ -156,6 +184,15 @@ export const useAppStore = create<AppState>((set) => ({
           /* keep default */
         }
       }
+      let customSubtitlePresets: CustomSubtitlePreset[] = [];
+      if (presetsRaw) {
+        try {
+          const parsed = JSON.parse(presetsRaw);
+          if (Array.isArray(parsed)) customSubtitlePresets = parsed;
+        } catch {
+          /* keep empty */
+        }
+      }
       set({
         onboardingCompleted: onboarding === '1',
         facecamRegion: parseRegion(facecam, FACECAM_PRESETS, DEFAULT_FACECAM),
@@ -164,6 +201,7 @@ export const useAppStore = create<AppState>((set) => ({
         openaiKey: openai ?? '',
         geminiKey: gemini ?? '',
         youtubeCookies: ytCookies ?? '',
+        customSubtitlePresets,
         exportSettings,
         lastOpenedProjectId: lastProject ?? null,
         initializing: false,
@@ -256,6 +294,35 @@ export const useAppStore = create<AppState>((set) => ({
     set({ lastOpenedProjectId: id });
     try {
       await SecureStore.setItemAsync(LAST_PROJECT_KEY, id);
+    } catch {
+      /* ignore */
+    }
+  },
+
+  saveSubtitlePreset: async (name, settings) => {
+    // cues NICHT mit-persistieren — Preset ist nur Styling. Bei Apply behält
+    // das Project seine eigenen cues, übernimmt nur Font/Color/Glow/etc.
+    const cleaned: SubtitleSettings = { ...settings, cues: undefined };
+    const preset: CustomSubtitlePreset = {
+      id: `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      name: name.trim() || `Preset ${Date.now()}`,
+      settings: cleaned,
+      createdAt: Date.now(),
+    };
+    const next = [...useAppStore.getState().customSubtitlePresets, preset];
+    set({ customSubtitlePresets: next });
+    try {
+      await AsyncStorage.setItem(SUBTITLE_PRESETS_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  },
+
+  removeSubtitlePreset: async (id) => {
+    const next = useAppStore.getState().customSubtitlePresets.filter((p) => p.id !== id);
+    set({ customSubtitlePresets: next });
+    try {
+      await AsyncStorage.setItem(SUBTITLE_PRESETS_KEY, JSON.stringify(next));
     } catch {
       /* ignore */
     }
