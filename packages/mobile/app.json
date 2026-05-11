@@ -56,7 +56,6 @@
           }
         }
       ],
-      "./plugins/with-large-heap.js",
       "expo-localization"
     ],
     "experiments": {
