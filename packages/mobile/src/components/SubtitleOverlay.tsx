@@ -185,14 +185,21 @@ function SvgGradientText({
   shadowBlur = 4,
 }: SvgGradientTextProps) {
   // Großzügige Box damit Stroke/Glow/Shadow nicht abgeschnitten werden.
-  // 0.7×fontSize×chars + 20% padding + extra für stroke/shadow-offset.
-  const extraPad = Math.max(strokeWidth * 2, Math.abs(shadowOffsetX) + shadowBlur * 2, glowBlur);
+  // Glyph-Width-Faktor 0.85 (vorher 0.7) — bei breiten Fonts (Arial Black,
+  // Impact) extending stroke kann den Text deutlich breiter machen.
+  // Stroke malt halb innen + halb außen (strokeWidth × 4 = sicheres outside-pad).
+  const extraPad = Math.max(
+    strokeWidth * 4,
+    Math.abs(shadowOffsetX) + shadowBlur * 2,
+    glowBlur,
+    8,
+  );
   const w = Math.ceil(
-    text.length * fontSize * 0.7 +
+    text.length * fontSize * 0.85 +
       letterSpacing * Math.max(0, text.length - 1) +
       extraPad * 2,
   );
-  const h = Math.ceil(fontSize * 1.5 + extraPad);
+  const h = Math.ceil(fontSize * 1.6 + extraPad);
   const cx = w / 2;
   const cy = h * 0.7;
   const gradId = `grad-${text.length}-${metallic ? 'm' : 'g'}`;
