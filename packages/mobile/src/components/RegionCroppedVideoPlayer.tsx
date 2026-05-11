@@ -23,7 +23,7 @@
  * Overlay für beide Panes. Master-Slave-Sync via `syncTo()` auf der ref.
  */
 
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import Video, {
   type OnLoadData,
@@ -87,7 +87,32 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
     const currentSecRef = useRef(0);
     const [paneSize, setPaneSize] = useState<{ w: number; h: number } | null>(null);
     const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null);
+    const [posterSize, setPosterSize] = useState<{ w: number; h: number } | null>(null);
     const [errored, setErrored] = useState(false);
+
+    // Source-Maße für Region-Crop-Math beim Poster (Image.getSize ist async).
+    // Wir laden das nur wenn !enabled (Click-to-play-Mode) — sobald Video aktiv ist,
+    // kommen die Maße via onLoad.naturalSize, und Image wird nicht mehr gezeigt.
+    useEffect(() => {
+      if (enabled) return;
+      if (!posterUri) {
+        setPosterSize(null);
+        return;
+      }
+      let cancelled = false;
+      Image.getSize(
+        posterUri,
+        (w, h) => {
+          if (!cancelled && w > 0 && h > 0) setPosterSize({ w, h });
+        },
+        () => {
+          /* getSize-error: bleibt null, Image rendert cover-fit als Fallback */
+        },
+      );
+      return () => {
+        cancelled = true;
+      };
+    }, [enabled, posterUri]);
 
     useImperativeHandle(
       ref,
@@ -112,10 +137,11 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
     const validRegion =
       region != null && region.w > 0 && region.h > 0 ? clampRegion(region) : null;
 
-    // Region-Crop-Layout nur fürs Video. Beim Poster (Image) verwenden wir cover-
-    // fit ohne Crop, damit die Image-Decoder-Surface klein bleibt (Region-Crop mit
-    // scale 2-4× hatte sonst die RGBA-Bitmaps explodiert → Android-OOM).
-    const layout = enabled ? computeLayout(paneSize, videoSize, validRegion) : null;
+    // Region-Crop-Layout: für Video aus videoSize, fürs Poster aus posterSize.
+    // Mit largeHeap=true (app.config.js) verkraftet der Heap die 2-4× größere
+    // Image-Surface beim Region-Crop. Ohne largeHeap hatte es den Heap gesprengt.
+    const srcSize = enabled ? videoSize : posterSize;
+    const layout = computeLayout(paneSize, srcSize, validRegion);
 
     return (
       <View
@@ -171,15 +197,24 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
         {/* Poster (Thumbnail) — wird gezeigt:
               - bei !enabled (Click-to-play, Stacked-Preview vor Tap-Play)
               - oder als Fallback solange das Video noch keine Maße hat
-            cover-fit statt Region-Crop: Image-Decoder-Surface bleibt in Pane-
-            Größe (klein). Region-Cropping kommt erst beim Tap-Play durchs Video.
-            Mit largeHeap=true (app.config.js) ist 4× Image-Decode auf Mediatek-
-            Phones OK; ohne hatte es den Java-Heap gesprengt. */}
+            Wenn layout berechnet ist (posterSize oder videoSize bekannt + Region
+            valide), rendern wir mit Region-Crop-Math — User sieht den echten
+            Ausschnitt schon vor dem Play. Sonst Fallback auf cover-fit. */}
         {(!enabled || (enabled && !videoSize)) && posterUri && (
           <Image
             source={{ uri: posterUri }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
+            style={
+              layout
+                ? {
+                    position: 'absolute',
+                    left: layout.left,
+                    top: layout.top,
+                    width: layout.width,
+                    height: layout.height,
+                  }
+                : StyleSheet.absoluteFill
+            }
+            resizeMode={layout ? 'stretch' : 'cover'}
           />
         )}
 
