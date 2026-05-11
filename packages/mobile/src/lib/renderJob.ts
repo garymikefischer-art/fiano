@@ -1,25 +1,29 @@
 /**
- * Cloud-Render-Client (Phase 9.6.1.5) — Mobile → R2 + Worker via HTTPS.
+ * Cloud-Render-Client (Phase 9.6.4+) — Multi-Input Pipeline.
  *
- * 2-Step Flow weil Source-Videos oft >100 MB sind:
- *   1. POST /v1/upload-url an Worker → bekommt pre-signed R2-PUT-URL
- *   2. PUT source.mp4 direkt zu R2 (kein Worker-Hop, Cloudflare Egress free)
- *   3. POST /v1/render an Worker mit sourceKey
- *   4. Worker rendert (FFmpeg auf Cloud Run) → upload Result zu R2
- *   5. Worker returnt pre-signed Download-URL
- *   6. Mobile lädt Result direct von R2
- *
- * Vorteil ggü. proxy-upload: R2 hat unlimited free Egress, Cloud Run hat
- * 32 MiB Request-Size-Limit. Direct-Upload zu R2 umgeht beides.
+ * Flow:
+ *   1. Pro File: POST /v1/upload-url mit { kind, index? } → bekommt pre-signed
+ *      R2-PUT-URL + Key.
+ *   2. PUT File direkt zu R2.
+ *   3. POST /v1/render mit { inputs: {source, intro?, music?, voiceOvers?}, args }
+ *      Args enthalten Platzhalter {SRC}, {INTRO}, {MUSIC_N}, {VO_N}.
+ *   4. Worker rendert → returnt signed Download-URL.
+ *   5. Mobile downloaded Result von R2.
  */
 
 import * as FileSystem from 'expo-file-system';
 import { supabase } from './supabase';
 import { ENV } from './env';
 
-export interface RenderJobOpts {
+export interface RenderJobInputs {
   sourceUri: string;
-  /** FFmpeg-Args mit `{SRC}` und `{DST}` als Platzhalter. */
+  introUri?: string;
+  musicUris?: string[];
+  voiceOverUris?: string[];
+}
+
+export interface RenderJobOpts {
+  inputs: RenderJobInputs;
   args: string[];
   projectId: string;
   outputName?: string;
@@ -27,111 +31,120 @@ export interface RenderJobOpts {
 }
 
 export interface RenderJobResult {
-  /** Lokales Result-Video (file:// in documentDirectory/exports/). */
   localUri: string;
   jobId: string;
   durationMs: number;
-  sizeBytes: number;
 }
 
 export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult> {
-  // Debug-Log damit User in Metro-Console sieht was tatsächlich ankommt.
-  console.log(
-    `[renderJob] RENDER_WORKER_URL = "${ENV.RENDER_WORKER_URL}" (len=${ENV.RENDER_WORKER_URL.length})`,
-  );
-
   if (!ENV.RENDER_WORKER_URL) {
     throw new Error(
-      'Cloud-Render nicht konfiguriert (EXPO_PUBLIC_RENDER_WORKER_URL fehlt). ' +
-      'Siehe services/render-worker/README.md für Setup.',
+      'Cloud-Render nicht konfiguriert (EXPO_PUBLIC_RENDER_WORKER_URL fehlt).',
     );
   }
-
-  // Simple URL-Cleanup ohne new URL() — RN's URL-Polyfill ist manchmal
-  // inkompatibel mit native fetch (fetch sagt 'invalid URL' obwohl new URL()
-  // erfolgreich parsed). Wir trimmen einfach trailing slashes + whitespace.
-  const base = ENV.RENDER_WORKER_URL.trim().replace(/\/+$/, '');
 
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) throw new Error('Nicht eingeloggt — Login zuerst.');
   const token = session.session.access_token;
+  const base = ENV.RENDER_WORKER_URL.trim().replace(/\/+$/, '');
 
-  // ─── 1. Pre-Signed Upload-URL holen ───────────────────────────────
-  opts.onUploadProgress?.(0);
-  const uploadUrlEndpoint = `${base}/v1/upload-url`;
-  console.log(`[renderJob] POST ${uploadUrlEndpoint}`);
-  let urlRes: Response;
-  try {
-    urlRes = await fetch(uploadUrlEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ projectId: opts.projectId }),
-    });
-  } catch (e) {
-    // Fetch-internal exception (z.B. 'invalid URL', network unreachable, DNS fail)
-    const msg = e instanceof Error ? e.message : String(e);
-    throw new Error(
-      `fetch ${uploadUrlEndpoint} crashed: ${msg}. ` +
-      `Check ob die URL korrekt ist + curl ${base}/health antwortet.`,
-    );
-  }
-  if (!urlRes.ok) {
-    const msg = await safeErrorMessage(urlRes);
-    throw new Error(`upload-url HTTP ${urlRes.status}: ${msg}`);
-  }
-  const urlBody = (await urlRes.json()) as {
-    uploadUrl: string;
-    sourceKey: string;
+  // ─── Anzahl Files für Progress-Tracking ────────────────────────────
+  const totalFiles =
+    1 +
+    (opts.inputs.introUri ? 1 : 0) +
+    (opts.inputs.musicUris?.length ?? 0) +
+    (opts.inputs.voiceOverUris?.length ?? 0);
+  let filesUploaded = 0;
+  const reportProgress = (fileProgress: number) => {
+    const overall = (filesUploaded + fileProgress) / totalFiles;
+    opts.onUploadProgress?.(overall);
   };
 
-  // ─── 2. Source direkt zu R2 PUTten ────────────────────────────────
-  // KEIN Content-Type-Header — R2 berechnet das aus dem File. Wenn wir manuell
-  // 'video/mp4' senden + signed URL hat anderes ContentType in Signature →
-  // 403. Ohne header ist's safe.
-  console.log(`[renderJob] PUT to R2 (size=${opts.sourceUri.length})`);
-  const uploadTask = FileSystem.createUploadTask(
-    urlBody.uploadUrl,
-    opts.sourceUri,
-    {
-      httpMethod: 'PUT',
-      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    },
-    (p) => {
-      if (p.totalBytesExpectedToSend > 0) {
-        opts.onUploadProgress?.(p.totalBytesSent / p.totalBytesExpectedToSend);
-      }
-    },
-  );
-  const upRes = await uploadTask.uploadAsync();
-  if (!upRes || upRes.status >= 300) {
-    // R2 returnt XML-Error im Body — log für Debug
-    console.error(`[renderJob] R2 upload failed body:`, upRes?.body?.slice(0, 500));
-    throw new Error(
-      `R2 upload failed: HTTP ${upRes?.status ?? '?'} — ${upRes?.body?.slice(0, 200) ?? 'no body'}`,
+  const uploadOne = async (
+    localUri: string,
+    kind: 'source' | 'intro' | 'music' | 'voice-over',
+    index?: number,
+  ): Promise<string> => {
+    // 1. Signed Upload-URL holen
+    const urlRes = await fetch(`${base}/v1/upload-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ projectId: opts.projectId, kind, index }),
+    });
+    if (!urlRes.ok) {
+      const body = await urlRes.json().catch(() => ({}));
+      throw new Error(
+        `upload-url (${kind}${index !== undefined ? `[${index}]` : ''}) failed: ${body.error ?? `HTTP ${urlRes.status}`}`,
+      );
+    }
+    const { uploadUrl, key } = (await urlRes.json()) as { uploadUrl: string; key: string };
+
+    // 2. PUT zu R2
+    const task = FileSystem.createUploadTask(
+      uploadUrl,
+      localUri,
+      {
+        httpMethod: 'PUT',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      },
+      (p) => {
+        if (p.totalBytesExpectedToSend > 0) {
+          reportProgress(p.totalBytesSent / p.totalBytesExpectedToSend);
+        }
+      },
     );
+    const upRes = await task.uploadAsync();
+    if (!upRes || upRes.status >= 300) {
+      throw new Error(
+        `R2 upload (${kind}) failed: HTTP ${upRes?.status ?? '?'} — ${upRes?.body?.slice(0, 200) ?? ''}`,
+      );
+    }
+    filesUploaded++;
+    reportProgress(0);
+    return key;
+  };
+
+  opts.onUploadProgress?.(0);
+
+  // ─── Parallele Uploads aller Inputs ────────────────────────────────
+  const sourceKey = await uploadOne(opts.inputs.sourceUri, 'source');
+  const introKey = opts.inputs.introUri
+    ? await uploadOne(opts.inputs.introUri, 'intro')
+    : undefined;
+  const musicKeys: string[] = [];
+  if (opts.inputs.musicUris?.length) {
+    for (let i = 0; i < opts.inputs.musicUris.length; i++) {
+      musicKeys.push(await uploadOne(opts.inputs.musicUris[i], 'music', i));
+    }
   }
+  const voKeys: string[] = [];
+  if (opts.inputs.voiceOverUris?.length) {
+    for (let i = 0; i < opts.inputs.voiceOverUris.length; i++) {
+      voKeys.push(await uploadOne(opts.inputs.voiceOverUris[i], 'voice-over', i));
+    }
+  }
+
   opts.onUploadProgress?.(1);
 
-  // ─── 3. Render-Request ────────────────────────────────────────────
+  // ─── Render-Request ──────────────────────────────────────────────────
   const renderRes = await fetch(`${base}/v1/render`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      sourceKey: urlBody.sourceKey,
+      inputs: {
+        source: sourceKey,
+        intro: introKey,
+        music: musicKeys.length > 0 ? musicKeys : undefined,
+        voiceOvers: voKeys.length > 0 ? voKeys : undefined,
+      },
       args: opts.args,
       projectId: opts.projectId,
       outputName: opts.outputName ?? `${Date.now()}.mp4`,
     }),
   });
   if (!renderRes.ok) {
-    const msg = await safeErrorMessage(renderRes);
-    throw new Error(`render failed: ${msg}`);
+    const body = await renderRes.json().catch(() => ({}));
+    throw new Error(`render failed: ${body.error ?? `HTTP ${renderRes.status}`}`);
   }
   const renderBody = (await renderRes.json()) as {
     ok: boolean;
@@ -139,19 +152,17 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     outputKey: string;
     signedUrl: string;
     durationMs: number;
-    sizeBytes: number;
     error?: string;
   };
   if (!renderBody.ok) throw new Error(renderBody.error ?? 'render failed');
 
-  // ─── 4. Result von R2 herunterladen ───────────────────────────────
+  // ─── Result von R2 herunterladen ────────────────────────────────────
   const exportsDir = `${FileSystem.documentDirectory}exports/`;
   const dirInfo = await FileSystem.getInfoAsync(exportsDir);
   if (!dirInfo.exists) {
     await FileSystem.makeDirectoryAsync(exportsDir, { intermediates: true });
   }
   const localUri = `${exportsDir}${renderBody.jobId}.mp4`;
-
   const dl = await FileSystem.downloadAsync(renderBody.signedUrl, localUri);
   if (dl.status !== 200) {
     throw new Error(`download failed: HTTP ${dl.status}`);
@@ -161,15 +172,5 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     localUri,
     jobId: renderBody.jobId,
     durationMs: renderBody.durationMs,
-    sizeBytes: renderBody.sizeBytes,
   };
-}
-
-async function safeErrorMessage(res: Response): Promise<string> {
-  try {
-    const body = await res.json();
-    return body.error ?? `HTTP ${res.status}`;
-  } catch {
-    return `HTTP ${res.status}`;
-  }
 }

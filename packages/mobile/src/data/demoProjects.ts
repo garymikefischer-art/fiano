@@ -53,6 +53,12 @@ export interface DemoProject {
   voiceOvers?: ProjectVoiceOver[];
   /** Subtitle-Styling (Phase 9.5.6). Alle Properties analog Desktop. */
   subtitles?: SubtitleSettings;
+  /** Music-Tracks (Phase 9.6.4) — werden beim Export gemixt. */
+  musicTracks?: ProjectMusicTrack[];
+  /** Wenn true: musicTracks werden zufällig pro Build gewählt. Default false (alle gemixt). */
+  musicShuffle?: boolean;
+  /** Intro-Video (Phase 9.6.6) — wird vor dem Main-Clip eingeblendet. */
+  intro?: ProjectIntro;
   /** Letzte Fehlermeldung wenn status === 'failed'. */
   errorMessage?: string;
 }
@@ -166,6 +172,27 @@ export interface ProjectVoiceOver {
   text?: string;
   /** OpenAI-Voice-ID (alloy/echo/fable/nova/onyx/shimmer). */
   voice?: string;
+}
+
+/** Music-Track (Phase 9.6.4). */
+export interface ProjectMusicTrack {
+  /** file:// URI im documentDirectory/music/. */
+  path: string;
+  /** Original-Dateiname (Display). */
+  filename?: string;
+  /** Lautstärke 0..1.5. Default 0.6 (Music soll Source-Audio nicht überdecken). */
+  volume: number;
+}
+
+/** Intro-Video (Phase 9.6.6). 'before' = prepend, 'overlay' = transparent
+ *  über die ersten 3 Sek. Aktuell unterstützt nur 'before'. */
+export interface ProjectIntro {
+  /** file:// URI. */
+  path: string;
+  /** Original-Dateiname. */
+  filename?: string;
+  /** Default 'before'. 'overlay' kommt später. */
+  mode?: 'before' | 'overlay';
 }
 
 export const DEFAULT_SPLIT_RATIO = 0.4;
