@@ -110,14 +110,16 @@ export function HomeScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingHorizontal: 20,
+          paddingHorizontal: 12,
           paddingTop: 4,
           paddingBottom: 6,
           borderBottomWidth: 1,
           borderBottomColor: 'rgba(255,255,255,0.06)',
         }}
       >
-        <FianoLogo height={88} />
+        <View style={{ marginLeft: -10 }}>
+          <FianoLogo height={72} />
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <SearchIconButton onPress={() => nav.navigate('Search')} />
           <NotificationBell count={unreadCount} onPress={() => nav.navigate('Notifications')} />

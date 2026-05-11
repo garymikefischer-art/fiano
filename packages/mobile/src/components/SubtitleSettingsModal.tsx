@@ -19,6 +19,7 @@
 
 import { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -33,6 +34,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ColorPickerButton } from './ColorPickerModal';
 import { SimpleSlider } from './SimpleSlider';
 import { SubtitlePreviewCard } from './SubtitlePreviewCard';
+import { CueEditorModal } from './CueEditorModal';
 import {
   DEFAULT_SUBTITLES,
   type SubtitleFontFamily,
@@ -40,6 +42,7 @@ import {
   type SubtitleSettings,
   type SubtitleStyle,
 } from '../data/demoProjects';
+import { useAppStore } from '../stores/appStore';
 import { haptic } from '../lib/haptics';
 
 interface Props {
@@ -95,6 +98,12 @@ const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = [
 ];
 
 export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: Props) {
+  const [cueEditorOpen, setCueEditorOpen] = useState(false);
+  const [savePresetOpen, setSavePresetOpen] = useState(false);
+  const [presetNameInput, setPresetNameInput] = useState('');
+  const customPresets = useAppStore((s) => s.customSubtitlePresets);
+  const saveSubtitlePreset = useAppStore((s) => s.saveSubtitlePreset);
+  const removeSubtitlePreset = useAppStore((s) => s.removeSubtitlePreset);
   // KEIN lokaler State — wir lesen direkt vom parent (single source of truth).
   // Vorheriger local-buffer hatte stale-closure-Probleme: Slider/ColorPicker
   // riefen patch() mit alten local-werten weil React 18 batching + setLocal-
@@ -159,9 +168,11 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 <View style={{ flex: 1 }}>
                   <Text style={styles.enableTitle}>Enable subtitles</Text>
                   <Text style={styles.enableSub}>
-                    {local.enabled
-                      ? 'Style-Vorschau aktiv in der 9:16-Preview. Auto-Untertitel kommen mit Phase 9.6.7 (Whisper).'
-                      : 'Aktivieren, um die Subtitle-Styles in der Preview zu sehen.'}
+                    {(local.cues?.length ?? 0) > 0
+                      ? `${local.cues!.length} cues from AI analysis. Tap Edit to refine text.`
+                      : local.enabled
+                        ? 'Style preview active. Run AI Analysis in Highlights tab to generate cues.'
+                        : 'Enable to preview subtitle styles.'}
                   </Text>
                 </View>
                 <Pressable
@@ -173,6 +184,144 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 >
                   <View style={[styles.toggleThumb, local.enabled && styles.toggleThumbOn]} />
                 </Pressable>
+              </View>
+
+              {/* Edit-Cues-Button — sichtbar wenn cues vorhanden. Direkter Pfad
+                  zum CueEditor analog Desktop-9:16-Tab. */}
+              {(local.cues?.length ?? 0) > 0 && (
+                <Pressable
+                  onPress={() => {
+                    haptic.medium();
+                    setCueEditorOpen(true);
+                  }}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    borderRadius: 10,
+                    backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+                    marginTop: -8,
+                  })}
+                >
+                  <Ionicons name="create-outline" size={14} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                    Edit cues ({local.cues!.length})
+                  </Text>
+                </Pressable>
+              )}
+
+              {/* MY PRESETS — User-saved Styling-Presets (Phase 9.6.7e).
+                  Horizontal-Scroll mit allen custom presets + Save-Current-Button.
+                  Tap = apply (preserves cues + enabled), long-press = delete-confirm. */}
+              <View style={{ gap: 8 }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: '#a1a1aa',
+                      fontSize: 11,
+                      fontWeight: '700',
+                      letterSpacing: 0.6,
+                    }}
+                  >
+                    MY PRESETS{customPresets.length > 0 ? ` · ${customPresets.length}` : ''}
+                  </Text>
+                  <Pressable
+                    onPress={() => {
+                      haptic.medium();
+                      setPresetNameInput('');
+                      setSavePresetOpen(true);
+                    }}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 8,
+                      backgroundColor: pressed ? 'rgba(255,16,57,0.25)' : 'rgba(255,16,57,0.15)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,16,57,0.4)',
+                    })}
+                  >
+                    <Ionicons name="add" size={12} color="#ff1039" />
+                    <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700' }}>
+                      Save Current
+                    </Text>
+                  </Pressable>
+                </View>
+                {customPresets.length === 0 ? (
+                  <Text style={{ color: '#52525b', fontSize: 10, lineHeight: 14 }}>
+                    Tap "Save Current" to store your styling as a re-usable preset for future
+                    projects. Cues + enable-state stay per-project; only font/colors/effects
+                    are saved.
+                  </Text>
+                ) : (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 8, paddingVertical: 2, paddingHorizontal: 1 }}
+                  >
+                    {customPresets.map((p) => (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => {
+                          haptic.selection();
+                          // Apply styling, but preserve cues + enabled from current project.
+                          onChange({
+                            ...p.settings,
+                            enabled: local.enabled,
+                            cues: local.cues,
+                          });
+                        }}
+                        onLongPress={() => {
+                          haptic.warning();
+                          Alert.alert(
+                            'Delete preset',
+                            `Remove "${p.name}"?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              {
+                                text: 'Delete',
+                                style: 'destructive',
+                                onPress: () => void removeSubtitlePreset(p.id),
+                              },
+                            ],
+                          );
+                        }}
+                        delayLongPress={350}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 10,
+                          backgroundColor: pressed ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(255,255,255,0.10)',
+                          gap: 2,
+                          minWidth: 110,
+                        })}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}
+                        >
+                          {p.name}
+                        </Text>
+                        <Text style={{ color: '#71717a', fontSize: 9 }}>
+                          {p.settings.style} · {p.settings.fontFamily ?? 'helvetica'}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
               </View>
 
               {/* 1. Preset */}
@@ -488,6 +637,117 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      {/* Cue-Editor als overlay-Modal (sibling). */}
+      <CueEditorModal
+        visible={cueEditorOpen}
+        cues={local.cues ?? []}
+        onClose={() => setCueEditorOpen(false)}
+        onSave={(nextCues) => patch({ cues: nextCues })}
+      />
+
+      {/* Save-Preset-Name-Prompt-Modal (Phase 9.6.7e). Eigene Modal weil
+          Alert.prompt() nur auf iOS — Android braucht ein Custom-Input. */}
+      <Modal
+        visible={savePresetOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSavePresetOpen(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSavePresetOpen(false)}
+          />
+          <View
+            style={{
+              backgroundColor: '#181010',
+              borderRadius: 16,
+              padding: 18,
+              width: '100%',
+              maxWidth: 360,
+              gap: 12,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.10)',
+            }}
+          >
+            <Text style={{ color: '#f1f2f2', fontSize: 15, fontWeight: '700' }}>
+              Save preset
+            </Text>
+            <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }}>
+              Save current styling (font, colors, glow, shadow, …) as a re-usable
+              preset. Cues are NOT included.
+            </Text>
+            <TextInput
+              value={presetNameInput}
+              onChangeText={setPresetNameInput}
+              placeholder="e.g. My Gaming Style"
+              placeholderTextColor="#52525b"
+              autoFocus
+              maxLength={32}
+              style={{
+                backgroundColor: 'rgba(0,0,0,0.35)',
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                color: '#f1f2f2',
+                fontSize: 13,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.10)',
+              }}
+            />
+            <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+              <Pressable
+                onPress={() => setSavePresetOpen(false)}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  opacity: pressed ? 0.6 : 1,
+                })}
+              >
+                <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '700' }}>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  const name = presetNameInput.trim();
+                  if (!name) return;
+                  await saveSubtitlePreset(name, local);
+                  haptic.success();
+                  setSavePresetOpen(false);
+                  setPresetNameInput('');
+                }}
+                disabled={!presetNameInput.trim()}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  backgroundColor: !presetNameInput.trim()
+                    ? 'rgba(255,255,255,0.06)'
+                    : pressed
+                      ? '#cc0d2e'
+                      : '#ff1039',
+                  opacity: !presetNameInput.trim() ? 0.5 : 1,
+                })}
+              >
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                  Save
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }

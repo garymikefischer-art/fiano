@@ -22,12 +22,24 @@ const TRANSCRIPTS_DIR = `${FileSystem.documentDirectory}transcripts/`;
 export interface TranscribeOpts {
   sourceUri: string;
   projectId: string;
+  /** Phase 9.6.7d: 'gaming' = SHORT-Clips, 'podcast' = LONG-Clips, 'auto' = both. */
+  videoType?: 'gaming' | 'podcast' | 'auto';
   onPhase?: (phase: 'uploading' | 'transcribing') => void;
   onUploadProgress?: (frac: number) => void;
 }
 
+export interface AIHighlight {
+  startSec: number;
+  endSec: number;
+  score: number;
+  label: string;
+  reason: string;
+}
+
 export interface TranscribeResult {
   cues: SubtitleCue[];
+  /** Phase 9.6.7b: AI-detected Highlight-Clips aus dem Transcript. */
+  highlights: AIHighlight[];
   durationSec: number;
   /** Pfad zur gecachten transcript.json (für debug / re-edit). */
   transcriptPath?: string;
@@ -87,11 +99,12 @@ export async function transcribeVideo(opts: TranscribeOpts): Promise<TranscribeR
   const trRes = await fetch(`${base}/v1/transcribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ sourceKey: key, openaiApiKey }),
+    body: JSON.stringify({ sourceKey: key, openaiApiKey, videoType: opts.videoType ?? 'auto' }),
   });
   const trData = (await trRes.json().catch(() => ({}))) as {
     ok?: boolean;
     cues?: SubtitleCue[];
+    highlights?: AIHighlight[];
     durationSec?: number;
     error?: string;
   };
@@ -109,7 +122,15 @@ export async function transcribeVideo(opts: TranscribeOpts): Promise<TranscribeR
     transcriptPath = `${TRANSCRIPTS_DIR}tr-${opts.projectId}-${Date.now()}.json`;
     await FileSystem.writeAsStringAsync(
       transcriptPath,
-      JSON.stringify({ cues: trData.cues, durationSec: trData.durationSec ?? 0 }, null, 2),
+      JSON.stringify(
+        {
+          cues: trData.cues,
+          highlights: trData.highlights ?? [],
+          durationSec: trData.durationSec ?? 0,
+        },
+        null,
+        2,
+      ),
     );
   } catch {
     /* cache-fail nicht kritisch */
@@ -117,6 +138,7 @@ export async function transcribeVideo(opts: TranscribeOpts): Promise<TranscribeR
 
   return {
     cues: trData.cues,
+    highlights: trData.highlights ?? [],
     durationSec: trData.durationSec ?? 0,
     transcriptPath,
   };
