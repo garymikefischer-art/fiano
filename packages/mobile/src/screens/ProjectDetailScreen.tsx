@@ -1983,20 +1983,20 @@ function StackedSplitPreview({
         />
       )}
 
-      {/* Music-Player (Phase 9.6.4 Preview) — hidden Audio, spielt parallel zum
-          Main-Stacked-Preview (NICHT während Intro). */}
-      {videosActive && !introPlaying && musicTracks && musicTracks.length > 0 && (
+      {/* Music-Player (Phase 9.6.4 Preview) — IMMER gemounted wenn videosActive
+          damit Audio pre-loaded ist. paused während Intro-Phase. */}
+      {videosActive && musicTracks && musicTracks.length > 0 && (
         <MusicPreviewPlayer
           uri={musicTracks[0].path}
           volume={musicTracks[0].volume}
-          paused={paused}
+          paused={paused || introPlaying}
         />
       )}
 
-      {/* Voice-Over-Player (Phase 9.6.4 Preview) — synchron zur Master-Video-
-          Position. Nur während Main-Stacked-Preview, nicht im Intro. */}
+      {/* Voice-Over-Player (Phase 9.6.4 Preview) — IMMER gemounted damit
+          createAsync schon läuft bevor User reload tippt. paused=true während
+          Intro-Phase oder generell paused. */}
       {videosActive &&
-        !introPlaying &&
         voiceOvers &&
         voiceOvers.map((vo, i) => (
           <VoiceOverPreviewPlayer
@@ -2005,7 +2005,7 @@ function StackedSplitPreview({
             startSec={vo.startSec}
             volume={vo.volume}
             currentSec={currentSec}
-            paused={paused}
+            paused={paused || introPlaying}
           />
         ))}
 
