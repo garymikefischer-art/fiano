@@ -1,155 +1,186 @@
 /**
  * fiano Render Worker — Express-Server für FFmpeg-Renders auf Google Cloud Run.
  *
- * Architektur:
- *   1. Mobile uploaded Source-Video zu Supabase Storage Bucket `source-uploads`.
- *   2. Mobile schickt POST /v1/render mit { sourceKey, args, projectId }.
- *   3. Worker downloaded Source aus Bucket → /tmp/source.mp4.
- *   4. ffmpeg ${args} /tmp/source.mp4 /tmp/output.mp4.
- *   5. Worker uploaded /tmp/output.mp4 zum Bucket `render-output/${projectId}/${jobId}.mp4`.
- *   6. Worker returnt signed-URL für Download.
+ * Architektur (R2-basiert, Phase 9.6.1.5):
+ *   1. Mobile: POST /v1/upload-url        → bekommt pre-signed R2-PUT-URL
+ *   2. Mobile: PUT source direkt zu R2    → kein Worker-Bandwidth
+ *   3. Mobile: POST /v1/render            → Worker rendert, uploaded Result zu R2
+ *   4. Mobile bekommt signed download URL → lädt direkt von R2
  *
- * Authentication: Supabase JWT im Authorization-Header. Worker validiert + checked
- * Subscription-Status via Supabase RPC.
+ * Warum nicht via Worker proxieren: bei >100 MB Source-Files würde Worker viel
+ * Bandwidth nutzen (Cloud Run hat 200 GB free, OK aber Latenz beim Double-Hop).
+ * R2 hat unlimited free Egress → direkter Mobile↔R2-Pfad ist effizienter.
+ *
+ * Auth: Supabase-JWT im Authorization-Header. SUPABASE_SERVICE_ROLE_KEY nur
+ * Server-side. R2-Keys nur Server-side.
  *
  * Endpoints:
- *   GET  /health        → liveness probe (Cloud Run pings das)
- *   POST /v1/render     → start render job (sync, ~30s für 1-min 1080p)
+ *   GET  /health             → liveness probe
+ *   POST /v1/upload-url      → pre-signed R2 upload URL
+ *   POST /v1/render          → render mit existing sourceKey + return signed-DL
  */
 
 import { createClient } from '@supabase/supabase-js';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { randomUUID } from 'node:crypto';
-import { mkdir, unlink, writeFile, readFile } from 'node:fs/promises';
+import { unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { authMiddleware, type AuthedRequest } from './auth.js';
 import { runFFmpeg } from './render.js';
+import {
+  createOutputDownloadUrl,
+  createSourceUploadUrl,
+  downloadSourceTo,
+  uploadOutput,
+} from './r2.js';
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const SUPABASE_URL = required('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = required('SUPABASE_SERVICE_ROLE_KEY');
-const SOURCE_BUCKET = process.env.SOURCE_BUCKET ?? 'source-uploads';
-const OUTPUT_BUCKET = process.env.OUTPUT_BUCKET ?? 'render-output';
-const MAX_DURATION_SEC = parseInt(process.env.MAX_DURATION_SEC ?? '300', 10); // 5 min hard cap
+const MAX_DURATION_SEC = parseInt(process.env.MAX_DURATION_SEC ?? '300', 10);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
 const app = express();
-app.use(express.json({ limit: '256kb' })); // args nicht zu groß
+app.use(express.json({ limit: '256kb' }));
 
-// Liveness-Probe für Cloud Run.
+// Liveness probe.
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, version: '0.1.0' });
+  res.json({ ok: true, version: '0.2.0', storage: 'r2' });
 });
 
-// Render-Endpoint mit JWT-Auth.
-app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
-  const start = Date.now();
-  const jobId = randomUUID();
-  const userId = req.userId!;
+/**
+ * POST /v1/upload-url
+ *
+ * Body: { projectId }
+ * Returns: { uploadUrl, sourceKey, expiresInSec }
+ *
+ * Mobile uploaded danach das Source-File direkt zu R2 via PUT, ohne durch den
+ * Worker zu gehen.
+ */
+app.post(
+  '/v1/upload-url',
+  authMiddleware(supabase),
+  async (req: AuthedRequest, res: Response) => {
+    const userId = req.userId!;
+    const { projectId } = req.body as { projectId?: string };
+    if (!projectId) {
+      return res.status(400).json({ ok: false, error: 'projectId required' });
+    }
+    try {
+      const jobId = randomUUID();
+      const { uploadUrl, sourceKey } = await createSourceUploadUrl(
+        userId,
+        projectId,
+        jobId,
+      );
+      return res.json({ ok: true, uploadUrl, sourceKey, jobId, expiresInSec: 3600 });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('upload-url failed:', msg);
+      return res.status(500).json({ ok: false, error: msg });
+    }
+  },
+);
 
-  try {
-    const { sourceKey, args, projectId, outputName } = req.body as {
-      sourceKey?: string;
-      args?: string[];
-      projectId?: string;
-      outputName?: string;
-    };
+/**
+ * POST /v1/render
+ *
+ * Body: { sourceKey, args, projectId, outputName? }
+ * Returns: { jobId, outputKey, signedUrl, durationMs, sizeBytes }
+ */
+app.post(
+  '/v1/render',
+  authMiddleware(supabase),
+  async (req: AuthedRequest, res: Response) => {
+    const start = Date.now();
+    const jobId = randomUUID();
+    const userId = req.userId!;
 
-    if (!sourceKey || !args || !projectId) {
-      return res.status(400).json({
-        ok: false,
-        error: 'sourceKey, args, projectId required',
+    try {
+      const { sourceKey, args, projectId, outputName } = req.body as {
+        sourceKey?: string;
+        args?: string[];
+        projectId?: string;
+        outputName?: string;
+      };
+
+      if (!sourceKey || !args || !projectId) {
+        return res
+          .status(400)
+          .json({ ok: false, error: 'sourceKey, args, projectId required' });
+      }
+      if (!Array.isArray(args) || args.length > 200) {
+        return res.status(400).json({ ok: false, error: 'args invalid' });
+      }
+      // Ownership-Check: sourceKey muss mit `sources/${userId}/` starten.
+      if (!sourceKey.startsWith(`sources/${userId}/`)) {
+        return res.status(403).json({ ok: false, error: 'sourceKey not owned by user' });
+      }
+
+      console.log(`[${jobId}] render start user=${userId} project=${projectId}`);
+
+      const sourceLocal = path.join(tmpdir(), `${jobId}-src.mp4`);
+      const outputLocal = path.join(tmpdir(), `${jobId}-out.mp4`);
+
+      // 1. R2 → tmp.
+      const sourceSize = await downloadSourceTo(sourceKey, sourceLocal);
+      console.log(`[${jobId}] downloaded source ${sourceSize} bytes`);
+
+      // 2. ffmpeg ausführen mit Platzhalter-Replacement.
+      const finalArgs = args.map((a) => {
+        const s = String(a);
+        if (s === '{SRC}') return sourceLocal;
+        if (s === '{DST}') return outputLocal;
+        return s;
       });
-    }
+      await runFFmpeg(finalArgs, { maxDurationSec: MAX_DURATION_SEC, jobId });
 
-    if (!Array.isArray(args) || args.length > 200) {
-      return res.status(400).json({ ok: false, error: 'args invalid' });
-    }
+      // 3. Output → R2.
+      const outputKey = await uploadOutput(
+        outputLocal,
+        userId,
+        projectId,
+        jobId,
+        outputName,
+      );
 
-    // Args-Sanity: keine Shell-Injection. Wir spawnen ffmpeg ohne shell, also
-    // sind Args safe; aber blocken wir explizit Pfade ausser unsere tmp-Pfade.
-    const sanitizedArgs = args.map((a) => String(a));
+      // 4. Pre-Signed Download-URL für Mobile (24h).
+      const signedUrl = await createOutputDownloadUrl(outputKey);
 
-    console.log(`[${jobId}] start render for user=${userId} project=${projectId}`);
+      // Cleanup tmp (best-effort).
+      await Promise.allSettled([unlink(sourceLocal), unlink(outputLocal)]);
 
-    // 1. Source aus Bucket downloaden.
-    const sourceLocal = path.join(tmpdir(), `${jobId}-src.mp4`);
-    const outputLocal = path.join(tmpdir(), `${jobId}-out.mp4`);
+      const durationMs = Date.now() - start;
+      console.log(`[${jobId}] done in ${durationMs}ms`);
 
-    const { data: sourceBlob, error: dlErr } = await supabase.storage
-      .from(SOURCE_BUCKET)
-      .download(sourceKey);
-    if (dlErr || !sourceBlob) {
-      throw new Error(`source download failed: ${dlErr?.message ?? 'no blob'}`);
-    }
-    const sourceBuf = Buffer.from(await sourceBlob.arrayBuffer());
-    await writeFile(sourceLocal, sourceBuf);
-    console.log(`[${jobId}] downloaded source: ${sourceBuf.byteLength} bytes`);
-
-    // 2. ffmpeg ausführen. Args sollten {SRC} und {DST} als Placeholder enthalten
-    //    die wir hier auf echte Pfade ersetzen — verhindert dass Mobile beliebige
-    //    Server-Pfade als Input/Output setzt.
-    const finalArgs = sanitizedArgs.map((a) => {
-      if (a === '{SRC}') return sourceLocal;
-      if (a === '{DST}') return outputLocal;
-      return a;
-    });
-
-    await runFFmpeg(finalArgs, { maxDurationSec: MAX_DURATION_SEC, jobId });
-
-    // 3. Output uploaden.
-    const outputBuf = await readFile(outputLocal);
-    const outputKey = `${projectId}/${outputName ?? `${jobId}.mp4`}`;
-    const { error: upErr } = await supabase.storage
-      .from(OUTPUT_BUCKET)
-      .upload(outputKey, outputBuf, {
-        contentType: 'video/mp4',
-        upsert: true,
+      return res.json({
+        ok: true,
+        jobId,
+        outputKey,
+        signedUrl,
+        durationMs,
+        sizeBytes: sourceSize,
       });
-    if (upErr) throw new Error(`output upload failed: ${upErr.message}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[${jobId}] render failed:`, msg);
+      return res.status(500).json({ ok: false, jobId, error: msg });
+    }
+  },
+);
 
-    // 4. Signed-URL generieren (24h gültig — User soll Zeit haben zum
-    //    Download).
-    const { data: signed, error: signErr } = await supabase.storage
-      .from(OUTPUT_BUCKET)
-      .createSignedUrl(outputKey, 60 * 60 * 24);
-    if (signErr || !signed) throw new Error(`signed url failed: ${signErr?.message}`);
-
-    // Cleanup tmp-Files (best-effort).
-    await Promise.allSettled([unlink(sourceLocal), unlink(outputLocal)]);
-
-    const durationMs = Date.now() - start;
-    console.log(`[${jobId}] done in ${durationMs}ms, output=${outputKey}, size=${outputBuf.byteLength}`);
-
-    return res.json({
-      ok: true,
-      jobId,
-      outputKey,
-      signedUrl: signed.signedUrl,
-      durationMs,
-      sizeBytes: outputBuf.byteLength,
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error(`[${jobId}] render failed:`, msg);
-    return res.status(500).json({ ok: false, jobId, error: msg });
-  }
-});
-
-// Generic error handler.
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('unhandled:', err);
   res.status(500).json({ ok: false, error: err.message });
 });
 
-// Cloud Run startet immer auf 0.0.0.0:PORT (PORT vom env).
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`fiano-render-worker listening on :${PORT}`);
+  console.log(`fiano-render-worker v0.2.0 (R2) listening on :${PORT}`);
 });
 
 function required(name: string): string {

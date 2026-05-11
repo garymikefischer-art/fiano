@@ -1,89 +1,99 @@
 # fiano Render Worker
 
-FFmpeg-Render-Server für die Mobile-App. Läuft als Docker-Container auf
-**Google Cloud Run** mit Scale-to-Zero — wenn niemand exportiert, kostet
-es 0€.
+FFmpeg-Render-Server. Läuft als Docker-Container auf **Google Cloud Run**
+mit Scale-to-Zero. Storage via **Cloudflare R2** (unlimited Egress free).
 
 ## Architektur
 
 ```
-Mobile (Expo)                        Cloud Run (dieser Worker)
-─────────────                        ──────────────────────────
-1. Upload Source-Video         →     Supabase Storage `source-uploads`
-2. POST /v1/render             →     ├─ JWT verify
-   { sourceKey, args[],              ├─ Download source from bucket
-     projectId }                     ├─ Spawn ffmpeg ${args}
-                                     ├─ Upload result to `render-output`
-                                     └─ Return signed-URL
-3. Download result via         ←     signed-URL aus response
-   signed-URL
-4. Save to Camera-Roll
+Mobile (Expo)                Cloud Run (Worker)        Cloudflare R2
+─────────────                ──────────────────        ─────────────
+1. POST /v1/upload-url   →   pre-signed PUT-URL
+2. PUT source.mp4        ─────────────────────→        sources/${user}/...
+3. POST /v1/render       →   ├ download from R2  ←     (worker holt direct)
+   { sourceKey, args }       ├ ffmpeg ${args}
+                             ├ upload result     ───→  outputs/${user}/...
+                             └ pre-signed DL-URL
+4. GET signed-URL        ←   signed-DL-URL
+   (Mobile lädt direct)  ←──────────────────────       outputs/...
 ```
 
-## Setup einmalig (~30 min)
+**Warum diese 2-Step-Architektur:** Source-Files sind oft >100 MB. Würde der
+Worker den Upload proxieren, käme er aufs Cloud-Run-Request-Size-Limit
+(32 MiB default) und der Render-Endpoint wäre langsam. Stattdessen lädt Mobile
+direkt zu R2 via Pre-Signed-URL — der Worker greift erst beim Render-Call drauf zu.
 
-### 1. Supabase Storage Buckets anlegen
+## Free-Tier Calculation
 
-In deinem [Supabase-Dashboard](https://supabase.com/dashboard) → Storage:
+**Cloudflare R2:**
+- 10 GB Storage free (mit 24h-Lifecycle reicht das easy für hunderte gleichzeitige Renders)
+- **Unlimited Egress free** (das ist der Killer-Vorteil ggü. Supabase Storage)
+- Class A operations (uploads): 1M/Monat free
+- Class B operations (downloads): 10M/Monat free
 
-```
-Bucket: source-uploads
-  - Public: NEIN (private)
-  - File size limit: 500 MB (oder mehr je nach Mobile-Use-Case)
+**Google Cloud Run:**
+- 2M Requests + 400k vCPU-seconds + 200k GB-seconds free/Monat
+- Bei 500 Renders à 30s auf 2 vCPU: 30k vCPU-seconds → in Free Tier
 
-Bucket: render-output
-  - Public: NEIN
-  - File size limit: 500 MB
-```
+**Bei MVP-Volumen:** 0€/Monat. Bei Skalierung auf 10k Renders/Monat: ~5-15€.
 
-RLS-Policies (in SQL Editor):
+## Setup einmalig (~45 min)
 
-```sql
--- Source-Bucket: User kann nur eigene Files lesen+schreiben.
-CREATE POLICY "user owns source files"
-ON storage.objects FOR ALL TO authenticated
-USING (bucket_id = 'source-uploads' AND auth.uid()::text = (storage.foldername(name))[1]);
+### 1. Cloudflare R2 Setup
 
--- Output-Bucket: gleiche Regel.
-CREATE POLICY "user owns output files"
-ON storage.objects FOR ALL TO authenticated
-USING (bucket_id = 'render-output' AND auth.uid()::text = (storage.foldername(name))[1]);
-```
+1. [cloudflare.com](https://cloudflare.com) Account erstellen (kostenlos)
+2. Dashboard → **R2** → **Create bucket**:
+   - Name: `fiano-renders`
+   - Location: `Automatic` (oder EU für niedrige Latenz zu DE-Usern)
+3. Bucket öffnen → **Settings** → **Object lifecycle rules** → Add:
+   - Prefix: `sources/`
+   - Action: Delete objects, Days after creation: `1`
+   - (Sources werden nach 1 Tag automatisch gelöscht)
+4. Zweite Rule:
+   - Prefix: `outputs/`
+   - Days after creation: `7`
+   - (Outputs 1 Woche aufheben damit User Zeit hat zum Download)
+5. Account → **R2 → API Tokens** → **Create API token**:
+   - Permissions: `Object Read & Write`
+   - Bucket: `fiano-renders` only
+   - TTL: keine
+6. Notier dir: **Account ID** (aus Dashboard-URL oder rechts) +
+   **Access Key ID** + **Secret Access Key** (werden gezeigt, dann nie wieder)
 
-→ Heißt File-Pfade sind `${userId}/${projectId}/${jobId}.mp4` — User
-kann nur seine eigenen Files erreichen.
+### 2. Supabase (nur für Auth, kein Storage mehr)
 
-### 2. Google Cloud Setup
+Du brauchst nur den vorhandenen Supabase-Project. Hol dir den
+**SERVICE_ROLE_KEY** aus Supabase-Dashboard → Settings → API.
+Den Key NIEMALS im Mobile-Bundle exposen.
+
+### 3. Google Cloud Setup
 
 ```bash
 # gcloud CLI installieren falls noch nicht: https://cloud.google.com/sdk/docs/install
+brew install --cask google-cloud-sdk
 
-# Neues Projekt
-gcloud projects create fiano-render --name="fiano render"
-gcloud config set project fiano-render
+# Login + neues Projekt
+gcloud auth login
+gcloud projects create fiano-render-prod --name="fiano render"
+gcloud config set project fiano-render-prod
 
-# Billing aktivieren (kostenlos solange Free Tier nicht überschritten)
-# → manuell im Console: Billing → Link account
+# Billing aktivieren (manuell im Console → Billing → Link account)
+# Du bekommst $300 Free-Credits bei Neuanmeldung
 
 # Cloud Run API enablen
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com
-
-# Service Account für Container (optional — Default geht auch)
-gcloud iam service-accounts create fiano-render-runner
 
 # Region setzen (europe-west1 = Belgien, niedrige Latenz für DE/AT-User)
 gcloud config set run/region europe-west1
 ```
 
-### 3. Container bauen + deployen
+### 4. Container bauen + deployen
 
 Vom Repo-Root aus:
 
 ```bash
 cd services/render-worker
 
-# Build + Deploy in einem Schritt (Cloud Build kompiliert das Image
-# server-side, kein lokales Docker nötig).
 gcloud run deploy fiano-render-worker \
   --source . \
   --region europe-west1 \
@@ -93,34 +103,36 @@ gcloud run deploy fiano-render-worker \
   --timeout 600 \
   --max-instances 10 \
   --min-instances 0 \
-  --set-env-vars "SUPABASE_URL=https://YOUR_PROJECT.supabase.co" \
-  --set-env-vars "SUPABASE_SERVICE_ROLE_KEY=eyJ..."
+  --set-env-vars "SUPABASE_URL=https://YOUR.supabase.co" \
+  --set-env-vars "SUPABASE_SERVICE_ROLE_KEY=eyJ..." \
+  --set-env-vars "R2_ACCOUNT_ID=abc..." \
+  --set-env-vars "R2_ACCESS_KEY_ID=..." \
+  --set-env-vars "R2_SECRET_ACCESS_KEY=..." \
+  --set-env-vars "R2_BUCKET=fiano-renders"
 ```
 
-Erklärung der Flags:
-- `--source .` lässt Cloud Build das Image bauen statt lokal
-- `--allow-unauthenticated` weil wir mit Supabase-JWT selbst authentifizieren
-- `--memory 2Gi` reicht für 1080p-Renders, `--cpu 2` für ffmpeg-Speed
-- `--timeout 600` = 10 min max pro Request (lange Renders)
-- `--max-instances 10` cap damit kein Runaway
-- `--min-instances 0` = scale to zero (das spart Geld!)
-
-Output zeigt die Service-URL, z.B.:
+Output zeigt die Service-URL:
 ```
-https://fiano-render-worker-XXXX-ew.a.run.app
+Service URL: https://fiano-render-worker-XXXX-ew.a.run.app
 ```
 
-Die musst du in `packages/mobile/.env` (oder app.config.js) als
-`EXPO_PUBLIC_RENDER_WORKER_URL` setzen.
+### 5. Mobile konfigurieren
 
-### 4. Testen
+In `packages/mobile/.env`:
+```
+EXPO_PUBLIC_RENDER_WORKER_URL=https://fiano-render-worker-XXXX-ew.a.run.app
+```
+
+Dann Metro reload (`r`) — der renderJob.ts-Client nutzt die URL.
+
+### 6. Testen
 
 ```bash
 curl https://fiano-render-worker-XXXX-ew.a.run.app/health
-# → {"ok":true,"version":"0.1.0"}
+# → {"ok":true,"version":"0.2.0","storage":"r2"}
 ```
 
-Erst-Request dauert ~5-10s (Cold-Start). Folge-Requests <1s.
+Erst-Request dauert ~5-10s (Cold-Start), Folge-Requests <1s.
 
 ## Lokal entwickeln
 
@@ -128,65 +140,44 @@ Erst-Request dauert ~5-10s (Cold-Start). Folge-Requests <1s.
 cd services/render-worker
 npm install
 cp .env.example .env
-# .env editieren mit echten Supabase-Werten
+# .env editieren mit echten Supabase- + R2-Credentials
 npm run dev
 ```
 
-Worker läuft dann auf http://localhost:8080. FFmpeg muss lokal installiert
-sein (`brew install ffmpeg` auf macOS, `apt install ffmpeg` Linux).
-
-## Kosten
-
-Pricing Google Cloud Run (Stand 2026):
-- **Free Tier monatlich:** 2M Requests + 400k vCPU-seconds + 200k GB-seconds
-- Bei MVP-Volumen (z.B. 500 Renders/Monat à 30s): ~15k vCPU-seconds → 100% innerhalb Free Tier
-- Bei Wachstum: $0.000024/vCPU-second + $0.0000025/GB-second + $0.40/1M Requests
-- → Ein 1-min 1080p-Render auf 2-vCPU-Container: ~$0.005 = halber Cent
-
-Realistic monthly cost:
-| Volumen | Kosten |
-|---|---|
-| 0-500 Renders | 0€ (Free Tier) |
-| 5000 Renders | ~5€ |
-| 50000 Renders | ~50€ |
-
-Bei Stripe-Sub-Pricing von 30€/Monat pro User bist du immer im Plus.
+Worker läuft auf http://localhost:8080. FFmpeg muss lokal installiert sein
+(`brew install ffmpeg` macOS, `apt install ffmpeg` Linux).
 
 ## API
 
+### `POST /v1/upload-url`
+
+Headers: `Authorization: Bearer <supabase-jwt>`
+
+Body: `{ "projectId": "uuid" }`
+
+Response: `{ ok, uploadUrl, sourceKey, jobId, expiresInSec }`
+
+Mobile lädt das Source-Video dann via `PUT ${uploadUrl}` mit binary body
+direkt zu R2.
+
 ### `POST /v1/render`
 
-Headers:
-```
-Authorization: Bearer <supabase-jwt>
-Content-Type: application/json
-```
+Headers: `Authorization: Bearer <supabase-jwt>`
 
 Body:
 ```json
 {
-  "sourceKey": "user-uuid/project-uuid/source.mp4",
+  "sourceKey": "sources/userId/projectId/jobId-src.mp4",
   "args": ["-y", "-i", "{SRC}", "-vf", "scale=1080:1920", "{DST}"],
-  "projectId": "project-uuid",
+  "projectId": "uuid",
   "outputName": "9x16-export.mp4"
 }
 ```
 
-Args müssen `{SRC}` und `{DST}` als Platzhalter enthalten — der Server
-ersetzt sie sicher mit tmp-Pfaden.
+Response: `{ ok, jobId, outputKey, signedUrl, durationMs, sizeBytes }`
 
-Response (success):
-```json
-{
-  "ok": true,
-  "jobId": "...",
-  "outputKey": "project-uuid/9x16-export.mp4",
-  "signedUrl": "https://.../signed-url-24h",
-  "durationMs": 28543,
-  "sizeBytes": 18234567
-}
-```
+`signedUrl` ist 24h gültig — Mobile lädt das Result-Video direkt davon.
 
 ### `GET /health`
 
-Liveness probe. Returnt `{ok:true,version:"..."}`.
+Liveness probe. `{ok:true,version,storage:'r2'}`.
