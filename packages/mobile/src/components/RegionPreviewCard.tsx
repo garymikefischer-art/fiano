@@ -1,21 +1,24 @@
 /**
- * RegionPreviewCard — kleine Display-Karte mit dem ganzen Source-Frame als
+ * RegionPreviewCard — kleine Display-Karte mit dem Source-Thumbnail als
  * Hintergrund (16:9) und einem Region-Overlay drauf. Darunter eine Reihe
  * Snap-Preset-Pills + ein Live-Display der aktuellen W%×H%-Größe.
  *
  * Analog Desktop's FacecamEditor / GameplayEditor (TikTokTab.tsx). Drag-zum-
  * Resize lassen wir hier weg — fürs Drag öffnet der User den RegionPickerModal
  * via Settings → Capture Regions (vorhandene UX). Cards sind nur:
- *   1) Visualisierung der aktuellen Region auf dem Source
+ *   1) Visualisierung der aktuellen Region auf dem Source-Thumbnail
  *   2) Schnell-Wechsel über Snap-Presets ohne Modal-Roundtrip
+ *
+ * WICHTIG: Wir nutzen <Image> mit project.thumbUri statt <Video>, sonst hätten
+ * wir mit der Stacked-Preview oben 4 gleichzeitige Video-Decoder → Android-OOM
+ * (256 MB heap). Thumbnail ist statisch, kostet ~kB.
  *
  * Card-Aspect ist hardcoded 16:9 (typische Gaming-Source-Aufnahme). Bei nicht-
  * 16:9-Quellen wird das Overlay leicht verzerrt — known limitation, der echte
  * Export rendert pixel-präzise.
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Video from 'react-native-video';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { haptic } from '../lib/haptics';
 
 interface Region {
@@ -34,8 +37,8 @@ interface Preset<T extends string> {
 interface Props<T extends string> {
   /** Header-Label, z.B. "FACECAM REGION (TOP)". */
   title: string;
-  /** Source-Video-URI als Hintergrund. Wenn fehlt → schwarzer Placeholder. */
-  sourceUri?: string;
+  /** Vorab extrahiertes Thumbnail-File (project.thumbUri). Wenn fehlt → schwarzer Placeholder. */
+  thumbUri?: string;
   /** Aktuelle Region (0..1). null = keine Region (z.B. Facecam disabled). */
   region: Region | null;
   /** "facecam" → roter Overlay-Stil, "gameplay" → blau. */
@@ -50,7 +53,7 @@ interface Props<T extends string> {
 
 export function RegionPreviewCard<T extends string>({
   title,
-  sourceUri,
+  thumbUri,
   region,
   color,
   presets,
@@ -70,14 +73,11 @@ export function RegionPreviewCard<T extends string>({
       </View>
 
       <View style={styles.previewBox}>
-        {sourceUri ? (
-          <Video
-            source={{ uri: sourceUri }}
-            paused
-            muted
-            resizeMode="cover"
+        {thumbUri ? (
+          <Image
+            source={{ uri: thumbUri }}
             style={StyleSheet.absoluteFill}
-            disableFocus
+            resizeMode="cover"
           />
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0d0509' }]} />

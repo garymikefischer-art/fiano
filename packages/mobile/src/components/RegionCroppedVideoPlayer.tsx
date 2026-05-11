@@ -12,16 +12,19 @@
  *   top   = paneH/2 - (region.y + region.h/2) * srcH * scale
  *
  * `resizeMode="stretch"` weil wir die Native-Auflösung selbst setzen — das Video
- * wird hardware-bilinear hochskaliert (faktor 2-4× sieht auf modern Phones ok aus).
+ * wird hardware-bilinear hochskaliert.
  *
- * KEINE eingebauten Controls — der Parent (StackedSplitPreview) liefert ein
- * gemeinsames Control-Overlay für beide Panes. Master-Slave-Sync via
- * `syncTo()` auf der ref: Master ruft das mit eigener currentTime, Slave seekt
- * sich selbst nur bei drift > 0.4s.
+ * Click-to-play (Phase 9.5.4-hotfix2): wenn `enabled === false` rendern wir
+ * stattdessen das `posterUri`-Image — KEIN <Video>-Element wird gemountet.
+ * Sonst hatten wir auf Android 2 simultane Decoder + ExoPlayer-Native-Crash.
+ * Parent (StackedSplitPreview) startet die Videos erst auf Tap.
+ *
+ * KEINE eingebauten Controls — der Parent liefert ein gemeinsames Control-
+ * Overlay für beide Panes. Master-Slave-Sync via `syncTo()` auf der ref.
  */
 
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import Video, {
   type OnLoadData,
   type OnProgressData,
@@ -48,13 +51,19 @@ interface Props {
   onLoad?: (data: OnLoadData) => void;
   /** Tickt während Playback (~250ms). Master-Pane treibt damit den globalen Scrubber. */
   onProgress?: (data: OnProgressData) => void;
+  /** Wenn false: rendere statt <Video> das poster-Image. Default true.
+   *  Click-to-play-Pattern: erst nach User-Geste mounten wir den Video-Decoder. */
+  enabled?: boolean;
+  /** Statisches Vorschau-Bild (z.B. project.thumbUri). Wird gezeigt wenn enabled=false
+   *  oder solange wir noch keine Source-Maße haben. Wird auch fürs cover-cropping
+   *  via Image.getSize verwendet. */
+  posterUri?: string;
 }
 
 export interface RegionCroppedVideoHandle {
-  /** Hartes Seek auf eine bestimmte Sekunde. */
+  /** Hartes Seek auf eine bestimmte Sekunde. No-op wenn !enabled. */
   seek: (sec: number) => void;
-  /** Sanfter Sync: nur seek wenn drift zur eigenen currentTime > 0.4s.
-   *  Wird vom Master mit dessen currentTime aufgerufen, damit Slave nicht driftet. */
+  /** Sanfter Sync: nur seek wenn drift zur eigenen currentTime > 0.4s. No-op wenn !enabled. */
   syncTo: (masterSec: number) => void;
 }
 
@@ -62,23 +71,34 @@ const SYNC_THRESHOLD_SEC = 0.4;
 
 export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Props>(
   function RegionCroppedVideoPlayer(
-    { uri, region, muted = true, paused = false, onLoad, onProgress },
+    {
+      uri,
+      region,
+      muted = true,
+      paused = false,
+      onLoad,
+      onProgress,
+      enabled = true,
+      posterUri,
+    },
     ref,
   ) {
     const videoRef = useRef<VideoRef>(null);
     const currentSecRef = useRef(0);
     const [paneSize, setPaneSize] = useState<{ w: number; h: number } | null>(null);
-    const [srcSize, setSrcSize] = useState<{ w: number; h: number } | null>(null);
+    const [videoSize, setVideoSize] = useState<{ w: number; h: number } | null>(null);
     const [errored, setErrored] = useState(false);
 
     useImperativeHandle(
       ref,
       () => ({
         seek: (sec: number) => {
+          if (!enabled) return;
           videoRef.current?.seek(sec);
           currentSecRef.current = sec;
         },
         syncTo: (masterSec: number) => {
+          if (!enabled) return;
           const drift = Math.abs(masterSec - currentSecRef.current);
           if (drift > SYNC_THRESHOLD_SEC) {
             videoRef.current?.seek(masterSec);
@@ -86,13 +106,16 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
           }
         },
       }),
-      [],
+      [enabled],
     );
 
     const validRegion =
       region != null && region.w > 0 && region.h > 0 ? clampRegion(region) : null;
 
-    const layout = computeLayout(paneSize, srcSize, validRegion);
+    // Region-Crop-Layout nur fürs Video. Beim Poster (Image) verwenden wir cover-
+    // fit ohne Crop, damit die Image-Decoder-Surface klein bleibt (Region-Crop mit
+    // scale 2-4× hatte sonst die RGBA-Bitmaps explodiert → Android-OOM).
+    const layout = enabled ? computeLayout(paneSize, videoSize, validRegion) : null;
 
     return (
       <View
@@ -101,7 +124,7 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
           setPaneSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
         }
       >
-        {!errored && (
+        {enabled && !errored && (
           <Video
             key={uri}
             ref={videoRef}
@@ -113,7 +136,7 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
             onLoad={(d: OnLoadData) => {
               const w = d.naturalSize?.width ?? 0;
               const h = d.naturalSize?.height ?? 0;
-              if (w > 0 && h > 0) setSrcSize({ w, h });
+              if (w > 0 && h > 0) setVideoSize({ w, h });
               onLoad?.(d);
             }}
             onProgress={(d: OnProgressData) => {
@@ -123,10 +146,11 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
             onError={(_e: OnVideoErrorData) => setErrored(true)}
             progressUpdateInterval={250}
             bufferConfig={{
-              minBufferMs: 5000,
-              maxBufferMs: 10000,
-              bufferForPlaybackMs: 1500,
-              bufferForPlaybackAfterRebufferMs: 3000,
+              // Klein gehalten weil zwei Decoder gleichzeitig laufen.
+              minBufferMs: 1500,
+              maxBufferMs: 3000,
+              bufferForPlaybackMs: 800,
+              bufferForPlaybackAfterRebufferMs: 1500,
             }}
             disableFocus={true}
             ignoreSilentSwitch="ignore"
@@ -144,8 +168,24 @@ export const RegionCroppedVideoPlayer = forwardRef<RegionCroppedVideoHandle, Pro
           />
         )}
 
-        {/* Loading-Indikator solange wir noch keine Source-Maße haben (= onLoad nicht gefired). */}
-        {!errored && !srcSize && (
+        {/* Poster (Thumbnail) — wird nur gezeigt während des Initial-Loads des
+            VIDEOS (kurz bevor erste Frames kommen). Bei !enabled (Click-to-play)
+            zeigen wir KEIN Image mehr, sondern einen einfachen farbigen Background
+            — andernfalls dekodieren 4 Image-Komponenten dasselbe 1080p/4K-Frame
+            in 4 separate Bitmaps, was den Heap auf Mediatek-Phones sprengt.
+            Der Parent (StackedSplitPreview) rendert den Pill-Label + Play-Button
+            sowieso obendrüber. */}
+        {enabled && !videoSize && posterUri && (
+          <Image
+            source={{ uri: posterUri }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        )}
+
+        {/* Loading-Indikator solange das Video noch nicht ready ist (enabled aber
+            videoSize fehlt). Nur sichtbar wenn auch kein Poster verfügbar ist. */}
+        {enabled && !errored && !videoSize && !posterUri && (
           <View style={styles.center} pointerEvents="none">
             <ActivityIndicator color="#ff1039" size="small" />
           </View>

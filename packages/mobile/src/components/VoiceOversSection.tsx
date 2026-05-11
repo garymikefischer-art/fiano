@@ -126,17 +126,22 @@ export function VoiceOversSection({
         ⓘ Generated audio is stored locally and used at export.
       </Text>
 
-      <TtsModal
-        visible={modalOpen}
-        initialText={editing?.text ?? ''}
-        initialVoice={editing?.voice ?? 'nova'}
-        isEditMode={editing !== null}
-        onClose={() => {
-          setModalOpen(false);
-          setEditingIdx(null);
-        }}
-        onGenerated={handleGenerated}
-      />
+      {/* Lazy mount: erst rendern wenn der Modal geöffnet ist. Spart RN-Tree-
+          Allocations wenn der User die Voice-Over-Section sieht ohne TTS zu
+          öffnen — auf Memory-knappen Android-Geräten relevant. */}
+      {modalOpen && (
+        <TtsModal
+          visible={modalOpen}
+          initialText={editing?.text ?? ''}
+          initialVoice={editing?.voice ?? 'nova'}
+          isEditMode={editing !== null}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingIdx(null);
+          }}
+          onGenerated={handleGenerated}
+        />
+      )}
     </View>
   );
 }

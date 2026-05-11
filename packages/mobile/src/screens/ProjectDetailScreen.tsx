@@ -1115,6 +1115,7 @@ function TikTokTab({
             layout={layout}
             sourceUri={project.sourceUri}
             thumbHue={project.thumbHue}
+            thumbUri={project.thumbUri}
             facecamRegion={facecamRegion}
             gameplayRegion={gameplayRegion}
             showOverlay={showOverlay}
@@ -1289,7 +1290,7 @@ function TikTokTab({
           </SectionHeader>
           <RegionPreviewCard
             title={t('tiktok.facecamRegion', 'Facecam region (top)')}
-            sourceUri={project.sourceUri}
+            thumbUri={project.thumbUri}
             region={facecamRegion}
             color="facecam"
             presets={(Object.keys(FACECAM_PRESETS) as FacecamPreset[]).map((id) => ({
@@ -1307,7 +1308,7 @@ function TikTokTab({
           </SectionHeader>
           <RegionPreviewCard
             title={t('tiktok.gameplayRegion', 'Gameplay region (bottom)')}
-            sourceUri={project.sourceUri}
+            thumbUri={project.thumbUri}
             region={gameplayRegion}
             color="gameplay"
             presets={(Object.keys(GAMEPLAY_PRESETS) as GameplayPreset[]).map((id) => ({
@@ -1526,6 +1527,7 @@ function LayoutPreview({
   layout,
   sourceUri,
   thumbHue,
+  thumbUri,
   facecamRegion,
   gameplayRegion,
   showOverlay,
@@ -1534,6 +1536,7 @@ function LayoutPreview({
   layout: Layout;
   sourceUri?: string;
   thumbHue: number;
+  thumbUri?: string;
   facecamRegion: { x: number; y: number; w: number; h: number } | null;
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
@@ -1579,6 +1582,7 @@ function LayoutPreview({
     <StackedSplitPreview
       layout={layout}
       sourceUri={sourceUri}
+      thumbUri={thumbUri}
       facecamRegion={facecamRegion}
       gameplayRegion={gameplayRegion}
       showOverlay={showOverlay}
@@ -1593,6 +1597,7 @@ const STACKED_AUTO_HIDE_MS = 2500;
 function StackedSplitPreview({
   layout,
   sourceUri,
+  thumbUri,
   facecamRegion,
   gameplayRegion,
   showOverlay,
@@ -1600,6 +1605,8 @@ function StackedSplitPreview({
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
+  /** project.thumbUri — Click-to-play-Poster, kein Decoder bis User Play tippt. */
+  thumbUri?: string;
   facecamRegion: { x: number; y: number; w: number; h: number } | null;
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
@@ -1609,6 +1616,10 @@ function StackedSplitPreview({
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
 
+  // Click-to-play (Phase 9.5.4-hotfix2): erst nach erstem Play mounten wir die
+  // beiden <Video>-Decoder. Vorher zeigen die Panes nur das Poster (thumbUri),
+  // sonst gibts auf Android Native-Crashes durch 2 simultane HEVC-Decoder.
+  const [videosActive, setVideosActive] = useState(false);
   const [paused, setPaused] = useState(true);
   const [muted, setMuted] = useState(false);
   const [currentSec, setCurrentSec] = useState(0);
@@ -1641,7 +1652,13 @@ function StackedSplitPreview({
   };
 
   const togglePlay = () => {
-    setPaused((p) => !p);
+    if (!videosActive) {
+      // Erstes Play → mounten die Videos jetzt.
+      setVideosActive(true);
+      setPaused(false);
+    } else {
+      setPaused((p) => !p);
+    }
     setControlsVisible(true);
   };
 
@@ -1676,6 +1693,9 @@ function StackedSplitPreview({
   const isStacked = layout === 'stacked';
   const progressPct = durationSec > 0 ? (currentSec / durationSec) * 100 : 0;
   const ready = durationSec > 0;
+  // Play-Button + Tap-Layer schon vor dem ersten Mount sichtbar — sonst kann
+  // der User die Videos nie starten (no Decoder = no onLoad = ready bleibt false).
+  const showPlayHint = !videosActive;
 
   return (
     <View
@@ -1700,6 +1720,8 @@ function StackedSplitPreview({
             region={facecamRegion}
             paused={paused}
             muted={muted}
+            enabled={videosActive}
+            posterUri={thumbUri}
             onLoad={handleMasterLoad}
             onProgress={handleMasterProgress}
           />
@@ -1719,18 +1741,24 @@ function StackedSplitPreview({
             region={gameplayRegion}
             paused={paused}
             muted={true /* Slave-Pane immer stumm — sonst spielt Audio doppelt. */}
+            enabled={videosActive}
+            posterUri={thumbUri}
           />
           <PaneLabel color="#60a5fa" label="GAMEPLAY" />
         </View>
       </View>
 
-      {/* Tap-Layer: toggelt Controls-Sichtbarkeit. */}
+      {/* Tap-Layer: toggelt Controls-Sichtbarkeit. Vor erstem Play sind die
+          Controls IMMER sichtbar (User braucht den Play-Button). */}
       <Pressable
         style={StyleSheet.absoluteFill}
-        onPress={() => ready && setControlsVisible((c) => !c)}
+        onPress={() => {
+          if (!videosActive) return; // vor erstem Play: Tap macht nichts (Play-Button ist gross genug)
+          if (ready) setControlsVisible((c) => !c);
+        }}
       />
 
-      {/* Mute-Pill oben rechts — immer sichtbar wenn ready. */}
+      {/* Mute-Pill oben rechts — sobald ready. */}
       {ready && (
         <Pressable
           onPress={() => setMuted((m) => !m)}
@@ -1748,7 +1776,23 @@ function StackedSplitPreview({
         </Pressable>
       )}
 
-      {/* Center-Controls — Skip / Play / Skip */}
+      {/* Center-Controls — Skip / Play / Skip. Vor erstem Play ist nur ein
+          grosser Play-Button sichtbar (kein Skip, kein Scrubber — wir kennen
+          die Dauer noch nicht). */}
+      {showPlayHint && (
+        <View pointerEvents="box-none" style={stackedStyles.centerRow}>
+          <Pressable
+            onPress={togglePlay}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.playButton,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons name="play" size={28} color="#fff" />
+          </Pressable>
+        </View>
+      )}
       {ready && controlsVisible && (
         <View pointerEvents="box-none" style={stackedStyles.centerRow}>
           <Pressable
