@@ -33,6 +33,7 @@ import {
   pickVideoFromGallery,
   pickVideoFromFiles,
   pickMultipleVideosFromFiles,
+  pickMultipleVideosFromGallery,
   type PickedVideo,
 } from '../lib/mediaPicker';
 import { extractVideoThumbnail } from '../lib/thumbnails';
@@ -199,10 +200,13 @@ export function AddVideoProjectScreen() {
 
   const onMultiClipImport = async () => {
     if (busy) return;
+    const source = await askSource();
+    if (!source) return;
     haptic.medium();
     setBusy('multi');
     try {
-      const picked = await pickMultipleVideosFromFiles({ maxDurationSec: MAX_DURATION_SEC });
+      const picker = source === 'gallery' ? pickMultipleVideosFromGallery : pickMultipleVideosFromFiles;
+      const picked = await picker({ maxDurationSec: MAX_DURATION_SEC });
       if (picked.length === 0) return;
       if (picked.length < 2) {
         Alert.alert(
@@ -218,7 +222,7 @@ export function AddVideoProjectScreen() {
         sourceUri: picked[0].uri,
         sourceUris: picked.map((p) => p.uri),
         sourceType: 'multi-clip',
-        mode: 'builder',
+        mode: 'highlights',
       });
       useProjectsStore.getState().updateProject(project.id, {
         status: 'ready',
@@ -236,7 +240,7 @@ export function AddVideoProjectScreen() {
         }
       });
       haptic.success();
-      nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'builder' });
+      nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
     } catch (err: any) {
       haptic.error();
       Alert.alert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));

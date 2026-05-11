@@ -1161,6 +1161,27 @@ function TikTokTab({
   const [introPosition, setIntroPosition] = useState<'top' | 'center' | 'bottom' | 'full'>('full');
   const [showOverlay, setShowOverlay] = useState(true);
 
+  // Clip-Selector (Phase 9.5.8.1) — bei Multi-Clip-Projects oder Highlight-Cards-Projects.
+  // selectedClipIdx wählt den aktiven Clip; effective-sourceUri/trim werden in
+  // LayoutPreview UND Export-Navigation genutzt.
+  const [selectedClipIdx, setSelectedClipIdx] = useState(0);
+  const clips = project.clips ?? [];
+  const showClipSelector = clips.length >= 2;
+  const safeIdx = Math.min(selectedClipIdx, Math.max(0, clips.length - 1));
+  const selectedClip = clips[safeIdx];
+  const projectSourceUris = project.sourceUris ?? [];
+  const isMultiSource = projectSourceUris.length >= 2;
+  const effectiveSourceUri = isMultiSource
+    ? projectSourceUris[Math.min(safeIdx, projectSourceUris.length - 1)]
+    : project.sourceUri;
+  // Trim-Werte:
+  //   Multi-Source (clip-per-file): kein Trim — volle file-Länge.
+  //   Single-Source-with-clips (Highlights): Trim = clip start/end.
+  const effectiveTrimStart = isMultiSource ? 0 : (selectedClip?.startSec ?? project.trimStart ?? 0);
+  const effectiveTrimEnd = isMultiSource
+    ? (selectedClip?.endSec ?? project.durationSec)
+    : (selectedClip?.endSec ?? project.trimEnd ?? (project.durationSec > 60 ? 60 : project.durationSec));
+
   const pickIntro = async () => {
     haptic.medium();
     const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
@@ -1181,14 +1202,105 @@ function TikTokTab({
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
+      {/* Clip-Selector (Phase 9.5.8.1) — analog Desktop-9:16-Tab: oben alle
+          highlight-Clips als horizontal scrollbare Cards, mit Time-Badge und
+          aktiven roten Border. User wählt einen → Preview + Export passt sich an. */}
+      {showClipSelector && (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
+            {t('tiktok.clipsHeader', 'CLIPS').toUpperCase()} · {clips.length}
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingVertical: 4, paddingHorizontal: 2 }}
+          >
+            {clips.map((c, i) => {
+              const active = i === safeIdx;
+              const dur = Math.max(0, c.endSec - c.startSec);
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => {
+                    haptic.selection();
+                    setSelectedClipIdx(i);
+                  }}
+                  style={{
+                    width: 150,
+                    borderRadius: 12,
+                    borderWidth: 1.5,
+                    borderColor: active ? '#ff1039' : 'rgba(255,255,255,0.08)',
+                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <View
+                    style={{
+                      aspectRatio: 16 / 9,
+                      backgroundColor: `hsl(${project.thumbHue} 35% 18%)`,
+                      position: 'relative',
+                    }}
+                  >
+                    <View
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        backgroundColor: 'rgba(0,0,0,0.65)',
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+                        {formatTimecode(dur)}
+                      </Text>
+                    </View>
+                    {active && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: 6,
+                          right: 6,
+                          width: 22,
+                          height: 22,
+                          borderRadius: 11,
+                          backgroundColor: '#ff1039',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ padding: 8 }}>
+                    <Text
+                      numberOfLines={1}
+                      style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}
+                    >
+                      {c.label || `Clip ${i + 1}`}
+                    </Text>
+                    <Text style={{ color: '#71717a', fontSize: 10, marginTop: 2 }}>
+                      #{(i + 1).toString().padStart(2, '0')}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* 9:16-Aspect-Preview mit Layout-spezifischer Darstellung.
           Width 75% = identisch zur Modal-Preview-Card → User sieht
           Subtitle-Overlay in gleicher Proportion in beiden Previews. */}
       <View style={{ alignItems: 'center' }}>
         <View style={{ width: '75%' }}>
           <LayoutPreview
+            key={effectiveSourceUri /* re-mount bei Clip-Wechsel damit Video reloaded */}
             layout={layout}
-            sourceUri={project.sourceUri}
+            sourceUri={effectiveSourceUri}
             thumbHue={project.thumbHue}
             thumbUri={project.thumbUri}
             facecamRegion={facecamRegion}
@@ -1645,7 +1757,7 @@ function TikTokTab({
       )}
 
       {/* Export-Settings-Modal vor Export-Click. */}
-      {exportModalOpen && project.sourceUri && (
+      {exportModalOpen && effectiveSourceUri && (
         <ExportSettingsModal
           visible={exportModalOpen}
           initialSettings={exportSettings}
@@ -1656,12 +1768,10 @@ function TikTokTab({
             }
             setExportModalOpen(false);
             nav.navigate('Export', {
-              sourceUri: project.sourceUri!,
+              sourceUri: effectiveSourceUri,
               projectId: project.id,
-              trimStart: project.trimStart ?? 0,
-              trimEnd:
-                project.trimEnd ??
-                (project.durationSec > 60 ? 60 : project.durationSec),
+              trimStart: effectiveTrimStart,
+              trimEnd: effectiveTrimEnd,
               sourceDuration: project.durationSec,
               mode: project.mode ?? 'tiktok',
               exportSettings: next,

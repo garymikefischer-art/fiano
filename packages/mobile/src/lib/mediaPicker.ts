@@ -123,9 +123,47 @@ export async function pickAudioFromFiles(): Promise<PickedAudio | null> {
 }
 
 /**
- * Multi-Video-Picker (Phase 9.5.8) — User pickt mehrere Video-Files auf einmal.
- * Returnt leeres Array wenn User cancelt. Alle Files werden in documentDirectory
- * persistiert.
+ * Multi-Video-Picker via Photo-Gallery (Phase 9.5.8.1).
+ */
+export async function pickMultipleVideosFromGallery(opts: PickOpts = {}): Promise<PickedVideo[]> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (perm.status !== 'granted') {
+    throw new Error('Camera-Roll-Berechtigung verweigert. Bitte in den Einstellungen erlauben.');
+  }
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['videos'],
+    quality: 1,
+    videoMaxDuration: opts.maxDurationSec ?? 600,
+    allowsMultipleSelection: true,
+    allowsEditing: false,
+  });
+  if (result.canceled || !result.assets || result.assets.length === 0) {
+    return [];
+  }
+  const out: PickedVideo[] = [];
+  for (const asset of result.assets) {
+    const duration = (asset.duration ?? 0) / 1000;
+    // Skip too-long individual clips silently — User pickt mehrere und hätte
+    // sonst je Klick eine Alert.
+    if (opts.maxDurationSec && duration > opts.maxDurationSec) continue;
+    const persistentUri = await persistInDocuments(asset.uri, asset.fileName ?? undefined);
+    out.push({
+      uri: persistentUri,
+      assetUri: asset.uri,
+      durationSec: duration,
+      width: asset.width,
+      height: asset.height,
+      filename: asset.fileName ?? undefined,
+      size: asset.fileSize,
+      source: 'gallery',
+    });
+  }
+  return out;
+}
+
+/**
+ * Multi-Video-Picker via Document-Picker (Phase 9.5.8) — User pickt mehrere
+ * Video-Files auf einmal. Returnt leeres Array wenn User cancelt.
  */
 export async function pickMultipleVideosFromFiles(_opts: PickOpts = {}): Promise<PickedVideo[]> {
   const result = await DocumentPicker.getDocumentAsync({
