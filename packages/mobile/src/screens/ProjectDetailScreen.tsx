@@ -57,6 +57,8 @@ import {
 } from '../components/RegionCroppedVideoPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
+import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
+import { DEFAULT_SUBTITLES, type SubtitleSettings } from '../data/demoProjects';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { useT } from '../lib/i18n';
@@ -1083,7 +1085,13 @@ function TikTokTab({
   useEffect(() => {
     setSplitRatio(project.splitRatio ?? DEFAULT_SPLIT_RATIO);
   }, [project.splitRatio]);
-  const [subtitles, setSubtitles] = useState(true);
+  // Subtitle-State aus project.subtitles ableiten (mit DEFAULT-Merge).
+  const subSettings: SubtitleSettings = project.subtitles ?? DEFAULT_SUBTITLES;
+  const subtitles = subSettings.enabled;
+  const setSubtitles = (next: boolean) => {
+    updateProject(project.id, { subtitles: { ...subSettings, enabled: next } });
+  };
+  const [subModalOpen, setSubModalOpen] = useState(false);
   const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
   const [musicTracks, setMusicTracks] = useState<AudioTrack[]>([]);
   const [musicShuffle, setMusicShuffle] = useState(false);
@@ -1335,13 +1343,40 @@ function TikTokTab({
           overflow: 'hidden',
         }}
       >
-        <ToggleRow
-          icon="chatbubble-ellipses-outline"
-          label={t('tiktok.subtitles', 'Subtitles')}
-          desc={t('tiktok.subtitlesDesc', 'Burn-in word-highlight subs')}
-          value={subtitles}
-          onChange={setSubtitles}
-        />
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 6 }}
+        >
+          <View style={{ flex: 1 }}>
+            <ToggleRow
+              icon="chatbubble-ellipses-outline"
+              label={t('tiktok.subtitles', 'Subtitles')}
+              desc={t('tiktok.subtitlesDesc', 'Burn-in word-highlight subs')}
+              value={subtitles}
+              onChange={setSubtitles}
+            />
+          </View>
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              setSubModalOpen(true);
+            }}
+            hitSlop={8}
+            style={({ pressed }) => ({
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.10)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: 4,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons name="options-outline" size={16} color="#a1a1aa" />
+          </Pressable>
+        </View>
         <Divider />
         <MultiAudioPicker
           tracks={musicTracks}
@@ -1519,6 +1554,16 @@ function TikTokTab({
           {t('tiktok.exportButton', 'Export 9:16 reel')}
         </Text>
       </Pressable>
+
+      {/* Subtitle-Settings-Modal — lazy mount damit der State-Tree leicht bleibt. */}
+      {subModalOpen && (
+        <SubtitleSettingsModal
+          visible={subModalOpen}
+          settings={subSettings}
+          onClose={() => setSubModalOpen(false)}
+          onChange={(next) => updateProject(project.id, { subtitles: next })}
+        />
+      )}
     </ScrollView>
   );
 }
@@ -1564,12 +1609,12 @@ function LayoutPreview({
   }
 
   if (layout === 'full') {
+    // Full-Mode: 9:16 cover-crop des ganzen Source, KEIN Region-Overlay.
+    // Bei Full gibt's keine Facecam/Gameplay-Aufteilung — der gesamte Frame
+    // wird zentriert gecroppt, Regions sind irrelevant.
     return (
       <View style={{ position: 'relative' }}>
         <VideoPlayer uri={sourceUri} resizeMode="cover" aspectRatio={9 / 16} />
-        {showOverlay && (
-          <RegionOverlay facecam={facecamRegion} gameplay={gameplayRegion} />
-        )}
       </View>
     );
   }
