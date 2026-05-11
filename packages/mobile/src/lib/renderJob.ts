@@ -35,6 +35,11 @@ export interface RenderJobResult {
 }
 
 export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult> {
+  // Debug-Log damit User in Metro-Console sieht was tatsächlich ankommt.
+  console.log(
+    `[renderJob] RENDER_WORKER_URL = "${ENV.RENDER_WORKER_URL}" (len=${ENV.RENDER_WORKER_URL.length})`,
+  );
+
   if (!ENV.RENDER_WORKER_URL) {
     throw new Error(
       'Cloud-Render nicht konfiguriert (EXPO_PUBLIC_RENDER_WORKER_URL fehlt). ' +
