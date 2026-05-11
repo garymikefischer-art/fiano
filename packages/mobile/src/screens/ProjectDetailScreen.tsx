@@ -58,6 +58,7 @@ import {
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
+import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { DEFAULT_SUBTITLES, type SubtitleSettings } from '../data/demoProjects';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
@@ -1128,6 +1129,7 @@ function TikTokTab({
             gameplayRegion={gameplayRegion}
             showOverlay={showOverlay}
             splitRatio={splitRatio}
+            subtitles={subSettings}
           />
         </View>
       </View>
@@ -1577,6 +1579,7 @@ function LayoutPreview({
   gameplayRegion,
   showOverlay,
   splitRatio,
+  subtitles,
 }: {
   layout: Layout;
   sourceUri?: string;
@@ -1586,6 +1589,7 @@ function LayoutPreview({
   gameplayRegion: { x: number; y: number; w: number; h: number };
   showOverlay: boolean;
   splitRatio: number;
+  subtitles?: SubtitleSettings;
 }) {
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
   // in einer nativen Phase — hier zeigen wir die Aufteilung via 1–2 Player +
@@ -1632,6 +1636,7 @@ function LayoutPreview({
       gameplayRegion={gameplayRegion}
       showOverlay={showOverlay}
       splitRatio={splitRatio}
+      subtitles={subtitles}
     />
   );
 }
@@ -1647,6 +1652,7 @@ function StackedSplitPreview({
   gameplayRegion,
   showOverlay,
   splitRatio,
+  subtitles,
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
@@ -1657,6 +1663,8 @@ function StackedSplitPreview({
   showOverlay: boolean;
   /** 0.2..0.8 — Höhenanteil der Facecam-Pane (stacked). Im split-Modus = Width-Anteil. */
   splitRatio: number;
+  /** Subtitle-Overlay-Settings (Phase 9.5.6). null/undefined = kein Overlay. */
+  subtitles?: SubtitleSettings;
 }) {
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
@@ -1792,6 +1800,10 @@ function StackedSplitPreview({
           <PaneLabel color="#60a5fa" label="GAMEPLAY" />
         </View>
       </View>
+
+      {/* Subtitle-Overlay (Phase 9.5.6) — Pointer-Events:none damit Tap-Layer
+          darunter erreichbar bleibt. Wird nur gezeigt wenn subtitles.enabled. */}
+      {subtitles && <SubtitleOverlay settings={subtitles} />}
 
       {/* Tap-Layer: toggelt Controls-Sichtbarkeit. Vor erstem Play sind die
           Controls IMMER sichtbar (User braucht den Play-Button). */}

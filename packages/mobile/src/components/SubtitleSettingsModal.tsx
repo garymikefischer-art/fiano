@@ -26,6 +26,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,37 +64,51 @@ const POSITION_OPTIONS: { id: SubtitlePosition; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ];
 
+/** Curated + Android-System-Fonts. Auf Android sind sans-serif* + serif* + monospace
+ *  garantiert verfügbar. Custom-Input erlaubt jeden weiteren Font-Namen (System-Query-
+ *  API gibt's auf RN nicht von Haus aus — alternativ kann der User ein font-name
+ *  per Hand eintippen). */
 const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = [
-  { id: 'helvetica',   label: 'Helvetica' },
-  { id: 'arial-black', label: 'Arial Black' },
-  { id: 'impact',      label: 'Impact' },
-  { id: 'geist',       label: 'Geist' },
-  { id: 'georgia',     label: 'Georgia' },
-  { id: 'mono',        label: 'Mono' },
+  // Curated (1:1 zu Desktop)
+  { id: 'helvetica',           label: 'Helvetica' },
+  { id: 'arial-black',         label: 'Arial Black' },
+  { id: 'impact',              label: 'Impact' },
+  { id: 'geist',               label: 'Geist' },
+  { id: 'georgia',             label: 'Georgia' },
+  { id: 'mono',                label: 'Mono' },
+  // Android System-Fonts
+  { id: 'sans-serif',          label: 'Sans Serif' },
+  { id: 'sans-serif-black',    label: 'Sans Black' },
+  { id: 'sans-serif-condensed',label: 'Sans Condensed' },
+  { id: 'sans-serif-light',    label: 'Sans Light' },
+  { id: 'sans-serif-medium',   label: 'Sans Medium' },
+  { id: 'sans-serif-thin',     label: 'Sans Thin' },
+  { id: 'sans-serif-smallcaps',label: 'Small Caps' },
+  { id: 'serif',               label: 'Serif' },
+  { id: 'serif-monospace',     label: 'Serif Mono' },
+  { id: 'monospace',           label: 'Monospace' },
+  { id: 'cursive',             label: 'Cursive' },
+  { id: 'casual',              label: 'Casual' },
+  { id: 'Roboto',              label: 'Roboto' },
+  { id: 'Roboto-Bold',         label: 'Roboto Bold' },
+  { id: 'Roboto-Italic',       label: 'Roboto Italic' },
 ];
 
 export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: Props) {
-  // Lokaler Buffer für Live-Edit. Bei Close-Button via "Done" committed der Caller.
-  const [local, setLocal] = useState<SubtitleSettings>(settings);
+  // KEIN lokaler State — wir lesen direkt vom parent (single source of truth).
+  // Vorheriger local-buffer hatte stale-closure-Probleme: Slider/ColorPicker
+  // riefen patch() mit alten local-werten weil React 18 batching + setLocal-
+  // callback einen race-condition mit onChange einging.
+  const local = settings;
 
   const patch = (p: Partial<SubtitleSettings>) => {
-    setLocal((cur) => {
-      const next = { ...cur, ...p };
-      onChange(next); // live commit; user sieht change in der Preview drüber sofort
-      return next;
-    });
+    onChange({ ...local, ...p });
   };
 
   const reset = () => {
     haptic.warning();
-    setLocal(DEFAULT_SUBTITLES);
     onChange(DEFAULT_SUBTITLES);
   };
-
-  // Sync wenn modal neu geöffnet wird mit anderen Settings
-  if (visible && local !== settings && local.enabled === settings.enabled && local.style !== settings.style) {
-    // ignore — local hat Vorrang während des Edits
-  }
 
   return (
     <Modal
@@ -138,6 +153,28 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
               {/* Live-Preview oben */}
               <SubtitlePreviewCard settings={local} />
 
+              {/* 0. Enable-Toggle als Erstes — sonst sieht der User Subtitle nur im
+                  Modal-Preview, nicht in der echten Stacked-Preview oben im Tab. */}
+              <View style={styles.enableRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.enableTitle}>Enable subtitles</Text>
+                  <Text style={styles.enableSub}>
+                    {local.enabled
+                      ? 'Untertitel werden in der 9:16-Preview & beim Export angezeigt.'
+                      : 'Aktivieren, um den Untertitel im Video sichtbar zu machen.'}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    haptic.selection();
+                    patch({ enabled: !local.enabled });
+                  }}
+                  style={[styles.toggleTrack, local.enabled && styles.toggleTrackOn]}
+                >
+                  <View style={[styles.toggleThumb, local.enabled && styles.toggleThumbOn]} />
+                </Pressable>
+              </View>
+
               {/* 1. Preset */}
               <Section title="STYLE">
                 <View style={styles.optionGrid}>
@@ -181,7 +218,11 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
               {/* 3. Typography */}
               <Section title="TYPOGRAPHY">
                 <Text style={styles.subLabel}>Font family</Text>
-                <View style={styles.pillRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 6, paddingRight: 12 }}
+                >
                   {FONT_OPTIONS.map((f) => (
                     <Pill
                       key={f.id}
@@ -190,7 +231,11 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                       onPress={() => patch({ fontFamily: f.id })}
                     />
                   ))}
-                </View>
+                </ScrollView>
+                <CustomFontInput
+                  value={local.fontFamily ?? ''}
+                  onCommit={(v) => patch({ fontFamily: v })}
+                />
                 <SliderRow
                   label="Font size"
                   value={local.fontSize ?? 26}
@@ -532,6 +577,42 @@ function SliderRow({
   );
 }
 
+function CustomFontInput({
+  value,
+  onCommit,
+}: {
+  value: string;
+  onCommit: (v: SubtitleFontFamily) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+      <Text style={[styles.subLabel, { width: 78 }]}>Custom</Text>
+      <TextInput
+        value={draft}
+        onChangeText={setDraft}
+        onBlur={() => {
+          const trimmed = draft.trim();
+          if (trimmed.length > 0 && trimmed !== value) onCommit(trimmed);
+        }}
+        placeholder="z.B. Roboto-Italic"
+        placeholderTextColor="#52525b"
+        style={{
+          flex: 1,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.10)',
+          color: '#f1f2f2',
+          fontSize: 13,
+        }}
+      />
+    </View>
+  );
+}
+
 function ToggleRow({
   label,
   value,
@@ -737,6 +818,28 @@ const styles = StyleSheet.create({
     color: '#52525b',
     fontSize: 10,
     fontStyle: 'italic',
+  },
+  enableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,16,57,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,16,57,0.18)',
+  },
+  enableTitle: {
+    color: '#f1f2f2',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  enableSub: {
+    color: '#a1a1aa',
+    fontSize: 11,
+    marginTop: 3,
+    lineHeight: 15,
   },
   doneBtn: {
     backgroundColor: '#ff1039',
