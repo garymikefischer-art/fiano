@@ -47,21 +47,10 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     );
   }
 
-  // Validiere URL-Format um klare Errors zu geben statt fetch-internal "invalid URL".
-  let base: string;
-  try {
-    const u = new URL(ENV.RENDER_WORKER_URL);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-      throw new Error('protocol must be http/https');
-    }
-    base = `${u.protocol}//${u.host}${u.pathname.replace(/\/$/, '')}`;
-  } catch (e) {
-    throw new Error(
-      `RENDER_WORKER_URL ist ungültig: "${ENV.RENDER_WORKER_URL}" ` +
-      `(${e instanceof Error ? e.message : 'unbekannter Fehler'}). ` +
-      'Prüfe packages/mobile/.env — die Zeile muss auf eigener Zeile stehen + mit https:// anfangen.',
-    );
-  }
+  // Simple URL-Cleanup ohne new URL() — RN's URL-Polyfill ist manchmal
+  // inkompatibel mit native fetch (fetch sagt 'invalid URL' obwohl new URL()
+  // erfolgreich parsed). Wir trimmen einfach trailing slashes + whitespace.
+  const base = ENV.RENDER_WORKER_URL.trim().replace(/\/+$/, '');
 
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) throw new Error('Nicht eingeloggt — Login zuerst.');
@@ -69,17 +58,29 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
 
   // ─── 1. Pre-Signed Upload-URL holen ───────────────────────────────
   opts.onUploadProgress?.(0);
-  const urlRes = await fetch(`${base}/v1/upload-url`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ projectId: opts.projectId }),
-  });
+  const uploadUrlEndpoint = `${base}/v1/upload-url`;
+  console.log(`[renderJob] POST ${uploadUrlEndpoint}`);
+  let urlRes: Response;
+  try {
+    urlRes = await fetch(uploadUrlEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ projectId: opts.projectId }),
+    });
+  } catch (e) {
+    // Fetch-internal exception (z.B. 'invalid URL', network unreachable, DNS fail)
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `fetch ${uploadUrlEndpoint} crashed: ${msg}. ` +
+      `Check ob die URL korrekt ist + curl ${base}/health antwortet.`,
+    );
+  }
   if (!urlRes.ok) {
     const msg = await safeErrorMessage(urlRes);
-    throw new Error(`upload-url failed: ${msg}`);
+    throw new Error(`upload-url HTTP ${urlRes.status}: ${msg}`);
   }
   const urlBody = (await urlRes.json()) as {
     uploadUrl: string;
