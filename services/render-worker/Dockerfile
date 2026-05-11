@@ -1,6 +1,6 @@
 # Multi-Stage Build für minimale Image-Größe.
 # Stage 1: Node-Build mit TypeScript-Compilation.
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
@@ -9,7 +9,7 @@ COPY src ./src
 RUN npm run build
 
 # Stage 2: Runtime mit FFmpeg + nur production-Deps.
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 WORKDIR /app
 
 # FFmpeg + ffprobe install. apt-get cache wegwerfen für kleinere Image-Size.
