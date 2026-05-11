@@ -21,6 +21,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { detectHighlights, type Highlight } from './highlights.js';
+import { extractAudioEnergy, normalizeEnergy, detectPeaks } from './audioEnergy.js';
 
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB Whisper-API-Limit
@@ -72,7 +73,21 @@ export async function transcribeAudio(opts: TranscribeOpts): Promise<TranscribeR
       );
     }
 
-    // ─── 2. Whisper API Call ──────────────────────────────────────────
+    // ─── 2a. Audio-Energy-Extract (Phase 9.6.7b — ebur128 → 1Hz Peaks) ──
+    // Vor Whisper, weil Whisper das Audio konsumieren kann (kein guard nötig
+    // aber ordentlich). Wenn ebur128 fail't: silent fallback ohne peaks.
+    let audioPeaks: number[] = [];
+    try {
+      const buckets = await extractAudioEnergy(audioPath, jobId);
+      const energy = normalizeEnergy(buckets);
+      audioPeaks = detectPeaks(energy, 1.0);
+      const peakCount = audioPeaks.reduce((s, v) => s + v, 0);
+      console.log(`[${jobId}] audio-peaks=${peakCount}/${audioPeaks.length}`);
+    } catch (e) {
+      console.warn(`[${jobId}] audio-energy failed (continuing without peaks):`, e);
+    }
+
+    // ─── 2b. Whisper API Call ─────────────────────────────────────────
     console.log(`[${jobId}] whisper API call (audio=${audioStats.size}b)`);
     const raw = await callWhisper(audioPath, opts.openaiApiKey, jobId);
 
@@ -95,8 +110,8 @@ export async function transcribeAudio(opts: TranscribeOpts): Promise<TranscribeR
         ? (raw as { duration: number }).duration
         : 0;
 
-    // Phase 9.6.7b — Highlight-Detection als Heuristik auf den Cues.
-    const highlights = detectHighlights(cues);
+    // Phase 9.6.7b — Highlight-Detection mit Cues + Audio-Peaks (combined score).
+    const highlights = detectHighlights(cues, audioPeaks);
     console.log(`[${jobId}] highlights detected: ${highlights.length}`);
 
     return { cues, highlights, raw, audioBytes: audioStats.size, durationSec: duration };

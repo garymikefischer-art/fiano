@@ -33,6 +33,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ColorPickerButton } from './ColorPickerModal';
 import { SimpleSlider } from './SimpleSlider';
 import { SubtitlePreviewCard } from './SubtitlePreviewCard';
+import { CueEditorModal } from './CueEditorModal';
 import {
   DEFAULT_SUBTITLES,
   type SubtitleFontFamily,
@@ -95,6 +96,7 @@ const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = [
 ];
 
 export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: Props) {
+  const [cueEditorOpen, setCueEditorOpen] = useState(false);
   // KEIN lokaler State — wir lesen direkt vom parent (single source of truth).
   // Vorheriger local-buffer hatte stale-closure-Probleme: Slider/ColorPicker
   // riefen patch() mit alten local-werten weil React 18 batching + setLocal-
@@ -159,9 +161,11 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 <View style={{ flex: 1 }}>
                   <Text style={styles.enableTitle}>Enable subtitles</Text>
                   <Text style={styles.enableSub}>
-                    {local.enabled
-                      ? 'Style-Vorschau aktiv in der 9:16-Preview. Auto-Untertitel kommen mit Phase 9.6.7 (Whisper).'
-                      : 'Aktivieren, um die Subtitle-Styles in der Preview zu sehen.'}
+                    {(local.cues?.length ?? 0) > 0
+                      ? `${local.cues!.length} cues from AI analysis. Tap Edit to refine text.`
+                      : local.enabled
+                        ? 'Style preview active. Run AI Analysis in Highlights tab to generate cues.'
+                        : 'Enable to preview subtitle styles.'}
                   </Text>
                 </View>
                 <Pressable
@@ -174,6 +178,33 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                   <View style={[styles.toggleThumb, local.enabled && styles.toggleThumbOn]} />
                 </Pressable>
               </View>
+
+              {/* Edit-Cues-Button — sichtbar wenn cues vorhanden. Direkter Pfad
+                  zum CueEditor analog Desktop-9:16-Tab. */}
+              {(local.cues?.length ?? 0) > 0 && (
+                <Pressable
+                  onPress={() => {
+                    haptic.medium();
+                    setCueEditorOpen(true);
+                  }}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    borderRadius: 10,
+                    backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+                    marginTop: -8,
+                  })}
+                >
+                  <Ionicons name="create-outline" size={14} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                    Edit cues ({local.cues!.length})
+                  </Text>
+                </Pressable>
+              )}
 
               {/* 1. Preset */}
               <Section title="STYLE">
@@ -488,6 +519,14 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
           </View>
         </KeyboardAvoidingView>
       </View>
+
+      {/* Cue-Editor als overlay-Modal (sibling). */}
+      <CueEditorModal
+        visible={cueEditorOpen}
+        cues={local.cues ?? []}
+        onClose={() => setCueEditorOpen(false)}
+        onSave={(nextCues) => patch({ cues: nextCues })}
+      />
     </Modal>
   );
 }
