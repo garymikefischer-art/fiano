@@ -86,11 +86,14 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const projects = JSON.parse(raw) as Project[];
+        console.log(`[projectsStore] hydrated ${projects.length} projects from AsyncStorage`);
         set({ projects, hydrated: true });
       } else {
+        console.log('[projectsStore] no persisted projects — using DEMO_PROJECTS');
         set({ hydrated: true });
       }
-    } catch {
+    } catch (e) {
+      console.warn('[projectsStore] hydrate failed:', e);
       set({ hydrated: true });
     }
   },
@@ -158,7 +161,18 @@ export const useProjectsStore = create<ProjectsState>((set) => ({
 useProjectsStore.subscribe((state, prev) => {
   if (!state.hydrated) return;
   if (state.projects === prev.projects) return;
-  void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects)).catch(() => {});
+  // JSON.stringify schmeißt Cycles + non-serializable Values raus. Wenn Project
+  // ein File-URI mit speziellen Chars hat: schon mal als JSON-Roundtrip checken.
+  try {
+    const json = JSON.stringify(state.projects);
+    void AsyncStorage.setItem(STORAGE_KEY, json).then(() => {
+      console.log(`[projectsStore] persisted ${state.projects.length} projects (${(json.length / 1024).toFixed(1)} KB)`);
+    }).catch((e) => {
+      console.warn('[projectsStore] persist failed:', e);
+    });
+  } catch (e) {
+    console.warn('[projectsStore] JSON serialize failed:', e);
+  }
 });
 
 /* ─── Selector-Hooks ──────────────────────────────────────────── */
