@@ -69,10 +69,13 @@ export async function createSourceUploadUrl(
   jobId: string,
 ): Promise<{ uploadUrl: string; sourceKey: string }> {
   const sourceKey = `sources/${userId}/${projectId}/${jobId}-src.mp4`;
+  // ContentType absichtlich nicht hier setzen — würde Teil der Signature und
+  // Mobile-Client muss dann exakt 'video/mp4' senden. RN's FileSystem-Upload
+  // schickt manchmal andere Headers. Ohne ContentType in Signature ist der
+  // Upload flexibler (R2 akzeptiert beliebigen content-type).
   const cmd = new PutObjectCommand({
     Bucket: BUCKET,
     Key: sourceKey,
-    ContentType: 'video/mp4',
   });
   const uploadUrl = await getSignedUrl(requireR2(), cmd, { expiresIn: 60 * 60 });
   return { uploadUrl, sourceKey };

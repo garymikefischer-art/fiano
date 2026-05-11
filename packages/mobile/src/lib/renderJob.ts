@@ -88,12 +88,15 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   };
 
   // ─── 2. Source direkt zu R2 PUTten ────────────────────────────────
+  // KEIN Content-Type-Header — R2 berechnet das aus dem File. Wenn wir manuell
+  // 'video/mp4' senden + signed URL hat anderes ContentType in Signature →
+  // 403. Ohne header ist's safe.
+  console.log(`[renderJob] PUT to R2 (size=${opts.sourceUri.length})`);
   const uploadTask = FileSystem.createUploadTask(
     urlBody.uploadUrl,
     opts.sourceUri,
     {
       httpMethod: 'PUT',
-      headers: { 'Content-Type': 'video/mp4' },
       uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
     },
     (p) => {
@@ -104,7 +107,11 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   );
   const upRes = await uploadTask.uploadAsync();
   if (!upRes || upRes.status >= 300) {
-    throw new Error(`R2 upload failed: HTTP ${upRes?.status ?? '?'}`);
+    // R2 returnt XML-Error im Body — log für Debug
+    console.error(`[renderJob] R2 upload failed body:`, upRes?.body?.slice(0, 500));
+    throw new Error(
+      `R2 upload failed: HTTP ${upRes?.status ?? '?'} — ${upRes?.body?.slice(0, 200) ?? 'no body'}`,
+    );
   }
   opts.onUploadProgress?.(1);
 
