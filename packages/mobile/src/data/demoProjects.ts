@@ -70,6 +70,9 @@ export interface DemoProject {
   intro?: ProjectIntro;
   /** Letzte Fehlermeldung wenn status === 'failed'. */
   errorMessage?: string;
+  /** Generated Thumbnail-URIs aus Phase 9.8 Gemini-Thumbs. Persistent in
+   *  documentDirectory/thumbnails/{projectId}/. */
+  thumbnailHistory?: string[];
 }
 
 /** Subtitle-Stil (default/bold/gaming/fiano/layered). Layered = Big-Word + Small-Word überlappend. */

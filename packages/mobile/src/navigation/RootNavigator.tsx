@@ -12,6 +12,7 @@ import { SignupScreen } from '../screens/SignupScreen';
 import { ExportScreen } from '../screens/ExportScreen';
 import { ProjectDetailScreen } from '../screens/ProjectDetailScreen';
 import { AddVideoProjectScreen } from '../screens/AddVideoProjectScreen';
+import { ThumbnailGeneratorScreen } from '../screens/ThumbnailGeneratorScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { PricingScreen } from '../screens/PricingScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
@@ -98,6 +99,11 @@ export function RootNavigator() {
           <Stack.Screen
             name="AddVideoProject"
             component={AddVideoProjectScreen}
+            options={{ headerShown: false, presentation: 'modal' }}
+          />
+          <Stack.Screen
+            name="ThumbnailGenerator"
+            component={ThumbnailGeneratorScreen}
             options={{ headerShown: false, presentation: 'modal' }}
           />
           <Stack.Screen

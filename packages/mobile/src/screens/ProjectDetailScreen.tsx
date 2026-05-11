@@ -172,6 +172,10 @@ export function ProjectDetailScreen() {
           </Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
+          <IconButton
+            icon="sparkles-outline"
+            onPress={() => nav.navigate('ThumbnailGenerator', { projectId: project.id })}
+          />
           <IconButton icon="trash-outline" onPress={onDelete} />
           <IconButton icon="share-outline" onPress={() => {}} />
         </View>

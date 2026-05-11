@@ -33,6 +33,9 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Search: undefined;
   AddVideoProject: undefined;
+  ThumbnailGenerator: {
+    projectId: string;
+  };
   Export: {
     sourceUri: string;
     trimStart: number;
