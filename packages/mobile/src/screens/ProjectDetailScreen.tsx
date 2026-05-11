@@ -1109,11 +1109,44 @@ function TikTokTab({
   };
   const [subModalOpen, setSubModalOpen] = useState(false);
   const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
-  const [musicTracks, setMusicTracks] = useState<AudioTrack[]>([]);
-  const [musicShuffle, setMusicShuffle] = useState(false);
-  const [introUri, setIntroUri] = useState<string | null>(null);
-  const [introName, setIntroName] = useState<string | null>(null);
-  const [introMode, setIntroMode] = useState<'before' | 'overlay'>('before');
+
+  // Music + Intro: persistiert auf project (Phase 9.6.4 / 9.6.6)
+  const musicTracks: AudioTrack[] = (project.musicTracks ?? []).map((m) => ({
+    uri: m.path,
+    filename: m.filename ?? 'audio',
+  }));
+  const setMusicTracks = (next: AudioTrack[]) => {
+    updateProject(project.id, {
+      musicTracks: next.map((t) => {
+        const existing = project.musicTracks?.find((m) => m.path === t.uri);
+        return { path: t.uri, filename: t.filename, volume: existing?.volume ?? 0.6 };
+      }),
+    });
+  };
+  const musicShuffle = project.musicShuffle ?? false;
+  const setMusicShuffle = (next: boolean) => {
+    updateProject(project.id, { musicShuffle: next });
+  };
+  const introUri = project.intro?.path ?? null;
+  const introName = project.intro?.filename ?? null;
+  const introMode = project.intro?.mode ?? 'before';
+  const setIntroMode = (mode: 'before' | 'overlay') => {
+    if (project.intro) {
+      updateProject(project.id, { intro: { ...project.intro, mode } });
+    }
+  };
+  const setIntroUri = (uri: string | null) => {
+    if (uri) {
+      updateProject(project.id, {
+        intro: { path: uri, filename: introName ?? undefined, mode: introMode },
+      });
+    } else {
+      updateProject(project.id, { intro: undefined });
+    }
+  };
+  const setIntroName = (_name: string | null) => {
+    /* no-op — pickIntro setzt URI direkt, filename kommt mit */
+  };
   const [introPosition, setIntroPosition] = useState<'top' | 'center' | 'bottom' | 'full'>('full');
   const [showOverlay, setShowOverlay] = useState(true);
 
@@ -1121,8 +1154,13 @@ function TikTokTab({
     haptic.medium();
     const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
     if (picked) {
-      setIntroUri(picked.uri);
-      setIntroName(picked.filename ?? 'video');
+      updateProject(project.id, {
+        intro: {
+          path: picked.uri,
+          filename: picked.filename ?? 'video',
+          mode: introMode,
+        },
+      });
       haptic.success();
     }
   };

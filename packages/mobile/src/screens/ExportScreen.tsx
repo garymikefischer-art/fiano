@@ -50,6 +50,7 @@ export function ExportScreen() {
   const project = useProject(params.projectId);
   const defaultFacecam = useAppStore((s) => s.facecamRegion);
   const defaultGameplay = useAppStore((s) => s.gameplayRegion);
+  const exportSettings = useAppStore((s) => s.exportSettings);
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -93,46 +94,61 @@ export function ExportScreen() {
           }
         : undefined;
 
-      // 4. FFmpeg-Args mit {SRC}/{DST}-Platzhaltern (Server ersetzt mit tmp-Pfaden)
+      // 4. Add-Ons: Music + Voice-Overs + Intro vom Project ablesen.
+      const musicTracks = project?.musicTracks ?? [];
+      const intro = project?.intro;
+      const voiceOvers = project?.voiceOvers ?? [];
+
+      // 5. ExportSettings → Width/Height/FPS/Bitrate aus appStore
+      const [w, h] = (() => {
+        switch (exportSettings.resolution) {
+          case '720p':  return [720, 1280];
+          case '1080p': return [1080, 1920];
+          case '4k':    return [2160, 3840];
+          default:      return [1080, 1920];
+        }
+      })();
+
+      // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {DST}, {INTRO}, {MUSIC_N}, {VO_N})
       const args = buildTikTokExportArgs(
         {
           src: '{SRC}',
           dst: '{DST}',
           trimStart: params.trimStart,
           trimEnd: params.trimEnd,
-          width: 1080,
-          height: 1920,
-          fps: 30,
-          bitrate: '10M',
+          width: w,
+          height: h,
+          fps: exportSettings.fps,
+          bitrate: exportSettings.bitrate,
           encoder: 'software',
           layout,
-          facecamRegion: {
-            x: facecamRegion.x,
-            y: facecamRegion.y,
-            w: facecamRegion.w,
-            h: facecamRegion.h,
-          },
-          gameplayRegion: {
-            x: gameplayRegion.x,
-            y: gameplayRegion.y,
-            w: gameplayRegion.w,
-            h: gameplayRegion.h,
-          },
+          facecamRegion: { x: facecamRegion.x, y: facecamRegion.y, w: facecamRegion.w, h: facecamRegion.h },
+          gameplayRegion: { x: gameplayRegion.x, y: gameplayRegion.y, w: gameplayRegion.w, h: gameplayRegion.h },
           splitRatio,
           subtitle: subtitleArg,
+          music: musicTracks.map((m, i) => ({ path: `{MUSIC_${i}}`, volume: m.volume })),
+          voiceOvers: voiceOvers.map((vo, i) => ({
+            path: `{VO_${i}}`,
+            startSec: vo.startSec,
+            volume: vo.volume,
+          })),
+          intro: intro ? { path: '{INTRO}' } : undefined,
         },
         'other',
       );
 
-      // 3. Cloud-Render: Upload → Render → Download
+      // 7. Cloud-Render: Multi-Input Upload → Render → Download
       const result = await runRenderJob({
-        sourceUri: localSrc,
+        inputs: {
+          sourceUri: localSrc,
+          introUri: intro?.path,
+          musicUris: musicTracks.map((m) => m.path),
+          voiceOverUris: voiceOvers.map((vo) => vo.path),
+        },
         args,
         projectId: params.projectId ?? 'no-project',
         outputName,
         onUploadProgress: (frac) => {
-          // Upload-Phase = 0-30% Gesamtprogress (Render selbst ist sync auf Server,
-          // kein per-frame-Progress verfügbar in der aktuellen API)
           setPercent(frac * 30);
           if (frac >= 1) setPhase('rendering');
         },

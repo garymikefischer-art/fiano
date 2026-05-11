@@ -1,20 +1,9 @@
 /**
  * Cloudflare R2 Client (S3-kompatibel) — Storage für fiano Render Worker.
  *
- * R2 free tier: 10 GB Storage + unlimited Egress. Perfekt für Video-Files >100 MB
- * weil Supabase-Free-Egress (2 GB/Monat) sonst nach ~6 Renders erschöpft wäre.
- *
- * Auth: nur Server-Side. Mobile bekommt Pre-Signed-URLs für Upload + Download,
- * Worker hat den R2-Access-Key (NIEMALS im Mobile-Bundle).
- *
- * R2-Endpoint-Format: https://<accountid>.r2.cloudflarestorage.com
- *
- * Bucket-Struktur:
- *   sources/${userId}/${projectId}/${jobId}-src.mp4
- *   outputs/${userId}/${projectId}/${jobId}.mp4
- *
- * Lifecycle-Policy (in Cloudflare-Dashboard manuell setzen): 24h TTL für beide
- * Präfixe → automatisches Cleanup, keine Storage-Akkumulation.
+ * Multi-Input-Support (Phase 9.6.4+): Mobile uploaded mehrere Files (source,
+ * intro, music-tracks, voice-overs) jeweils mit eigenem Key. Worker holt
+ * alle ab + ersetzt Platzhalter in den FFmpeg-Args.
  */
 
 import {
@@ -24,12 +13,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { stat, writeFile } from 'node:fs/promises';
 
-// .trim() um trailing/leading whitespace aus env-vars zu strippen — User-
-// Bug: 'gcloud run deploy --set-env-vars "R2_ACCOUNT_ID= 7a26875..."'
-// hatte ein leading space, was die R2-endpoint-URL auf 'https:// 7a26...'
-// kaputt machte → AWS SDK warf 'Invalid URL'.
 const ACCOUNT_ID = (process.env.R2_ACCOUNT_ID ?? '').trim();
 const ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID ?? '').trim();
 const SECRET_ACCESS_KEY = (process.env.R2_SECRET_ACCESS_KEY ?? '').trim();
@@ -58,36 +43,19 @@ function requireR2(): S3Client {
   return r2;
 }
 
-/**
- * Erstellt eine Pre-Signed PUT-URL die Mobile direkt nutzt um das Source-File
- * zu uploaden (ohne durch den Worker zu gehen). 1h Gültigkeit reicht da Mobile
- * direkt nach Upload den Render-Request schickt.
- */
-export async function createSourceUploadUrl(
-  userId: string,
-  projectId: string,
-  jobId: string,
-): Promise<{ uploadUrl: string; sourceKey: string }> {
-  const sourceKey = `sources/${userId}/${projectId}/${jobId}-src.mp4`;
-  // ContentType absichtlich nicht hier setzen — würde Teil der Signature und
-  // Mobile-Client muss dann exakt 'video/mp4' senden. RN's FileSystem-Upload
-  // schickt manchmal andere Headers. Ohne ContentType in Signature ist der
-  // Upload flexibler (R2 akzeptiert beliebigen content-type).
-  const cmd = new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: sourceKey,
-  });
+/** Pre-Signed PUT-URL für einen Server-bestimmten Key (verhindert Mobile-side
+ *  arbitrary uploads außerhalb der user-eigenen Folder). 1h Gültigkeit. */
+export async function createUploadUrlForKey(key: string): Promise<{ uploadUrl: string; key: string }> {
+  const cmd = new PutObjectCommand({ Bucket: BUCKET, Key: key });
   const uploadUrl = await getSignedUrl(requireR2(), cmd, { expiresIn: 60 * 60 });
-  return { uploadUrl, sourceKey };
+  return { uploadUrl, key };
 }
 
-/** Worker-side download — schreibt das R2-Object direkt auf lokales tmp-File. */
-export async function downloadSourceTo(sourceKey: string, destPath: string): Promise<number> {
-  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: sourceKey });
+/** Download object aus R2 → local /tmp/file. */
+export async function downloadToFile(key: string, destPath: string): Promise<number> {
+  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
   const res = await requireR2().send(cmd);
-  if (!res.Body) throw new Error('R2 source has no body');
-
-  const { writeFile } = await import('node:fs/promises');
+  if (!res.Body) throw new Error(`R2 object empty: ${key}`);
   const stream = res.Body as NodeJS.ReadableStream;
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
@@ -98,29 +66,22 @@ export async function downloadSourceTo(sourceKey: string, destPath: string): Pro
   return buf.byteLength;
 }
 
-/** Worker-side upload — sendet das fertige Render-Output File zu R2. */
-export async function uploadOutput(
-  localPath: string,
-  userId: string,
-  projectId: string,
-  jobId: string,
-  outputName?: string,
-): Promise<string> {
+/** Upload local file to R2 under specified key. */
+export async function uploadFile(localPath: string, key: string, contentType = 'video/mp4'): Promise<string> {
   const stats = await stat(localPath);
-  const outputKey = `outputs/${userId}/${projectId}/${outputName ?? `${jobId}.mp4`}`;
   const cmd = new PutObjectCommand({
     Bucket: BUCKET,
-    Key: outputKey,
+    Key: key,
     Body: createReadStream(localPath),
-    ContentType: 'video/mp4',
+    ContentType: contentType,
     ContentLength: stats.size,
   });
   await requireR2().send(cmd);
-  return outputKey;
+  return key;
 }
 
-/** Pre-Signed-Download-URL fürs Output (24h gültig). */
-export async function createOutputDownloadUrl(outputKey: string): Promise<string> {
-  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: outputKey });
+/** Pre-Signed-Download-URL fürs Output (24h). */
+export async function createOutputDownloadUrl(key: string): Promise<string> {
+  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
   return getSignedUrl(requireR2(), cmd, { expiresIn: 60 * 60 * 24 });
 }
