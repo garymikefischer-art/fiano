@@ -46,7 +46,7 @@ import {
   type ProjectMode,
   type SourceType,
 } from '../data/demoProjects';
-import { useProject, useProjectsStore } from '../stores/projectsStore';
+import { useProject, useProjectsStore, flushProjectsNow } from '../stores/projectsStore';
 import {
   useAppStore,
   FACECAM_PRESETS,
@@ -366,6 +366,9 @@ function HighlightsTab({
         clips: newClips,
         status: 'ready',
       });
+      // Explicit force-flush — sonst kann pending AsyncStorage-Write beim
+      // App-Kill verloren gehen (User-Report 9.6.7g: Highlights weg nach Neustart).
+      await flushProjectsNow();
       haptic.success();
       Alert.alert(
         t('highlights.analyzeDoneTitle', 'AI analysis complete'),

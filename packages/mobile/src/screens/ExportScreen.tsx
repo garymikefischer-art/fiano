@@ -38,6 +38,32 @@ type R = RouteProp<RootStackParamList, 'Export'>;
 
 type Phase = 'idle' | 'uploading' | 'rendering' | 'saving' | 'done' | 'failed' | 'canceled';
 
+/**
+ * Splittet eine Cue in N-Wort-Chunks (Phase 9.6.7g). Time-Range wird proportional
+ * verteilt: chunk i bekommt [start + i*chunkDur, start + (i+1)*chunkDur].
+ * Wenn maxWords >= cue.words.length → nur 1 chunk (unverändert).
+ */
+function chunkCueByWords(
+  cue: { startSec: number; endSec: number; text: string },
+  maxWords: number,
+): { startSec: number; endSec: number; text: string }[] {
+  const words = cue.text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return [cue];
+  const totalDur = Math.max(0.1, cue.endSec - cue.startSec);
+  const out: { startSec: number; endSec: number; text: string }[] = [];
+  for (let i = 0; i < words.length; i += maxWords) {
+    const chunkWords = words.slice(i, i + maxWords);
+    const fracStart = i / words.length;
+    const fracEnd = Math.min(1, (i + chunkWords.length) / words.length);
+    out.push({
+      startSec: cue.startSec + fracStart * totalDur,
+      endSec: cue.startSec + fracEnd * totalDur,
+      text: chunkWords.join(' '),
+    });
+  }
+  return out;
+}
+
 export function ExportScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
@@ -85,22 +111,37 @@ export function ExportScreen() {
       const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
       const splitRatio = project?.splitRatio ?? DEFAULT_SPLIT_RATIO;
 
-      // 3. Subtitle-Burn-In (Phase 9.6.7a): wenn project.subtitles.enabled UND
-      //    cues vorhanden → multi-cue drawtext mit between(t,start,end).
-      //    Sonst: kein Subtitle im Export.
+      // 3. Subtitle-Burn-In (Phase 9.6.7a + 9.6.7g): wenn enabled UND cues
+      //    vorhanden → multi-cue drawtext mit between(t,start,end). Plus:
+      //    maxWordsPerChunk wird respektiert — Cues werden in N-Wörter-Chunks
+      //    gesplittet, jeder mit proportional verteiltem time-range.
       const subSettings = project?.subtitles;
-      const cues = subSettings?.cues ?? [];
+      const rawCues = subSettings?.cues ?? [];
+      const maxWords = subSettings?.maxWordsPerChunk ?? 0;
+      const chunkedCues =
+        maxWords > 0 && maxWords < 99
+          ? rawCues.flatMap((c) => chunkCueByWords(c, maxWords))
+          : rawCues;
+      // Wenn useGradient aktiv: nutze gradientFrom als single fontColor — drawtext
+      // unterstützt keinen Gradient-Fill. Sonst textColor.
+      const fontColor = subSettings?.useGradient
+        ? subSettings.gradientFrom ?? subSettings.textColor ?? '#ffffff'
+        : subSettings?.textColor ?? '#ffffff';
       const subtitleArg =
-        subSettings?.enabled && cues.length > 0
+        subSettings?.enabled && chunkedCues.length > 0
           ? {
               text: '', // unused when cues[] is set
-              cues: cues.map((c) => ({ startSec: c.startSec, endSec: c.endSec, text: c.text })),
+              cues: chunkedCues.map((c) => ({
+                startSec: c.startSec,
+                endSec: c.endSec,
+                text: subSettings.uppercase ? c.text.toUpperCase() : c.text,
+              })),
               fontSize: subSettings.fontSize ?? 64,
-              color: subSettings.textColor ?? '#ffffff',
+              color: fontColor,
               strokeColor: subSettings.strokeColor ?? '#000000',
               strokeWidth: subSettings.strokeEnabled === true ? subSettings.strokeWidth ?? 4 : 0,
               position: subSettings.position as 'top' | 'center' | 'bottom' | undefined,
-              uppercase: subSettings.uppercase ?? false,
+              uppercase: false, // schon oben angewendet
             }
           : undefined;
 

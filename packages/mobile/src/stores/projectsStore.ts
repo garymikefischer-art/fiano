@@ -29,6 +29,27 @@ export type { ProjectMode, VideoType, SourceType };
 
 const STORAGE_KEY = 'fiano.projects';
 
+/**
+ * Synchroner Force-Flush von projects → AsyncStorage. Wird nach kritischen
+ * Updates (z.B. AI-Analyze mit cues + clips) aufgerufen damit die Persistenz
+ * GARANTIERT durch ist bevor der User die App schließen kann. Phase 9.6.7g —
+ * User-Report dass Highlights nach App-Restart weg waren (vermutlich
+ * pending-write killed beim App-Kill).
+ */
+export async function flushProjectsNow(): Promise<void> {
+  const state = useProjectsStore.getState();
+  if (!state.hydrated) return;
+  try {
+    const json = JSON.stringify(state.projects);
+    await AsyncStorage.setItem(STORAGE_KEY, json);
+    console.log(
+      `[projectsStore] FLUSH ${state.projects.length} projects (${(json.length / 1024).toFixed(1)} KB)`,
+    );
+  } catch (e) {
+    console.warn('[projectsStore] flush failed:', e);
+  }
+}
+
 interface NewProjectInput {
   title: string;
   durationSec: number;
