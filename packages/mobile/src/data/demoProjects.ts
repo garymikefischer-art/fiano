@@ -49,9 +49,100 @@ export interface DemoProject {
   splitRatio?: number;
   /** AI-Voice-Overs (Phase 9.5.5). Mehrere TTS-Spuren mit Position im Output. */
   voiceOvers?: ProjectVoiceOver[];
+  /** Subtitle-Styling (Phase 9.5.6). Alle Properties analog Desktop. */
+  subtitles?: SubtitleSettings;
   /** Letzte Fehlermeldung wenn status === 'failed'. */
   errorMessage?: string;
 }
+
+/** Subtitle-Stil (default/bold/gaming/fiano/layered). Layered = Big-Word + Small-Word überlappend. */
+export type SubtitleStyle = 'default' | 'bold' | 'gaming' | 'fiano' | 'layered';
+export type SubtitlePosition = 'top' | 'center' | 'bottom' | 'custom';
+export type SubtitleFontFamily =
+  | 'helvetica' | 'arial-black' | 'impact' | 'geist' | 'georgia' | 'mono' | 'system';
+
+export interface SubtitleHighlightWord {
+  text: string;
+  big: boolean;
+}
+
+/**
+ * Subtitle-Settings — 1:1 analog Desktop's SubtitleSettings in @fiano/shared/types.
+ * Persistiert auf project.subtitles, gerendert beim Export von FFmpeg-Native
+ * (Phase 9.6). In der UI gibt's eine statische Mini-Preview via RN <Text> + Style-
+ * Tokens — Approximation der Desktop-Canvas-Renderings (Gradient/Metallic im
+ * Export, nicht in der Preview).
+ */
+export interface SubtitleSettings {
+  enabled: boolean;
+  style: SubtitleStyle;
+  position?: SubtitlePosition;
+  customY?: number;
+  // ── Typography ─────────────────────────────────────────────────
+  fontFamily?: SubtitleFontFamily;
+  fontSize?: number;
+  letterSpacing?: number;
+  uppercase?: boolean;
+  // ── Colors ─────────────────────────────────────────────────────
+  textColor?: string;
+  highlightColor?: string;
+  useGradient?: boolean;
+  gradientFrom?: string;
+  gradientTo?: string;
+  // ── Stroke ─────────────────────────────────────────────────────
+  strokeWidth?: number;
+  strokeColor?: string;
+  // ── Glow ───────────────────────────────────────────────────────
+  glowEnabled?: boolean;
+  glowBlur?: number;
+  glowStrength?: number;
+  glowColor?: string;
+  // ── Shadow ─────────────────────────────────────────────────────
+  shadowEnabled?: boolean;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  // ── Misc ───────────────────────────────────────────────────────
+  metallic?: boolean;
+  maxWordsPerChunk?: number;
+  highlightWords?: SubtitleHighlightWord[];
+  // ── Layered-Style (nur wenn style==='layered') ─────────────────
+  highlightUseGradient?: boolean;
+  highlightGradientFrom?: string;
+  highlightGradientTo?: string;
+  highlightFontScale?: number;
+  highlightDropShadow?: number;
+  highlightMetallic?: boolean;
+  highlightGlow?: boolean;
+  highlightGlowColor?: string;
+  highlightGlowStrength?: number;
+}
+
+export const DEFAULT_SUBTITLES: SubtitleSettings = {
+  enabled: false,
+  style: 'fiano',
+  position: 'bottom',
+  fontFamily: 'helvetica',
+  fontSize: 26,
+  uppercase: true,
+  textColor: '#ffffff',
+  highlightColor: '#ff1039',
+  strokeWidth: 3,
+  strokeColor: '#000000',
+  glowEnabled: false,
+  glowBlur: 8,
+  glowStrength: 0.7,
+  glowColor: '#ff1039',
+  shadowEnabled: false,
+  shadowOffsetX: 0,
+  shadowOffsetY: 0,
+  shadowColor: '#000000',
+  shadowBlur: 0,
+  metallic: false,
+  maxWordsPerChunk: 2,
+  highlightFontScale: 1.4,
+};
 
 /** AI-Voice-Over (Text-to-Speech) mit Position im Output-Video. Analog Desktop ProjectVoiceOver. */
 export interface ProjectVoiceOver {
