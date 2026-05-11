@@ -26,25 +26,33 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 
-const ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+const ACCOUNT_ID = process.env.R2_ACCOUNT_ID ?? '';
+const ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID ?? '';
+const SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY ?? '';
 const BUCKET = process.env.R2_BUCKET ?? 'fiano-renders';
+const R2_OK = !!(ACCOUNT_ID && ACCESS_KEY_ID && SECRET_ACCESS_KEY);
 
-if (!ACCOUNT_ID || !ACCESS_KEY_ID || !SECRET_ACCESS_KEY) {
-  throw new Error(
-    'Missing R2 credentials: R2_ACCOUNT_ID + R2_ACCESS_KEY_ID + R2_SECRET_ACCESS_KEY required',
+if (!R2_OK) {
+  console.error(
+    '[r2] WARNING: R2 credentials missing — Upload/Download endpoints will fail.',
   );
 }
 
-const r2 = new S3Client({
-  region: 'auto',
-  endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: ACCESS_KEY_ID,
-    secretAccessKey: SECRET_ACCESS_KEY,
-  },
-});
+const r2 = R2_OK
+  ? new S3Client({
+      region: 'auto',
+      endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: ACCESS_KEY_ID,
+        secretAccessKey: SECRET_ACCESS_KEY,
+      },
+    })
+  : null;
+
+function requireR2(): S3Client {
+  if (!r2) throw new Error('R2 not configured — set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY');
+  return r2;
+}
 
 /**
  * Erstellt eine Pre-Signed PUT-URL die Mobile direkt nutzt um das Source-File
@@ -62,14 +70,14 @@ export async function createSourceUploadUrl(
     Key: sourceKey,
     ContentType: 'video/mp4',
   });
-  const uploadUrl = await getSignedUrl(r2, cmd, { expiresIn: 60 * 60 });
+  const uploadUrl = await getSignedUrl(requireR2(), cmd, { expiresIn: 60 * 60 });
   return { uploadUrl, sourceKey };
 }
 
 /** Worker-side download — schreibt das R2-Object direkt auf lokales tmp-File. */
 export async function downloadSourceTo(sourceKey: string, destPath: string): Promise<number> {
   const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: sourceKey });
-  const res = await r2.send(cmd);
+  const res = await requireR2().send(cmd);
   if (!res.Body) throw new Error('R2 source has no body');
 
   const { writeFile } = await import('node:fs/promises');
@@ -100,12 +108,12 @@ export async function uploadOutput(
     ContentType: 'video/mp4',
     ContentLength: stats.size,
   });
-  await r2.send(cmd);
+  await requireR2().send(cmd);
   return outputKey;
 }
 
 /** Pre-Signed-Download-URL fürs Output (24h gültig). */
 export async function createOutputDownloadUrl(outputKey: string): Promise<string> {
   const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: outputKey });
-  return getSignedUrl(r2, cmd, { expiresIn: 60 * 60 * 24 });
+  return getSignedUrl(requireR2(), cmd, { expiresIn: 60 * 60 * 24 });
 }
