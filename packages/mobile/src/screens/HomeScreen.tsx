@@ -110,14 +110,14 @@ export function HomeScreen() {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingHorizontal: 12,
+          paddingHorizontal: 20,
           paddingTop: 4,
           paddingBottom: 6,
           borderBottomWidth: 1,
           borderBottomColor: 'rgba(255,255,255,0.06)',
         }}
       >
-        <View style={{ marginLeft: -10 }}>
+        <View style={{ marginLeft: -9 }}>
           <FianoLogo height={72} />
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

@@ -73,9 +73,9 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
             flexDirection: 'row',
             paddingVertical: 7,
             paddingHorizontal: 6,
-            backgroundColor: 'rgba(13,16,20,0.35)',
+            backgroundColor: 'rgba(13,16,20,0.15)',
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.10)',
+            borderColor: 'rgba(255,255,255,0.12)',
             borderRadius: 28,
           }}
         >

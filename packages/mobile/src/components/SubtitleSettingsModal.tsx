@@ -324,7 +324,9 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 )}
               </View>
 
-              {/* 1. Preset */}
+              {/* 1. Preset — Klick setzt ALLE Properties auf DEFAULT_SUBTITLES
+                  + style, behält nur enabled + cues. Sonst überschreibt ein
+                  Custom-Preset (eigene font/color/glow) das Built-in-Preset nicht. */}
               <Section title="STYLE">
                 <View style={styles.optionGrid}>
                   {STYLE_OPTIONS.map((o) => (
@@ -333,7 +335,15 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                       label={o.label}
                       desc={o.desc}
                       active={local.style === o.id}
-                      onPress={() => patch({ style: o.id })}
+                      onPress={() => {
+                        haptic.selection();
+                        onChange({
+                          ...DEFAULT_SUBTITLES,
+                          style: o.id,
+                          enabled: local.enabled,
+                          cues: local.cues,
+                        });
+                      }}
                     />
                   ))}
                 </View>
