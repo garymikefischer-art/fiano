@@ -48,12 +48,21 @@ export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadRes
   // --max-filesize 500M = Schutz vor 4k-2h-Videos die /tmp füllen.
   // --no-playlist = bei URL einer Playlist-Item nur dieses Video.
   // --print after_video:%(title)s = sauberer Title-Output nach Success.
+  //
+  // Phase 9.5.8.1 YouTube-Bot-Detection-Workaround:
+  // YouTube blockt seit Mitte 2024 yt-dlp ohne Auth aggressiv ("Sign in to confirm").
+  // Workaround: `tv_embedded` + `web` Player-Clients haben weniger Bot-Checks als
+  // der default `android`-Client. Plus desktop user-agent.
+  // Wenn auch das fail't: User-Error-Message hint auf Twitch oder lokalen Download.
   const args = [
     '-f', 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best',
     '--merge-output-format', 'mp4',
     '--max-filesize', '500M',
     '--no-playlist',
     '--no-warnings',
+    '--no-check-certificates',
+    '--extractor-args', 'youtube:player_client=tv_embedded,web,default',
+    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     '-o', opts.outputPath,
     '--print', 'after_video:%(title)s',
     opts.url,
@@ -91,7 +100,20 @@ export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadRes
         resolve();
       } else {
         const lines = stderrTail.split('\n').slice(-12).join('\n');
-        reject(new Error(`yt-dlp exited with code ${code}:\n${lines}`));
+        // User-friendly hints für bekannte Failure-Modi.
+        let userMsg: string;
+        if (/sign in to confirm|cookies|bot/i.test(lines)) {
+          userMsg = 'YouTube blocked the download (bot-detection). Try a Twitch URL or download the video locally and use Single video file.';
+        } else if (/private video|members[- ]only/i.test(lines)) {
+          userMsg = 'Video is private or members-only.';
+        } else if (/copyright|removed|unavailable/i.test(lines)) {
+          userMsg = 'Video is unavailable (removed/copyright/region-locked).';
+        } else if (/unable to extract|incomplete data/i.test(lines)) {
+          userMsg = 'Could not extract this video — yt-dlp may need an update.';
+        } else {
+          userMsg = `yt-dlp exited with code ${code}:\n${lines}`;
+        }
+        reject(new Error(userMsg));
       }
     });
 
