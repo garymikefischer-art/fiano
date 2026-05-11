@@ -16,7 +16,10 @@ import { supabase } from './supabase';
 import { ENV } from './env';
 
 export interface RenderJobInputs {
-  sourceUri: string;
+  /** Single-Source (legacy / Single-File-Import / URL-Import). */
+  sourceUri?: string;
+  /** Multi-Clip (Phase 9.5.8). Wenn >= 2 → concat-Pipeline auf Server. */
+  sourceUris?: string[];
   introUri?: string;
   musicUris?: string[];
   voiceOverUris?: string[];
@@ -48,9 +51,20 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   const token = session.session.access_token;
   const base = ENV.RENDER_WORKER_URL.trim().replace(/\/+$/, '');
 
+  // Resolve sources: sourceUris[] hat Vorrang, fallback auf single sourceUri.
+  const sourceUris: string[] =
+    opts.inputs.sourceUris && opts.inputs.sourceUris.length > 0
+      ? opts.inputs.sourceUris
+      : opts.inputs.sourceUri
+        ? [opts.inputs.sourceUri]
+        : [];
+  if (sourceUris.length === 0) {
+    throw new Error('No source files — sourceUri or sourceUris required');
+  }
+
   // ─── Anzahl Files für Progress-Tracking ────────────────────────────
   const totalFiles =
-    1 +
+    sourceUris.length +
     (opts.inputs.introUri ? 1 : 0) +
     (opts.inputs.musicUris?.length ?? 0) +
     (opts.inputs.voiceOverUris?.length ?? 0);
@@ -107,7 +121,12 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   opts.onUploadProgress?.(0);
 
   // ─── Parallele Uploads aller Inputs ────────────────────────────────
-  const sourceKey = await uploadOne(opts.inputs.sourceUri, 'source');
+  const sourceKeys: string[] = [];
+  for (let i = 0; i < sourceUris.length; i++) {
+    // Bei single-source: index=undefined (legacy key-pattern). Bei multi: index=i.
+    const idx = sourceUris.length > 1 ? i : undefined;
+    sourceKeys.push(await uploadOne(sourceUris[i], 'source', idx));
+  }
   const introKey = opts.inputs.introUri
     ? await uploadOne(opts.inputs.introUri, 'intro')
     : undefined;
@@ -132,7 +151,9 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       inputs: {
-        source: sourceKey,
+        // Single-source legacy: `source`. Multi-clip: `sources`.
+        source: sourceKeys.length === 1 ? sourceKeys[0] : undefined,
+        sources: sourceKeys.length > 1 ? sourceKeys : undefined,
         intro: introKey,
         music: musicKeys.length > 0 ? musicKeys : undefined,
         voiceOvers: voKeys.length > 0 ? voKeys : undefined,

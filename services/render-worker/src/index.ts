@@ -32,6 +32,7 @@ import {
   downloadToFile,
   uploadFile,
 } from './r2.js';
+import { downloadVideo, isAllowedUrl } from './youtube.js';
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
@@ -128,6 +129,8 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
     const { inputs, args, projectId, outputName } = req.body as {
       inputs?: {
         source?: string;
+        /** Phase 9.5.8: Multi-Clip-Sources (alternative zu `source`). */
+        sources?: string[];
         intro?: string;
         music?: string[];
         voiceOvers?: string[];
@@ -137,20 +140,29 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
       outputName?: string;
     };
 
-    if (!inputs?.source || !args || !projectId) {
-      return res
-        .status(400)
-        .json({ ok: false, error: 'inputs.source + args + projectId required' });
+    // Multi-Clip-Resolve: `sources[]` hat Vorrang. Fallback auf legacy `source`.
+    const sources: string[] =
+      inputs?.sources && inputs.sources.length > 0
+        ? inputs.sources
+        : inputs?.source
+          ? [inputs.source]
+          : [];
+
+    if (sources.length === 0 || !args || !projectId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'inputs.source or inputs.sources + args + projectId required',
+      });
     }
     if (!Array.isArray(args) || args.length > 400) {
       return res.status(400).json({ ok: false, error: 'args invalid' });
     }
     // Ownership-Check: alle keys müssen mit `sources/${userId}/` starten.
     const allKeys: string[] = [
-      inputs.source,
-      ...(inputs.intro ? [inputs.intro] : []),
-      ...(inputs.music ?? []),
-      ...(inputs.voiceOvers ?? []),
+      ...sources,
+      ...(inputs?.intro ? [inputs.intro] : []),
+      ...(inputs?.music ?? []),
+      ...(inputs?.voiceOvers ?? []),
     ];
     for (const k of allKeys) {
       if (!k.startsWith(`sources/${userId}/`)) {
@@ -158,25 +170,38 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
       }
     }
 
-    console.log(`[${jobId}] render user=${userId} project=${projectId} inputs=${allKeys.length}`);
+    console.log(
+      `[${jobId}] render user=${userId} project=${projectId} sources=${sources.length} otherInputs=${allKeys.length - sources.length}`,
+    );
 
     // ── 1. Alle Inputs nach /tmp/ ziehen + Replace-Map bauen ──────────
     const replaceMap: Record<string, string> = {};
     const tmpFiles: string[] = [];
 
-    const sourceTmp = path.join(tmpdir(), `${jobId}-src.mp4`);
-    await downloadToFile(inputs.source, sourceTmp);
-    replaceMap['{SRC}'] = sourceTmp;
-    tmpFiles.push(sourceTmp);
+    if (sources.length === 1) {
+      // Legacy single-source: {SRC} Platzhalter.
+      const sourceTmp = path.join(tmpdir(), `${jobId}-src.mp4`);
+      await downloadToFile(sources[0], sourceTmp);
+      replaceMap['{SRC}'] = sourceTmp;
+      tmpFiles.push(sourceTmp);
+    } else {
+      // Multi-Clip: {SRC_0}, {SRC_1}, ... Platzhalter.
+      for (let i = 0; i < sources.length; i++) {
+        const tmp = path.join(tmpdir(), `${jobId}-src-${i}.mp4`);
+        await downloadToFile(sources[i], tmp);
+        replaceMap[`{SRC_${i}}`] = tmp;
+        tmpFiles.push(tmp);
+      }
+    }
 
-    if (inputs.intro) {
+    if (inputs?.intro) {
       const introTmp = path.join(tmpdir(), `${jobId}-intro.mp4`);
       await downloadToFile(inputs.intro, introTmp);
       replaceMap['{INTRO}'] = introTmp;
       tmpFiles.push(introTmp);
     }
 
-    if (inputs.music?.length) {
+    if (inputs?.music?.length) {
       for (let i = 0; i < inputs.music.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-music-${i}.mp3`);
         await downloadToFile(inputs.music[i], tmp);
@@ -185,7 +210,7 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
       }
     }
 
-    if (inputs.voiceOvers?.length) {
+    if (inputs?.voiceOvers?.length) {
       for (let i = 0; i < inputs.voiceOvers.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-vo-${i}.mp3`);
         await downloadToFile(inputs.voiceOvers[i], tmp);
@@ -230,6 +255,59 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : '';
     console.error(`[${jobId}] render failed:`, msg, '\n', stack);
+    return res.status(500).json({ ok: false, jobId, error: msg });
+  }
+});
+
+/**
+ * POST /v1/download  (Phase 9.5.7)
+ *
+ * Body: { url: string }  — YouTube oder Twitch URL
+ *
+ * yt-dlp lädt das Video nach /tmp/, ffprobe gibt Duration, Worker pusht zu R2
+ * unter `sources/{userId}/yt-{jobId}.mp4` und gibt eine signed-DL-URL zurück.
+ * Mobile zieht die Datei dann lokal nach documentDirectory/imports/ — Project
+ * verhält sich danach wie ein normaler File-Picker-Import.
+ */
+app.post('/v1/download', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
+  const userId = req.userId!;
+  const jobId = randomUUID();
+  const { url } = req.body as { url?: string };
+
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ ok: false, error: 'url required' });
+  }
+  if (!isAllowedUrl(url)) {
+    return res
+      .status(400)
+      .json({ ok: false, error: 'Only YouTube and Twitch URLs are supported' });
+  }
+
+  const tmpPath = path.join(tmpdir(), `${jobId}-yt.mp4`);
+
+  try {
+    console.log(`[${jobId}] download user=${userId} url=${url}`);
+    const meta = await downloadVideo({ url, outputPath: tmpPath, jobId });
+
+    const key = `sources/${userId}/yt-${jobId}.mp4`;
+    await uploadFile(tmpPath, key, 'video/mp4');
+    const signedUrl = await createOutputDownloadUrl(key);
+
+    await unlink(tmpPath).catch(() => {});
+
+    return res.json({
+      ok: true,
+      jobId,
+      signedUrl,
+      key,
+      durationSec: meta.durationSec,
+      title: meta.title,
+      sizeBytes: meta.sizeBytes,
+    });
+  } catch (e) {
+    await unlink(tmpPath).catch(() => {});
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[${jobId}] download failed:`, msg);
     return res.status(500).json({ ok: false, jobId, error: msg });
   }
 });

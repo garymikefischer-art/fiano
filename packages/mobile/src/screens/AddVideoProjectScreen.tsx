@@ -29,7 +29,12 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { BackgroundGlow } from '../components/BackgroundGlow';
-import { pickVideoFromGallery, pickVideoFromFiles, type PickedVideo } from '../lib/mediaPicker';
+import {
+  pickVideoFromGallery,
+  pickVideoFromFiles,
+  pickMultipleVideosFromFiles,
+  type PickedVideo,
+} from '../lib/mediaPicker';
 import { extractVideoThumbnail } from '../lib/thumbnails';
 import {
   useProjectsStore,
@@ -39,6 +44,7 @@ import {
 } from '../stores/projectsStore';
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
+import { downloadFromUrl, isYoutubeOrTwitchUrl } from '../lib/youtube';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'AddVideoProject'>;
@@ -59,6 +65,8 @@ export function AddVideoProjectScreen() {
   const [videoType, setVideoType] = useState<VideoType>('gaming');
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [urlPhase, setUrlPhase] = useState<'requesting' | 'downloading' | null>(null);
+  const [urlProgress, setUrlProgress] = useState(0);
 
   const askSource = (): Promise<'gallery' | 'files' | null> => {
     return new Promise((resolve) => {
@@ -129,30 +137,112 @@ export function AddVideoProjectScreen() {
     }
   };
 
-  const onUrlImport = () => {
-    if (!url.trim()) {
+  const onUrlImport = async () => {
+    const u = url.trim();
+    if (!u || busy) return;
+    if (!isYoutubeOrTwitchUrl(u)) {
       haptic.error();
+      Alert.alert(
+        t('addProject.urlInvalidTitle', 'Invalid URL'),
+        t('addProject.urlInvalidBody', 'Please enter a YouTube or Twitch URL.'),
+      );
       return;
     }
     haptic.medium();
-    Alert.alert(
-      t('addProject.urlSoonTitle', 'URL Import'),
-      t(
-        'addProject.urlSoonBody',
-        'YouTube/Twitch download with auto highlight detection ships with the cloud-fetcher backend (Phase 9.4.x). For now, save the file locally and use Single video file.',
-      ),
-    );
+    setBusy('url');
+    setUrlPhase('requesting');
+    setUrlProgress(0);
+    try {
+      const result = await downloadFromUrl({
+        url: u,
+        onPhase: setUrlPhase,
+        onProgress: setUrlProgress,
+      });
+      const title = (result.title || u).slice(0, 80);
+      const project = addProject({
+        title,
+        durationSec: result.durationSec,
+        sourceUri: result.uri,
+        sourceType: 'url',
+        mode: 'highlights',
+        videoType,
+      });
+      useProjectsStore.getState().updateProject(project.id, {
+        status: 'ready',
+        clips: [
+          {
+            id: `c-${Date.now().toString(36)}`,
+            startSec: 0,
+            endSec: result.durationSec,
+            label: 'Imported clip',
+            score: 1,
+          },
+        ],
+      });
+      void extractVideoThumbnail(result.uri, 1000).then((thumbUri) => {
+        if (thumbUri) {
+          useProjectsStore.getState().updateProject(project.id, { thumbUri });
+        }
+      });
+      haptic.success();
+      setUrl('');
+      nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
+    } catch (err: any) {
+      haptic.error();
+      Alert.alert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
+    } finally {
+      setBusy(null);
+      setUrlPhase(null);
+      setUrlProgress(0);
+    }
   };
 
-  const onMultiClipImport = () => {
-    haptic.error();
-    Alert.alert(
-      t('addProject.multiSoonTitle', 'Import multiple clips'),
-      t(
-        'addProject.multiSoonBody',
-        'Multi-clip projects (combine pre-cut files into one render) ships in a follow-up phase together with the FFmpeg native bridge.',
-      ),
-    );
+  const onMultiClipImport = async () => {
+    if (busy) return;
+    haptic.medium();
+    setBusy('multi');
+    try {
+      const picked = await pickMultipleVideosFromFiles({ maxDurationSec: MAX_DURATION_SEC });
+      if (picked.length === 0) return;
+      if (picked.length < 2) {
+        Alert.alert(
+          t('addProject.multiTooFewTitle', 'Pick at least 2 clips'),
+          t('addProject.multiTooFewBody', 'Multi-clip mode needs 2 or more videos to concatenate.'),
+        );
+        return;
+      }
+      const totalDur = picked.reduce((sum, p) => sum + (p.durationSec || 0), 0);
+      const project = addProject({
+        title: `Multi-Clip (${picked.length})`,
+        durationSec: totalDur,
+        sourceUri: picked[0].uri,
+        sourceUris: picked.map((p) => p.uri),
+        sourceType: 'multi-clip',
+        mode: 'builder',
+      });
+      useProjectsStore.getState().updateProject(project.id, {
+        status: 'ready',
+        clips: picked.map((p, i) => ({
+          id: `c${i}-${Date.now().toString(36)}`,
+          startSec: 0,
+          endSec: p.durationSec || 0,
+          label: p.filename ?? `Clip ${i + 1}`,
+          score: 1,
+        })),
+      });
+      void extractVideoThumbnail(picked[0].uri, 1000).then((thumbUri) => {
+        if (thumbUri) {
+          useProjectsStore.getState().updateProject(project.id, { thumbUri });
+        }
+      });
+      haptic.success();
+      nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'builder' });
+    } catch (err: any) {
+      haptic.error();
+      Alert.alert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -294,36 +384,57 @@ export function AddVideoProjectScreen() {
                 placeholderTextColor="#52525b"
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={busy !== 'url'}
                 style={{ color: '#f1f2f2', fontSize: 13, paddingVertical: 12 }}
               />
             </View>
             <Pressable
               onPress={onUrlImport}
-              disabled={!url.trim()}
+              disabled={!url.trim() || busy === 'url'}
               style={({ pressed }) => ({
                 paddingHorizontal: 18,
                 borderRadius: 12,
-                backgroundColor: !url.trim()
+                backgroundColor: !url.trim() || busy === 'url'
                   ? 'rgba(255,255,255,0.06)'
                   : pressed
                     ? '#cc0d2e'
                     : '#ff1039',
                 alignItems: 'center',
                 justifyContent: 'center',
-                opacity: !url.trim() ? 0.5 : 1,
+                opacity: !url.trim() || busy === 'url' ? 0.5 : 1,
               })}
             >
               <Text
                 style={{
-                  color: !url.trim() ? '#a1a1aa' : '#fff',
+                  color: !url.trim() || busy === 'url' ? '#a1a1aa' : '#fff',
                   fontSize: 13,
                   fontWeight: '700',
                 }}
               >
-                {t('addProject.importButton', 'Import')}
+                {busy === 'url'
+                  ? t('common.busy', 'Working…')
+                  : t('addProject.importButton', 'Import')}
               </Text>
             </Pressable>
           </View>
+          {busy === 'url' && (
+            <View style={{ gap: 4 }}>
+              <Text style={{ color: '#71717a', fontSize: 11 }}>
+                {urlPhase === 'requesting'
+                  ? t('addProject.urlPhaseRequesting', 'Server downloading from YouTube/Twitch…')
+                  : t('addProject.urlPhaseDownloading', `Downloading to phone… ${Math.round(urlProgress * 100)}%`)}
+              </Text>
+              <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+                <View
+                  style={{
+                    height: '100%',
+                    width: urlPhase === 'downloading' ? `${Math.round(urlProgress * 100)}%` : '40%',
+                    backgroundColor: '#ff1039',
+                  }}
+                />
+              </View>
+            </View>
+          )}
 
           <OrDivider t={t} />
 
@@ -335,9 +446,8 @@ export function AddVideoProjectScreen() {
             icon="cube-outline"
             title={t('addProject.multiClipTitle', 'Import multiple clips')}
             subtitle={t('addProject.multiClipSubtitle', 'Skip analysis · order, intro, music, render')}
-            loading={false}
+            loading={busy === 'multi'}
             onPress={onMultiClipImport}
-            soonBadge
           />
 
           {/* Single-Clip Manual ist die einfache MVP-Variante */}

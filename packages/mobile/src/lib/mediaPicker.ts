@@ -123,6 +123,33 @@ export async function pickAudioFromFiles(): Promise<PickedAudio | null> {
 }
 
 /**
+ * Multi-Video-Picker (Phase 9.5.8) — User pickt mehrere Video-Files auf einmal.
+ * Returnt leeres Array wenn User cancelt. Alle Files werden in documentDirectory
+ * persistiert.
+ */
+export async function pickMultipleVideosFromFiles(_opts: PickOpts = {}): Promise<PickedVideo[]> {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: ['video/*'],
+    copyToCacheDirectory: true,
+    multiple: true,
+  });
+  if (result.canceled || !result.assets || result.assets.length === 0) return [];
+  const out: PickedVideo[] = [];
+  for (const asset of result.assets) {
+    const persistentUri = await persistInDocuments(asset.uri, asset.name ?? undefined);
+    out.push({
+      uri: persistentUri,
+      assetUri: asset.uri,
+      durationSec: 0, // DocumentPicker liefert keine Duration — Player fills via onLoad
+      filename: asset.name ?? undefined,
+      size: asset.size,
+      source: 'files',
+    });
+  }
+  return out;
+}
+
+/**
  * Files-Picker (Document-Picker mit Video-Filter).
  * Lokale Datei wird automatisch in den App-Cache kopiert (`copyToCacheDirectory`),
  * sodass der zurückgegebene URI ein stabiler file:// Pfad ist.
