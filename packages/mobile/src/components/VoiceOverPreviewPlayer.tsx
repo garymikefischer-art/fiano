@@ -11,7 +11,7 @@
  *   - Drift > 0.3s → seek
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type AvModule = typeof import('expo-av');
 let cached: AvModule | null | undefined = undefined;
@@ -41,11 +41,13 @@ const DRIFT_THRESHOLD_SEC = 0.3;
 export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paused }: Props) {
   const soundRef = useRef<InstanceType<NonNullable<AvModule>['Audio']['Sound']> | null>(null);
   const mountedRef = useRef(true);
-  const lastSyncedRef = useRef(-1);
+  const [loaded, setLoaded] = useState(false);
 
-  // Load + unload
+  // Load + unload — setLoaded triggert den Sync-useEffect damit Audio sofort
+  // nach createAsync abgespielt wird (vorher Bug: TTS erst beim 2. Reload).
   useEffect(() => {
     mountedRef.current = true;
+    setLoaded(false);
     const A = getModule();
     if (!A || !uri) return;
 
@@ -60,6 +62,7 @@ export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paus
           return;
         }
         soundRef.current = sound;
+        setLoaded(true);
       } catch (e) {
         console.warn('[VoiceOverPreview] load failed:', e);
       }
@@ -77,8 +80,10 @@ export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paus
     void soundRef.current?.setVolumeAsync(volume).catch(() => {});
   }, [volume]);
 
-  // Position + Play/Pause sync — bei jedem currentSec/paused-Update.
+  // Position + Play/Pause sync — bei jedem currentSec/paused/loaded-Update.
+  // 'loaded' als Dep damit Sync feuert sobald createAsync fertig ist.
   useEffect(() => {
+    if (!loaded) return;
     const snd = soundRef.current;
     if (!snd) return;
 
@@ -111,7 +116,7 @@ export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paus
         /* ignore */
       }
     })();
-  }, [currentSec, paused, startSec]);
+  }, [currentSec, paused, startSec, loaded]);
 
   return null;
 }
