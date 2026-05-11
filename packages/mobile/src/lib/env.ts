@@ -17,4 +17,7 @@ export const ENV = {
   SUPABASE_ANON_KEY: required('EXPO_PUBLIC_SUPABASE_ANON_KEY', process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
   REVENUECAT_IOS_KEY: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? '',
   REVENUECAT_ANDROID_KEY: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? '',
+  // Phase 9.6 Cloud-Render-Worker URL (Google Cloud Run). Optional — wenn leer,
+  // ist Cloud-Render deaktiviert (ExportScreen zeigt 'coming soon').
+  RENDER_WORKER_URL: process.env.EXPO_PUBLIC_RENDER_WORKER_URL ?? '',
 };
