@@ -1564,12 +1564,12 @@ function LayoutPreview({
   }
 
   if (layout === 'full') {
+    // Full-Mode: 9:16 cover-crop des ganzen Source, KEIN Region-Overlay.
+    // Bei Full gibt's keine Facecam/Gameplay-Aufteilung — der gesamte Frame
+    // wird zentriert gecroppt, Regions sind irrelevant.
     return (
       <View style={{ position: 'relative' }}>
         <VideoPlayer uri={sourceUri} resizeMode="cover" aspectRatio={9 / 16} />
-        {showOverlay && (
-          <RegionOverlay facecam={facecamRegion} gameplay={gameplayRegion} />
-        )}
       </View>
     );
   }
