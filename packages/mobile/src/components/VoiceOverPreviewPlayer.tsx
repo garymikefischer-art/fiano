@@ -1,17 +1,20 @@
 /**
  * VoiceOverPreviewPlayer — hidden Audio-Player der TTS-Voice-Overs synchron
- * zur Master-Video-Position abspielt. Analog Desktop's VoiceOverAudio in
- * TikTokPreview.tsx.
+ * zur Master-Video-Position abspielt.
  *
- * Sync-Logic:
- *   - currentSec (vom Master-Video) wird via Prop reingegeben
- *   - Wenn currentSec >= vo.startSec UND playing → spiele audio mit currentTime
- *     = currentSec - vo.startSec
- *   - Bei pause → pausiere audio
- *   - Drift > 0.3s → seek
+ * Sync-Strategie (Phase 9.6.x fix):
+ *   1. Audio-Mode beim Mount initialisieren (iOS Silent-Switch ignore, etc.)
+ *   2. createAsync läuft async — nach resolve SOFORT initial sync attempt mit
+ *      ref-Werten (umgeht useEffect-Race weil createAsync evtl. langsamer ist
+ *      als initiale State-Setup).
+ *   3. Danach reactive sync via useEffect für laufende currentSec/paused-Updates.
+ *
+ * Vorheriger Bug: User hörte TTS erst beim 2. Reload weil 1. Reload's
+ * useEffect mit `loaded=false` returnte und createAsync erst danach fertig
+ * war, ohne dass ein neues currentSec/paused den useEffect re-feuerte.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 type AvModule = typeof import('expo-av');
 let cached: AvModule | null | undefined = undefined;
@@ -40,14 +43,36 @@ const DRIFT_THRESHOLD_SEC = 0.3;
 
 export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paused }: Props) {
   const soundRef = useRef<InstanceType<NonNullable<AvModule>['Audio']['Sound']> | null>(null);
+  const loadedRef = useRef(false);
   const mountedRef = useRef(true);
-  const [loaded, setLoaded] = useState(false);
 
-  // Load + unload — setLoaded triggert den Sync-useEffect damit Audio sofort
-  // nach createAsync abgespielt wird (vorher Bug: TTS erst beim 2. Reload).
+  // Refs für aktuelle Werte — nutzbar vom load-useEffect ohne dependency-loop.
+  const currentSecRef = useRef(currentSec);
+  const pausedRef = useRef(paused);
+  const startSecRef = useRef(startSec);
+  const volumeRef = useRef(volume);
+  useEffect(() => { currentSecRef.current = currentSec; }, [currentSec]);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
+  useEffect(() => { startSecRef.current = startSec; }, [startSec]);
+  useEffect(() => { volumeRef.current = volume; }, [volume]);
+
+  // Audio-Mode einmal beim Mount — sichert dass playback klappt auch wenn
+  // iOS-Stille-Switch an oder Android-Audio-Session-Constraints.
+  useEffect(() => {
+    const A = getModule();
+    if (!A) return;
+    void A.Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
+      playThroughEarpieceAndroid: false,
+    }).catch(() => {});
+  }, []);
+
+  // Load + initial sync attempt direkt nach createAsync-resolve.
   useEffect(() => {
     mountedRef.current = true;
-    setLoaded(false);
+    loadedRef.current = false;
     const A = getModule();
     if (!A || !uri) return;
 
@@ -55,14 +80,19 @@ export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paus
       try {
         const { sound } = await A.Audio.Sound.createAsync(
           { uri },
-          { shouldPlay: false, volume, isLooping: false },
+          { shouldPlay: false, volume: volumeRef.current, isLooping: false },
         );
         if (!mountedRef.current) {
           await sound.unloadAsync();
           return;
         }
         soundRef.current = sound;
-        setLoaded(true);
+        loadedRef.current = true;
+        // INITIAL SYNC — nutzt aktuelle ref-Werte (statt closure-deps). Wenn
+        // beim Load der User bereits play tippt und currentSec >= startSec,
+        // starten wir audio sofort. Ohne diesen Step: useEffect-Race —
+        // playback erst beim NÄCHSTEN currentSec/paused-Change.
+        await syncToCurrentState();
       } catch (e) {
         console.warn('[VoiceOverPreview] load failed:', e);
       }
@@ -75,48 +105,54 @@ export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paus
     };
   }, [uri]);
 
+  // Reactive Sync — feuert bei jeder currentSec/paused-Änderung.
+  useEffect(() => {
+    if (!loadedRef.current) return;
+    void syncToCurrentState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSec, paused, startSec]);
+
   // Volume sync
   useEffect(() => {
     void soundRef.current?.setVolumeAsync(volume).catch(() => {});
   }, [volume]);
 
-  // Position + Play/Pause sync — bei jedem currentSec/paused/loaded-Update.
-  // 'loaded' als Dep damit Sync feuert sobald createAsync fertig ist.
-  useEffect(() => {
-    if (!loaded) return;
+  /**
+   * Sync das Audio zur aktuellen Master-Video-Position. Wird sowohl beim Load
+   * (mit ref-Werten) als auch reactive (useEffect) gerufen.
+   */
+  async function syncToCurrentState() {
     const snd = soundRef.current;
     if (!snd) return;
-
-    (async () => {
-      try {
-        const offset = currentSec - startSec;
-        if (paused) {
-          await snd.pauseAsync();
-          return;
-        }
-        if (offset < 0) {
-          // Master ist noch vor startSec — Audio bleibt pausiert + bei 0.
-          await snd.pauseAsync();
-          await snd.setPositionAsync(0);
-          return;
-        }
-        // Master ist im Voice-Over-Range. Sync wenn nötig.
-        const status = await snd.getStatusAsync();
-        if (!status.isLoaded) return;
-        const targetMs = offset * 1000;
-        const currentMs = status.positionMillis ?? 0;
-        const driftMs = Math.abs(currentMs - targetMs);
-        if (driftMs > DRIFT_THRESHOLD_SEC * 1000) {
-          await snd.setPositionAsync(targetMs);
-        }
-        if (!status.isPlaying) {
-          await snd.playAsync();
-        }
-      } catch {
-        /* ignore */
+    const cur = currentSecRef.current;
+    const pse = pausedRef.current;
+    const start = startSecRef.current;
+    try {
+      const offset = cur - start;
+      if (pse) {
+        await snd.pauseAsync();
+        return;
       }
-    })();
-  }, [currentSec, paused, startSec, loaded]);
+      if (offset < 0) {
+        await snd.pauseAsync();
+        await snd.setPositionAsync(0);
+        return;
+      }
+      const status = await snd.getStatusAsync();
+      if (!status.isLoaded) return;
+      const targetMs = offset * 1000;
+      const currentMs = status.positionMillis ?? 0;
+      const driftMs = Math.abs(currentMs - targetMs);
+      if (driftMs > DRIFT_THRESHOLD_SEC * 1000) {
+        await snd.setPositionAsync(targetMs);
+      }
+      if (!status.isPlaying) {
+        await snd.playAsync();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   return null;
 }
