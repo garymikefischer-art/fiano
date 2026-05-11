@@ -58,8 +58,11 @@ export interface DemoProject {
 /** Subtitle-Stil (default/bold/gaming/fiano/layered). Layered = Big-Word + Small-Word überlappend. */
 export type SubtitleStyle = 'default' | 'bold' | 'gaming' | 'fiano' | 'layered';
 export type SubtitlePosition = 'top' | 'center' | 'bottom' | 'custom';
-export type SubtitleFontFamily =
-  | 'helvetica' | 'arial-black' | 'impact' | 'geist' | 'georgia' | 'mono' | 'system';
+/** Font-Family — entweder einer der "Curated" Logical-Identifiers ('helvetica',
+ *  'arial-black', 'impact', 'geist', 'georgia', 'mono', 'system') ODER ein
+ *  direkter System-Font-Name ('sans-serif-black', 'serif', 'monospace', 'Roboto',
+ *  jeder beliebige custom Font-Name den der User auswählt/eintippt). */
+export type SubtitleFontFamily = string;
 
 export interface SubtitleHighlightWord {
   text: string;
