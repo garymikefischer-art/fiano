@@ -60,7 +60,9 @@ import { MusicPreviewPlayer } from '../components/MusicPreviewPlayer';
 import { VoiceOverPreviewPlayer } from '../components/VoiceOverPreviewPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
+import { CueEditorModal } from '../components/CueEditorModal';
 import { extractVideoThumbnail } from '../lib/thumbnails';
+import { transcribeVideo } from '../lib/whisper';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { ExportSettingsModal } from '../components/ExportSettingsModal';
@@ -319,6 +321,51 @@ function HighlightsTab({
   const selectedCount = selectedClipIds.size;
   const allSelected = selectedCount > 0 && selectedCount === project.clips.length;
 
+  // Phase 9.6.7a — AI-Transcribe-State
+  const [analysisBusy, setAnalysisBusy] = useState(false);
+  const [analysisPhase, setAnalysisPhase] = useState<'uploading' | 'transcribing' | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [cueEditorOpen, setCueEditorOpen] = useState(false);
+  const cues = project.subtitles?.cues ?? [];
+  const hasCues = cues.length > 0;
+
+  const onAnalyze = async () => {
+    if (!project.sourceUri || analysisBusy) return;
+    haptic.medium();
+    setAnalysisBusy(true);
+    setUploadProgress(0);
+    setAnalysisPhase('uploading');
+    try {
+      const result = await transcribeVideo({
+        sourceUri: project.sourceUri,
+        projectId: project.id,
+        onPhase: setAnalysisPhase,
+        onUploadProgress: setUploadProgress,
+      });
+      const existing = project.subtitles ?? DEFAULT_SUBTITLES;
+      useProjectsStore.getState().updateProject(project.id, {
+        subtitles: { ...existing, enabled: true, cues: result.cues },
+      });
+      haptic.success();
+      Alert.alert(
+        t('highlights.analyzeDoneTitle', 'AI analysis complete'),
+        t(
+          'highlights.analyzeDoneBody',
+          `${result.cues.length} subtitle cues generated. Tap 'Edit cues' to refine.`,
+        ).replace('${count}', String(result.cues.length)),
+      );
+    } catch (err: any) {
+      haptic.error();
+      Alert.alert(
+        t('highlights.analyzeFailed', 'Analysis failed'),
+        err?.message ?? String(err),
+      );
+    } finally {
+      setAnalysisBusy(false);
+      setAnalysisPhase(null);
+    }
+  };
+
   const toggleClip = (id: string) => {
     haptic.light();
     const next = new Set(selectedClipIds);
@@ -360,6 +407,140 @@ function HighlightsTab({
           {project.errorMessage}
         </Text>
       )}
+
+      {/* AI Analysis Box (Phase 9.6.7a) — generiert Subtitle-Cues via Whisper. */}
+      {project.sourceUri && (
+        <View
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderWidth: 1,
+            borderColor: hasCues ? 'rgba(34,197,94,0.32)' : 'rgba(255,255,255,0.08)',
+            borderRadius: 14,
+            padding: 12,
+            gap: 10,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons
+              name={hasCues ? 'checkmark-circle' : 'sparkles-outline'}
+              size={16}
+              color={hasCues ? '#22c55e' : '#ff1039'}
+            />
+            <Text style={{ flex: 1, color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+              {t('highlights.aiAnalysis', 'AI Analysis')}
+            </Text>
+            {hasCues && (
+              <Text style={{ color: '#22c55e', fontSize: 10, fontWeight: '700' }}>
+                {cues.length} {t('highlights.cuesLabel', 'cues')}
+              </Text>
+            )}
+          </View>
+          <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }}>
+            {hasCues
+              ? t(
+                  'highlights.aiAnalysisDone',
+                  'Subtitles transcribed. Edit cues to refine text, then enable subtitles in the 9:16 tab.',
+                )
+              : t(
+                  'highlights.aiAnalysisHint',
+                  'Transcribe audio via OpenAI Whisper to generate timed subtitle cues. Uses your OpenAI API key.',
+                )}
+          </Text>
+          {analysisBusy && (
+            <View style={{ gap: 4 }}>
+              <Text style={{ color: '#71717a', fontSize: 10 }}>
+                {analysisPhase === 'uploading'
+                  ? t('highlights.uploading', `Uploading source… ${Math.round(uploadProgress * 100)}%`).replace(
+                      '${pct}',
+                      String(Math.round(uploadProgress * 100)),
+                    )
+                  : t('highlights.transcribing', 'Transcribing audio with Whisper…')}
+              </Text>
+              <View
+                style={{
+                  height: 3,
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                <View
+                  style={{
+                    height: '100%',
+                    width: analysisPhase === 'uploading' ? `${Math.round(uploadProgress * 100)}%` : '60%',
+                    backgroundColor: '#ff1039',
+                  }}
+                />
+              </View>
+            </View>
+          )}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={onAnalyze}
+              disabled={analysisBusy}
+              style={({ pressed }) => ({
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                paddingVertical: 10,
+                borderRadius: 10,
+                backgroundColor: analysisBusy
+                  ? 'rgba(255,255,255,0.06)'
+                  : pressed
+                    ? '#cc0d2e'
+                    : '#ff1039',
+                opacity: analysisBusy ? 0.5 : 1,
+              })}
+            >
+              <Ionicons name="sparkles" size={13} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                {hasCues
+                  ? t('highlights.reAnalyze', 'Re-analyze')
+                  : t('highlights.analyze', 'Analyze with AI')}
+              </Text>
+            </Pressable>
+            {hasCues && !analysisBusy && (
+              <Pressable
+                onPress={() => {
+                  haptic.medium();
+                  setCueEditorOpen(true);
+                }}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.10)',
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <Ionicons name="create-outline" size={13} color="#f1f2f2" />
+                <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+                  {t('highlights.editCues', 'Edit cues')}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
+
+      <CueEditorModal
+        visible={cueEditorOpen}
+        cues={cues}
+        onClose={() => setCueEditorOpen(false)}
+        onSave={(nextCues) => {
+          const existing = project.subtitles ?? DEFAULT_SUBTITLES;
+          useProjectsStore.getState().updateProject(project.id, {
+            subtitles: { ...existing, cues: nextCues },
+          });
+        }}
+      />
 
       {/* Multi-Select Action-Bar */}
       {project.clips.length > 0 && (

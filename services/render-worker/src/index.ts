@@ -33,6 +33,7 @@ import {
   uploadFile,
 } from './r2.js';
 import { downloadVideo, isAllowedUrl } from './youtube.js';
+import { transcribeAudio } from './transcribe.js';
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
@@ -313,6 +314,60 @@ app.post('/v1/download', authMiddleware(supabase), async (req: AuthedRequest, re
     await unlink(tmpPath).catch(() => {});
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[${jobId}] download failed:`, msg);
+    return res.status(500).json({ ok: false, jobId, error: msg });
+  }
+});
+
+/**
+ * POST /v1/transcribe  (Phase 9.6.7a)
+ *
+ * Body: { sourceKey: string, openaiApiKey: string }
+ *   sourceKey = R2-Key der Source (vorher via /v1/upload-url hochgeladen)
+ *   openaiApiKey = User's Key — wird nicht persistiert
+ *
+ * Server: download source → ffmpeg audio-extract (mp3 mono 16kHz 64kbps)
+ *         → POST OpenAI Whisper → parse segments → return cues[].
+ */
+app.post('/v1/transcribe', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
+  const userId = req.userId!;
+  const jobId = randomUUID();
+  const { sourceKey, openaiApiKey } = req.body as {
+    sourceKey?: string;
+    openaiApiKey?: string;
+  };
+
+  if (!sourceKey || typeof sourceKey !== 'string') {
+    return res.status(400).json({ ok: false, error: 'sourceKey required' });
+  }
+  if (!openaiApiKey || typeof openaiApiKey !== 'string') {
+    return res.status(400).json({ ok: false, error: 'openaiApiKey required (set in Settings → API Keys)' });
+  }
+  if (!sourceKey.startsWith(`sources/${userId}/`)) {
+    return res.status(403).json({ ok: false, error: 'source key not owned' });
+  }
+
+  const sourceTmp = path.join(tmpdir(), `${jobId}-transcribe-src.mp4`);
+
+  try {
+    console.log(`[${jobId}] transcribe user=${userId} sourceKey=${sourceKey}`);
+    await downloadToFile(sourceKey, sourceTmp);
+    const result = await transcribeAudio({
+      sourcePath: sourceTmp,
+      openaiApiKey,
+      jobId,
+    });
+    await unlink(sourceTmp).catch(() => {});
+    console.log(`[${jobId}] transcribe done cues=${result.cues.length} audioBytes=${result.audioBytes}`);
+    return res.json({
+      ok: true,
+      jobId,
+      cues: result.cues,
+      durationSec: result.durationSec,
+    });
+  } catch (e) {
+    await unlink(sourceTmp).catch(() => {});
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`[${jobId}] transcribe failed:`, msg);
     return res.status(500).json({ ok: false, jobId, error: msg });
   }
 });

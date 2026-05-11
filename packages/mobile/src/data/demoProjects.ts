@@ -86,6 +86,15 @@ export interface SubtitleHighlightWord {
   big: boolean;
 }
 
+/** Zeitgesteuerter Subtitle-Cue (Phase 9.6.7a — Whisper-Output). */
+export interface SubtitleCue {
+  /** Sekunde im Source-Video. */
+  startSec: number;
+  /** Sekunde im Source-Video. */
+  endSec: number;
+  text: string;
+}
+
 /**
  * Subtitle-Settings — 1:1 analog Desktop's SubtitleSettings in @fiano/shared/types.
  * Persistiert auf project.subtitles, gerendert beim Export von FFmpeg-Native
@@ -128,6 +137,10 @@ export interface SubtitleSettings {
   metallic?: boolean;
   maxWordsPerChunk?: number;
   highlightWords?: SubtitleHighlightWord[];
+  /** Zeitgesteuerte Cues aus Whisper-Transcription (Phase 9.6.7a).
+   *  Wenn gesetzt + enabled: Export rendert drawtext-Filter mit between(t,...)
+   *  pro Cue. User kann sie nach Whisper im CueEditor-Modal editieren. */
+  cues?: SubtitleCue[];
   // ── Layered-Style (nur wenn style==='layered') ─────────────────
   highlightUseGradient?: boolean;
   highlightGradientFrom?: string;
