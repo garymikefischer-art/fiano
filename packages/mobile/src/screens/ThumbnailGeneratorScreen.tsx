@@ -59,7 +59,10 @@ type Genre =
 
 type CustomStyle = 'default' | 'comic' | 'realistic';
 
+// Custom zuerst — User-Wunsch: 'als erstes oben in der leiste'. Erlaubt
+// schnellen Zugriff auf Custom-Game-Name-Input + Comic/Realistic-Styles.
 const GENRE_OPTIONS: { id: Genre; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'custom', label: 'Custom', icon: 'sparkles-outline' },
   { id: 'battle_royale', label: 'Battle Royale', icon: 'rocket-outline' },
   { id: 'modern_combat', label: 'Modern Combat', icon: 'shield-outline' },
   { id: 'tactical_shooter', label: 'Tactical', icon: 'locate-outline' },
@@ -67,7 +70,6 @@ const GENRE_OPTIONS: { id: Genre; label: string; icon: keyof typeof Ionicons.gly
   { id: 'blocky_sandbox', label: 'Sandbox', icon: 'cube-outline' },
   { id: 'open_world_crime', label: 'Crime', icon: 'car-sport-outline' },
   { id: 'moba', label: 'MOBA', icon: 'flash-outline' },
-  { id: 'custom', label: 'Custom', icon: 'sparkles-outline' },
 ];
 
 // 1:1 Port von Desktop src/renderer/src/pages/ThumbnailPage.tsx:63-72.
@@ -273,7 +275,7 @@ export function ThumbnailGeneratorScreen() {
   const updateProject = useProjectsStore((s) => s.updateProject);
   const geminiKey = useAppStore((s) => s.geminiKey);
 
-  const [genre, setGenre] = useState<Genre>('battle_royale');
+  const [genre, setGenre] = useState<Genre>('custom');
   const [customStyle, setCustomStyle] = useState<CustomStyle>('default');
   const [background, setBackground] = useState('');
   const [effects, setEffects] = useState('');
