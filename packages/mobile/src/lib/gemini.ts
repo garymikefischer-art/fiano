@@ -18,15 +18,16 @@ import { useAppStore } from '../stores/appStore';
 
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Image-Generation-Models in Reihenfolge der Präferenz. Google rolloutet
-// regelmäßig neue + retiret alte; die 'preview'-Aliases sind oft 404 nach
-// einem Cycle. Update bei Bedarf via Desktop's `gemini.listModels` oder
-// https://ai.google.dev/gemini-api/docs/models.
+// Models 1:1 aus Desktop src/main/ipc.ts:197-205 (Nano Banana 3.1 zuerst —
+// das ist der aktuelle User-Default auf Desktop). Reihenfolge wichtig:
+// 3.1-flash-image-preview ist seit 2025 das Standard-Image-Gen-Model.
 const TRY_MODELS = [
-  'gemini-2.0-flash-preview-image-generation',
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-exp',
-  'gemini-2.5-flash-image-preview',
+  'gemini-3.1-flash-image-preview', // Nano Banana 3.1 — current default
+  'gemini-3-pro-image-preview', // Nano Banana Pro
+  'gemini-2.5-flash-image', // stable
+  'gemini-2.5-flash-image-preview', // legacy preview
+  'gemini-2.0-flash-preview-image-generation', // legacy
+  'gemini-2.0-flash-exp', // legacy
 ];
 
 const TIMEOUT_MS = 60_000;
@@ -55,20 +56,20 @@ export async function generateThumbnail(
     throw new Error('Gemini API key required. Set it in Settings → API Keys.');
   }
 
-  // ─── Parts aufbauen ───────────────────────────────────────────────
-  // Gemini v1beta nimmt BEIDE Cases (snake_case + camelCase) — wir senden
-  // camelCase (inlineData/mimeType) weil das auf den neueren Modellen die
-  // konsistente Variante ist. Desktop nutzt snake_case via Node-fetch und
-  // funktioniert auch — beide sind valid.
+  // ─── Parts aufbauen — exakt wie Desktop src/main/ipc.ts:302-310 ──
+  // snake_case inline_data / mime_type, weil Desktop genau das nutzt und
+  // funktioniert (kein API-Behavior-Drift bei Format-Switch).
   const partsWithRef: Array<Record<string, unknown>> = [{ text: opts.prompt }];
   if (opts.referenceImageBase64) {
     partsWithRef.push({
-      inlineData: {
-        mimeType: opts.referenceMime ?? 'image/jpeg',
+      inline_data: {
+        mime_type: opts.referenceMime ?? 'image/jpeg',
         data: opts.referenceImageBase64,
       },
     });
-    console.log(`[gemini] ref-image included (${(opts.referenceImageBase64.length / 1024).toFixed(1)} KB base64)`);
+    console.log(
+      `[gemini] ref-image included (${(opts.referenceImageBase64.length / 1024).toFixed(1)} KB base64)`,
+    );
   }
 
   // ─── Pass 1: mit Reference-Image (falls vorhanden) ───────────────
@@ -85,7 +86,15 @@ export async function generateThumbnail(
   }
 
   if (!('image' in result)) {
-    throw new Error(combinedError || 'All Gemini models failed to return an image.');
+    // Hilfreicher Fehler-Hint: welche Models sind beim User-Key verfügbar.
+    const availableModels = await listAvailableImageModels(apiKey);
+    const availableHint =
+      availableModels.length > 0
+        ? `\n\nImage models available for your API key:\n  · ${availableModels.slice(0, 8).join('\n  · ')}\n\nUpdate TRY_MODELS in lib/gemini.ts if these don't match.`
+        : '';
+    throw new Error(
+      (combinedError || 'All Gemini models failed to return an image.') + availableHint,
+    );
   }
   console.log(`[gemini] SUCCESS model=${result.model} mime=${result.image.mime}`);
 
@@ -175,23 +184,50 @@ async function tryAllModels(
   return { allNoImage, lastError };
 }
 
+/**
+ * Extrahiere Image-Bytes aus einer Gemini-Response. Liefert null wenn keins drin
+ * ist. Versucht alle bekannten Response-Shapes (inline_data, inlineData, image,
+ * media, + direct part.data). Portiert 1:1 von Desktop src/main/ipc.ts:211-222.
+ */
 function extractImage(json: unknown): { data: string; mime: string } | null {
-  const candidates = (json as { candidates?: Array<{ content?: { parts?: Array<Record<string, unknown>> } }> })
-    ?.candidates;
-  if (!Array.isArray(candidates) || candidates.length === 0) return null;
-  const parts = candidates[0]?.content?.parts;
-  if (!Array.isArray(parts)) return null;
-  for (const p of parts) {
-    const inline =
-      (p as { inline_data?: { data?: string; mime_type?: string } }).inline_data ??
-      (p as { inlineData?: { data?: string; mimeType?: string } }).inlineData;
-    if (!inline) continue;
-    const data =
-      (inline as { data?: string }).data;
-    const mime =
-      (inline as { mime_type?: string; mimeType?: string }).mime_type ??
-      (inline as { mimeType?: string }).mimeType;
-    if (data && mime) return { data, mime };
+  const cands = (json as { candidates?: unknown[] })?.candidates ?? [];
+  for (const c of cands as Array<{ content?: { parts?: unknown[] } }>) {
+    for (const p of c.content?.parts ?? []) {
+      const part = p as Record<string, unknown>;
+      const inline =
+        (part.inline_data as Record<string, unknown> | undefined) ??
+        (part.inlineData as Record<string, unknown> | undefined) ??
+        (part.image as Record<string, unknown> | undefined) ??
+        (part.media as Record<string, unknown> | undefined);
+      const data =
+        (inline?.data as string | undefined) ?? (part.data as string | undefined);
+      const mime =
+        (inline?.mime_type as string | undefined) ??
+        (inline?.mimeType as string | undefined) ??
+        (part.mime_type as string | undefined) ??
+        (part.mimeType as string | undefined) ??
+        'image/png';
+      if (data) return { data, mime };
+    }
   }
   return null;
+}
+
+/**
+ * Holt verfügbare Image-Models vom User's Key via ListModels-Endpoint.
+ * Wird beim Fehler-Fall verwendet um dem User in der Error-Message zu zeigen
+ * welche Models er nutzen könnte.
+ */
+export async function listAvailableImageModels(apiKey: string): Promise<string[]> {
+  try {
+    const url = `${ENDPOINT_BASE.replace('/models', '/models')}?key=${encodeURIComponent(apiKey)}`;
+    const r = await fetch(url);
+    if (!r.ok) return [];
+    const json = (await r.json()) as { models?: Array<{ name?: string }> };
+    return (json.models ?? [])
+      .map((m) => String(m.name ?? '').replace(/^models\//, ''))
+      .filter((n) => /image|imagen/i.test(n));
+  } catch {
+    return [];
+  }
 }
