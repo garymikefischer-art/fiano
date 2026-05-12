@@ -51,6 +51,9 @@ export interface SubtitleHighlightWord {
   big: boolean;
 }
 
+// SubtitleCue ist in `subtitles.ts` deklariert + via index re-exported.
+// `types.ts` referenziert ihn via Forward-Import (kein Re-Define hier).
+
 /**
  * Font-Family — entweder einer der "Curated" Logical-Identifiers (werden im Backend
  * auf konkrete Font-Files gemappt) oder ein direkter System-Font-Name.
@@ -77,6 +80,8 @@ export interface SubtitleSettings {
   gradientFrom?: string;          // hex
   gradientTo?: string;            // hex
   // ─── Stroke / Outline ──────────────────────────────────────────
+  /** Master-Toggle für Stroke. Wenn false → Outline-Width = 0 im Export. */
+  strokeEnabled?: boolean;
   strokeWidth?: number;           // 0..8
   strokeColor?: string;           // hex (default black)
   // ─── Glow / Shadow ─────────────────────────────────────────────
@@ -99,6 +104,10 @@ export interface SubtitleSettings {
   maxWordsPerChunk?: number;
   // ─── Word Highlight ────────────────────────────────────────────
   highlightWords?: SubtitleHighlightWord[];
+  /** Zeitgesteuerte Cues aus Whisper-Transcription (Phase 9.6.7a).
+   *  Wenn gesetzt + enabled: Export rendert Subtitle-Filter pro Cue.
+   *  Type lebt in `subtitles.ts` — hier via import-type. */
+  cues?: import('./subtitles').SubtitleCue[];
   // ─── Layered-Style ──────────────────────────────────────────────
   // Wirken NUR wenn style === 'layered'. Big-Word kriegt eigenen Gradient/Color
   // + größere Schrift, andere Wörter nutzen die "normalen" Color-Settings.

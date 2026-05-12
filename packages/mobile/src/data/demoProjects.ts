@@ -216,8 +216,19 @@ export interface ProjectIntro {
   path: string;
   /** Original-Dateiname. */
   filename?: string;
-  /** Default 'before'. 'overlay' kommt später. */
+  /** Default 'before'. 'overlay' = transparent über erste durationSec Sekunden. */
   mode?: 'before' | 'overlay';
+  /** Phase 9.6.6.1 (overlay-mode only). Skalierungsfaktor relativ zur Output-
+   *  Frame-Breite. 0.2..1.0, Default 1.0 (= komplette Frame). */
+  scale?: number;
+  /** Phase 9.6.6.1. Horizontale Anker-Position 0..1 (0 = links, 1 = rechts).
+   *  Misst die TOP-LEFT-Ecke der skalierten Intro auf dem Frame. Default 0. */
+  x?: number;
+  /** Phase 9.6.6.1. Vertikale Anker-Position 0..1 (0 = oben, 1 = unten). */
+  y?: number;
+  /** Phase 9.6.6.1 (overlay-mode only). Wie lange das Overlay sichtbar bleibt.
+   *  Default 3.0s — kann später nach Wunsch override-bar werden. */
+  durationSec?: number;
 }
 
 export const DEFAULT_SPLIT_RATIO = 0.4;

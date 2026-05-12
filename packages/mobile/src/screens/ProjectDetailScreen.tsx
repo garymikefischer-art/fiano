@@ -1964,50 +1964,7 @@ function TikTokTab({
           </View>
         )}
         {introUri && introMode === 'overlay' && (
-          <View
-            style={{
-              paddingHorizontal: 14,
-              paddingBottom: 6,
-              gap: 6,
-            }}
-          >
-            <Text style={{ color: '#71717a', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
-              POSITION
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {(['top', 'center', 'bottom', 'full'] as const).map((p) => (
-                <Pressable
-                  key={p}
-                  onPress={() => {
-                    haptic.selection();
-                    setIntroPosition(p);
-                  }}
-                  style={({ pressed }) => ({
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    backgroundColor:
-                      introPosition === p ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.04)',
-                    borderWidth: 1,
-                    borderColor:
-                      introPosition === p ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.08)',
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <Text
-                    style={{
-                      color: introPosition === p ? '#ff1039' : '#f1f2f2',
-                      fontSize: 11,
-                      fontWeight: '700',
-                      textTransform: 'capitalize',
-                    }}
-                  >
-                    {p}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <IntroOverlayControls project={project} t={t} />
         )}
       </View>
 
@@ -3059,6 +3016,189 @@ function Divider() {
   );
 }
 
+/* ─── IntroOverlayControls (Phase 9.6.6.1) ─────────────────────────
+ * Position + Scale-Fine-Tuner für Intro-overlay-Mode. Persistent auf
+ * project.intro.{x,y,scale}. Bietet 4 Quick-Presets + 3 Slider.
+ */
+
+const INTRO_OVERLAY_PRESETS: Record<
+  'top' | 'center' | 'bottom' | 'full',
+  { x: number; y: number; scale: number }
+> = {
+  top:    { x: 0.5, y: 0,   scale: 0.4 },
+  center: { x: 0.5, y: 0.5, scale: 0.4 },
+  bottom: { x: 0.5, y: 1,   scale: 0.4 },
+  full:   { x: 0,   y: 0,   scale: 1.0 },
+};
+
+function activeIntroPreset(
+  x: number,
+  y: number,
+  scale: number,
+): 'top' | 'center' | 'bottom' | 'full' | null {
+  const eq = (a: number, b: number) => Math.abs(a - b) < 0.02;
+  for (const [name, p] of Object.entries(INTRO_OVERLAY_PRESETS) as [
+    'top' | 'center' | 'bottom' | 'full',
+    { x: number; y: number; scale: number },
+  ][]) {
+    if (eq(p.x, x) && eq(p.y, y) && eq(p.scale, scale)) return name;
+  }
+  return null;
+}
+
+function IntroOverlayControls({
+  project,
+  t,
+}: {
+  project: DemoProject;
+  t: (k: string, f?: string) => string;
+}) {
+  const updateProject = useProjectsStore((s) => s.updateProject);
+  const x = project.intro?.x ?? 0;
+  const y = project.intro?.y ?? 0;
+  const scale = project.intro?.scale ?? 1;
+  const [localX, setLocalX] = useState(x);
+  const [localY, setLocalY] = useState(y);
+  const [localScale, setLocalScale] = useState(scale);
+  useEffect(() => setLocalX(project.intro?.x ?? 0), [project.intro?.x]);
+  useEffect(() => setLocalY(project.intro?.y ?? 0), [project.intro?.y]);
+  useEffect(() => setLocalScale(project.intro?.scale ?? 1), [project.intro?.scale]);
+
+  const activePreset = activeIntroPreset(localX, localY, localScale);
+
+  const applyPreset = (name: 'top' | 'center' | 'bottom' | 'full') => {
+    const p = INTRO_OVERLAY_PRESETS[name];
+    setLocalX(p.x);
+    setLocalY(p.y);
+    setLocalScale(p.scale);
+    if (project.intro) {
+      updateProject(project.id, {
+        intro: { ...project.intro, x: p.x, y: p.y, scale: p.scale },
+      });
+    }
+  };
+
+  const commit = (next: { x?: number; y?: number; scale?: number }) => {
+    if (!project.intro) return;
+    updateProject(project.id, {
+      intro: {
+        ...project.intro,
+        x: next.x ?? localX,
+        y: next.y ?? localY,
+        scale: next.scale ?? localScale,
+      },
+    });
+  };
+
+  return (
+    <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 8 }}>
+      <Text style={{ color: '#71717a', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
+        {t('intro.positionHeader', 'POSITION')}
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {(['top', 'center', 'bottom', 'full'] as const).map((p) => (
+          <Pressable
+            key={p}
+            onPress={() => {
+              haptic.selection();
+              applyPreset(p);
+            }}
+            style={({ pressed }) => ({
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 999,
+              backgroundColor:
+                activePreset === p ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.04)',
+              borderWidth: 1,
+              borderColor:
+                activePreset === p ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.08)',
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text
+              style={{
+                color: activePreset === p ? '#ff1039' : '#f1f2f2',
+                fontSize: 11,
+                fontWeight: '700',
+                textTransform: 'capitalize',
+              }}
+            >
+              {t(`intro.preset.${p}`, p)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Fine-Tune Slider */}
+      <View style={{ gap: 6, marginTop: 4 }}>
+        <SliderLabelRow
+          label={t('intro.sliderX', 'Horizontal')}
+          value={`${Math.round(localX * 100)}%`}
+        />
+        <SimpleSlider
+          value={localX}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={setLocalX}
+          onCommit={(v) => {
+            haptic.selection();
+            commit({ x: v });
+          }}
+        />
+        <SliderLabelRow
+          label={t('intro.sliderY', 'Vertical')}
+          value={`${Math.round(localY * 100)}%`}
+        />
+        <SimpleSlider
+          value={localY}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={setLocalY}
+          onCommit={(v) => {
+            haptic.selection();
+            commit({ y: v });
+          }}
+        />
+        <SliderLabelRow
+          label={t('intro.sliderScale', 'Scale')}
+          value={`${Math.round(localScale * 100)}%`}
+        />
+        <SimpleSlider
+          value={localScale}
+          min={0.2}
+          max={1}
+          step={0.05}
+          onChange={setLocalScale}
+          onCommit={(v) => {
+            haptic.selection();
+            commit({ scale: v });
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+function SliderLabelRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '600' }}>{label}</Text>
+      <Text
+        style={{
+          color: '#71717a',
+          fontSize: 10,
+          fontWeight: '600',
+          fontVariant: ['tabular-nums'],
+        }}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 /* ─── BuilderTab ──────────────────────────────────────────────── */
 
 function BuilderTab({
@@ -3373,44 +3513,7 @@ function BuilderTab({
           </View>
         )}
         {introUri && introMode === 'overlay' && (
-          <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 6 }}>
-            <Text style={{ color: '#71717a', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
-              POSITION
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {(['top', 'center', 'bottom', 'full'] as const).map((p) => (
-                <Pressable
-                  key={p}
-                  onPress={() => {
-                    haptic.selection();
-                    setIntroPosition(p);
-                  }}
-                  style={({ pressed }) => ({
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    backgroundColor:
-                      introPosition === p ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.04)',
-                    borderWidth: 1,
-                    borderColor:
-                      introPosition === p ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.08)',
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <Text
-                    style={{
-                      color: introPosition === p ? '#ff1039' : '#f1f2f2',
-                      fontSize: 11,
-                      fontWeight: '700',
-                      textTransform: 'capitalize',
-                    }}
-                  >
-                    {p}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <IntroOverlayControls project={project} t={t} />
         )}
       </View>
 
@@ -3524,21 +3627,43 @@ function BuilderTab({
               void setExportSettingsStore(next);
             }
             setExportModalOpen(false);
-            // ExportScreen liest project.clips + builderClipIds und baut daraus
-            // per-clip-trim + concat (16:9). sourceUri ist Fallback für ensureLocalCopy.
+            // Multi-Source-Builder-Detection (Phase Builder-2):
+            // Wenn `project.sourceUris[]` >= 2 UND alle selected clips zu separaten
+            // sourceUris[i] mappbar sind, übergeben wir sourceUris[] an ExportScreen
+            // → Server nutzt `srcs[]` concat-Pipeline (jeder Clip = eigener File).
+            // Sonst Single-Source-Pfad: builderClipIds → per-clip filter_complex trim.
+            const projectSourceUris = project.sourceUris ?? [];
+            const projectClips = project.clips ?? [];
+            const isMultiSource = projectSourceUris.length >= 2;
+            // Mapping: clipId → sourceUri-Index via project.clips-Order.
+            const clipIndexById = new Map<string, number>();
+            projectClips.forEach((c, i) => clipIndexById.set(c.id, i));
+            const selectedUris = isMultiSource
+              ? (selected
+                  .map((c) => {
+                    const idx = clipIndexById.get(c.id);
+                    return idx !== undefined ? projectSourceUris[idx] : undefined;
+                  })
+                  .filter((u): u is string => !!u))
+              : [];
+            const useMultiSource = isMultiSource && selectedUris.length === selected.length && selected.length >= 2;
+
             const fallbackSrc =
               project.sourceUri ?? project.sourceUris?.[0] ?? '';
             const firstClip = selected[0];
             const lastClip = selected[selected.length - 1];
             nav.navigate('Export', {
-              sourceUri: fallbackSrc,
+              sourceUri: useMultiSource ? selectedUris[0] : fallbackSrc,
               projectId: project.id,
               trimStart: firstClip?.startSec ?? 0,
               trimEnd: lastClip?.endSec ?? project.durationSec,
               sourceDuration: project.durationSec,
               mode: 'builder',
               exportSettings: next,
-              builderClipIds: selected.map((c) => c.id),
+              // Multi-Source nutzt builderSourceUris (Server concat ganze Files);
+              // Single-Source nutzt builderClipIds (Server per-clip trim+concat).
+              builderClipIds: useMultiSource ? undefined : selected.map((c) => c.id),
+              builderSourceUris: useMultiSource ? selectedUris : undefined,
             });
           }}
         />

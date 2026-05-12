@@ -66,13 +66,15 @@ app.get('/health', (_req, res) => {
   });
 });
 
-type UploadKind = 'source' | 'intro' | 'music' | 'voice-over';
+type UploadKind = 'source' | 'intro' | 'music' | 'voice-over' | 'subtitle';
 
 const KIND_EXT: Record<UploadKind, string> = {
   source: 'mp4',
   intro: 'mp4',
   music: 'mp3',
   'voice-over': 'mp3',
+  // Phase 9.6.7h: Advanced-Substation-Alpha-Untertitel-Datei. libass-Renderer.
+  subtitle: 'ass',
 };
 
 /**
@@ -135,6 +137,8 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
         intro?: string;
         music?: string[];
         voiceOvers?: string[];
+        /** Phase 9.6.7h: ASS-Subtitle-File (libass burn-in). */
+        subtitle?: string;
       };
       args?: string[];
       projectId?: string;
@@ -164,6 +168,7 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
       ...(inputs?.intro ? [inputs.intro] : []),
       ...(inputs?.music ?? []),
       ...(inputs?.voiceOvers ?? []),
+      ...(inputs?.subtitle ? [inputs.subtitle] : []),
     ];
     for (const k of allKeys) {
       if (!k.startsWith(`sources/${userId}/`)) {
@@ -220,13 +225,32 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
       }
     }
 
+    if (inputs?.subtitle) {
+      // Phase 9.6.7h: libass burn-in. .ass-Datei nach /tmp/, Platzhalter {ASS}
+      // wird im filter-arg ass=${path}:original_size=WxH ersetzt.
+      const assTmp = path.join(tmpdir(), `${jobId}-subs.ass`);
+      await downloadToFile(inputs.subtitle, assTmp);
+      replaceMap['{ASS}'] = assTmp;
+      tmpFiles.push(assTmp);
+    }
+
     const outputTmp = path.join(tmpdir(), `${jobId}-out.mp4`);
     replaceMap['{DST}'] = outputTmp;
 
     // ── 2. Args mit Platzhaltern ersetzen ─────────────────────────────
+    // Zwei-Stufen: erst exakter Match (für -i {SRC} etc. wo der ganze arg
+    // der Platzhalter ist), sonst Substring-Replace (für inline-Platzhalter
+    // wie {ASS} im filter_complex-String).
     const finalArgs = args.map((a) => {
       const s = String(a);
-      return replaceMap[s] ?? s;
+      if (replaceMap[s]) return replaceMap[s];
+      let out = s;
+      for (const [token, real] of Object.entries(replaceMap)) {
+        if (out.includes(token)) {
+          out = out.split(token).join(real);
+        }
+      }
+      return out;
     });
 
     console.log(`[${jobId}] ffmpeg args: ${finalArgs.join(' ')}`);

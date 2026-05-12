@@ -23,6 +23,10 @@ export interface RenderJobInputs {
   introUri?: string;
   musicUris?: string[];
   voiceOverUris?: string[];
+  /** Phase 9.6.7h: roher .ass-Text für libass-Burn-In. Wird in eine temp-Datei
+   *  geschrieben und als 'subtitle'-kind hochgeladen. Worker ersetzt {ASS}-
+   *  Platzhalter im filter_complex mit dem tmp-Pfad. */
+  assContent?: string;
 }
 
 export interface RenderJobOpts {
@@ -63,11 +67,13 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   }
 
   // ─── Anzahl Files für Progress-Tracking ────────────────────────────
+  const hasAss = !!opts.inputs.assContent && opts.inputs.assContent.length > 0;
   const totalFiles =
     sourceUris.length +
     (opts.inputs.introUri ? 1 : 0) +
     (opts.inputs.musicUris?.length ?? 0) +
-    (opts.inputs.voiceOverUris?.length ?? 0);
+    (opts.inputs.voiceOverUris?.length ?? 0) +
+    (hasAss ? 1 : 0);
   let filesUploaded = 0;
   const reportProgress = (fileProgress: number) => {
     const overall = (filesUploaded + fileProgress) / totalFiles;
@@ -76,7 +82,7 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
 
   const uploadOne = async (
     localUri: string,
-    kind: 'source' | 'intro' | 'music' | 'voice-over',
+    kind: 'source' | 'intro' | 'music' | 'voice-over' | 'subtitle',
     index?: number,
   ): Promise<string> => {
     // 1. Signed Upload-URL holen
@@ -143,6 +149,18 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     }
   }
 
+  // Phase 9.6.7h: .ass-Text in temp-Datei schreiben + als 'subtitle'-kind uploaden.
+  let subtitleKey: string | undefined;
+  if (hasAss) {
+    const assTmp = `${FileSystem.cacheDirectory}render-${Date.now()}.ass`;
+    await FileSystem.writeAsStringAsync(assTmp, opts.inputs.assContent!, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+    subtitleKey = await uploadOne(assTmp, 'subtitle');
+    // tmp-File kann nach Upload weg.
+    await FileSystem.deleteAsync(assTmp, { idempotent: true });
+  }
+
   opts.onUploadProgress?.(1);
 
   // ─── Render-Request ──────────────────────────────────────────────────
@@ -157,6 +175,7 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
         intro: introKey,
         music: musicKeys.length > 0 ? musicKeys : undefined,
         voiceOvers: voKeys.length > 0 ? voKeys : undefined,
+        subtitle: subtitleKey,
       },
       args: opts.args,
       projectId: opts.projectId,

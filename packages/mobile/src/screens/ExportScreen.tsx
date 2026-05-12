@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ensureLocalCopy, saveToCameraRoll } from '../lib/mediaPicker';
 import { runRenderJob } from '../lib/renderJob';
 import { buildTikTokExportArgs } from '@fiano/shared/ffmpegArgs';
+import { buildAssSubtitle } from '@fiano/shared/assBuilder';
 import { useAppStore } from '../stores/appStore';
 import { useProject } from '../stores/projectsStore';
 import { DEFAULT_SPLIT_RATIO } from '../data/demoProjects';
@@ -101,10 +102,17 @@ export function ExportScreen() {
 
     try {
       // 1. Lokale Source sicherstellen (file://-URI nicht asset://).
-      // Builder-Mode: clips[] werden aus EINER Source via per-clip-trim + concat
-      // im filter_complex gebaut (siehe buildTikTokExportArgs.clips). Caller
-      // reicht sourceUri + builderClipIds durch.
+      // Builder-Mode hat zwei Pfade:
+      //   a) Single-Source + builderClipIds → per-clip-trim+concat im filter_complex.
+      //   b) Multi-Source + builderSourceUris → Server `srcs[]`-concat (Phase Builder-2).
+      const isMultiSourceBuilder =
+        isBuilder &&
+        !!params.builderSourceUris &&
+        params.builderSourceUris.length >= 2;
       const localSrc = await ensureLocalCopy(params.sourceUri);
+      const localSrcUris: string[] = isMultiSourceBuilder
+        ? await Promise.all(params.builderSourceUris!.map((u) => ensureLocalCopy(u)))
+        : [];
 
       // 2. Layout + Regions + Subtitle vom Project ableiten.
       //    Builder-Mode: layout=full (16:9 Cover-Crop) ohne facecam/gameplay-split.
@@ -115,18 +123,24 @@ export function ExportScreen() {
 
       // 2b. Builder-Mode: clips[] aus project.clips + params.builderClipIds bauen.
       //     Reihenfolge bleibt wie übergeben (UI hat schon nach clipOrder sortiert).
+      //     Bei Multi-Source-Builder ist builderClipIds undefined — der Server
+      //     konkateniert dann komplette Files via `srcs[]` ohne per-clip-trim.
       const builderClips =
-        isBuilder && params.builderClipIds && params.builderClipIds.length > 0
+        isBuilder &&
+        !isMultiSourceBuilder &&
+        params.builderClipIds &&
+        params.builderClipIds.length > 0
           ? params.builderClipIds
               .map((id) => project?.clips?.find((c) => c.id === id))
               .filter(Boolean)
               .map((c) => ({ startSec: c!.startSec, endSec: c!.endSec }))
           : [];
 
-      // 3. Subtitle-Burn-In (Phase 9.6.7a + 9.6.7g): wenn enabled UND cues
-      //    vorhanden → multi-cue drawtext mit between(t,start,end). Plus:
-      //    maxWordsPerChunk wird respektiert — Cues werden in N-Wörter-Chunks
-      //    gesplittet, jeder mit proportional verteiltem time-range.
+      // 3. Subtitle-Burn-In (Phase 9.6.7a + 9.6.7g + 9.6.7h):
+      //    - Wenn enabled UND cues vorhanden → libass via .ass-Datei (volle
+      //      Style-Parität: Glow, Drop-Shadow, Layered, Gradient-Approx).
+      //    - chunking nach maxWordsPerChunk passiert vor dem ass-Build.
+      //    - Fallback (kein assContent): drawtext (legacy, color+stroke+pos).
       const subSettings = project?.subtitles;
       const rawCues = subSettings?.cues ?? [];
       const maxWords = subSettings?.maxWordsPerChunk ?? 0;
@@ -134,28 +148,36 @@ export function ExportScreen() {
         maxWords > 0 && maxWords < 99
           ? rawCues.flatMap((c) => chunkCueByWords(c, maxWords))
           : rawCues;
-      // Wenn useGradient aktiv: nutze gradientFrom als single fontColor — drawtext
-      // unterstützt keinen Gradient-Fill. Sonst textColor.
+      const subEnabled = subSettings?.enabled === true && chunkedCues.length > 0;
+      // Optional override für ass: standardmäßig libass an wenn cues + enabled.
+      const useAss = subEnabled;
+      // Legacy-Fallback-Args (drawtext) für hasAss=false-Fall (z.B. wenn user
+      // settings nur `text` ohne cues haben — heute nicht vorhanden, aber für
+      // Vorwärts-Compat).
       const fontColor = subSettings?.useGradient
         ? subSettings.gradientFrom ?? subSettings.textColor ?? '#ffffff'
         : subSettings?.textColor ?? '#ffffff';
-      const subtitleArg =
-        subSettings?.enabled && chunkedCues.length > 0
+      const subtitleArg = subEnabled
+        ? useAss
           ? {
-              text: '', // unused when cues[] is set
+              text: '',
+              assPath: '{ASS}',
+            }
+          : {
+              text: '',
               cues: chunkedCues.map((c) => ({
                 startSec: c.startSec,
                 endSec: c.endSec,
-                text: subSettings.uppercase ? c.text.toUpperCase() : c.text,
+                text: subSettings!.uppercase ? c.text.toUpperCase() : c.text,
               })),
-              fontSize: subSettings.fontSize ?? 64,
+              fontSize: subSettings!.fontSize ?? 64,
               color: fontColor,
-              strokeColor: subSettings.strokeColor ?? '#000000',
-              strokeWidth: subSettings.strokeEnabled === true ? subSettings.strokeWidth ?? 4 : 0,
-              position: subSettings.position as 'top' | 'center' | 'bottom' | undefined,
-              uppercase: false, // schon oben angewendet
+              strokeColor: subSettings!.strokeColor ?? '#000000',
+              strokeWidth: subSettings!.strokeEnabled === true ? subSettings!.strokeWidth ?? 4 : 0,
+              position: subSettings!.position as 'top' | 'center' | 'bottom' | undefined,
+              uppercase: false,
             }
-          : undefined;
+        : undefined;
 
       // 4. Add-Ons: Music + Voice-Overs + Intro vom Project ablesen.
       const musicTracks = project?.musicTracks ?? [];
@@ -173,12 +195,29 @@ export function ExportScreen() {
         }
       })();
 
+      // 5b. ASS-Subtitle (Phase 9.6.7h): jetzt mit echten W/H bauen. PlayResX/Y
+      //     in der .ass-Datei = Output-Resolution, libass scaliert die Schrift-
+      //     Größen entsprechend.
+      const assContent = useAss
+        ? buildAssSubtitle({
+            settings: subSettings!,
+            cues: chunkedCues,
+            width: w,
+            height: h,
+          })
+        : undefined;
+
       // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {DST}, {INTRO}, {MUSIC_N}, {VO_N}).
       //    Builder-Mode: clips[] hat Vorrang ggü. trimStart/trimEnd — per-clip
       //    trim+concat im filter_complex (siehe ffmpegArgs.ts).
+      // Multi-Source: srcs[]-Platzhalter ({SRC_0}, {SRC_1}, ...); sonst legacy src={SRC}.
+      const srcPlaceholders = isMultiSourceBuilder
+        ? localSrcUris.map((_, i) => `{SRC_${i}}`)
+        : undefined;
       const args = buildTikTokExportArgs(
         {
-          src: '{SRC}',
+          src: srcPlaceholders ? srcPlaceholders[0] : '{SRC}',
+          srcs: srcPlaceholders,
           dst: '{DST}',
           trimStart: params.trimStart,
           trimEnd: params.trimEnd,
@@ -199,7 +238,16 @@ export function ExportScreen() {
             startSec: vo.startSec,
             volume: vo.volume,
           })),
-          intro: intro ? { path: '{INTRO}' } : undefined,
+          intro: intro
+            ? {
+                path: '{INTRO}',
+                mode: intro.mode ?? 'before',
+                scale: intro.scale,
+                x: intro.x,
+                y: intro.y,
+                durationSec: intro.durationSec,
+              }
+            : undefined,
           clips: builderClips.length > 0 ? builderClips : undefined,
         },
         'other',
@@ -208,10 +256,13 @@ export function ExportScreen() {
       // 7. Cloud-Render: Multi-Input Upload → Render → Download
       const result = await runRenderJob({
         inputs: {
-          sourceUri: localSrc,
+          // Single-Source: legacy sourceUri. Multi-Source-Builder: sourceUris[].
+          sourceUri: isMultiSourceBuilder ? undefined : localSrc,
+          sourceUris: isMultiSourceBuilder ? localSrcUris : undefined,
           introUri: intro?.path,
           musicUris: musicTracks.map((m) => m.path),
           voiceOverUris: voiceOvers.map((vo) => vo.path),
+          assContent,
         },
         args,
         projectId: params.projectId ?? 'no-project',
