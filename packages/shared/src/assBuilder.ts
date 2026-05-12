@@ -126,15 +126,45 @@ interface StyleParts {
   spacing: number;
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const m = hex.replace('#', '').match(/^([0-9a-f]{6})$/i);
+  if (!m) return [255, 255, 255];
+  return [
+    parseInt(m[1].slice(0, 2), 16),
+    parseInt(m[1].slice(2, 4), 16),
+    parseInt(m[1].slice(4, 6), 16),
+  ];
+}
+function rgbToHex(r: number, g: number, b: number): string {
+  const c = (v: number) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+function blendHex(a: string, b: string, t: number): string {
+  const [ar, ag, ab] = hexToRgb(a);
+  const [br, bg, bb] = hexToRgb(b);
+  return rgbToHex(ar + (br - ar) * t, ag + (bg - ag) * t, ab + (bb - ab) * t);
+}
+
 function buildDefaultStyle(settings: SubtitleSettings, w: number, h: number): StyleParts {
   const baseFontSize = settings.fontSize ?? 26;
   // SubtitleSettings.fontSize sind UI-Tokens (14..48) — auf Output-Resolution
   // skalieren. 26 → ~5% der Frame-Höhe ist tiktok-typisch.
   const fontsize = Math.round((baseFontSize / 26) * (h * 0.06));
 
-  const primaryColor = settings.useGradient
-    ? settings.gradientFrom ?? settings.textColor ?? '#ffffff'
-    : settings.textColor ?? '#ffffff';
+  // Primary-Color-Resolve (Phase Builder-4 metallic improvement):
+  // - useGradient: gradientFrom als single-color (libass kann keine Gradient-Fill)
+  // - metallic: blend zwischen gradientFrom+gradientTo (midpoint), dann nach
+  //   weiß lerpen für Sheen-Effekt — Approximation des SVG-Metallic in Preview.
+  let primaryColor: string;
+  if (settings.metallic) {
+    const a = settings.gradientFrom ?? settings.textColor ?? '#cccccc';
+    const b = settings.gradientTo ?? settings.textColor ?? '#ffffff';
+    primaryColor = blendHex(blendHex(a, b, 0.5), '#ffffff', 0.25);
+  } else if (settings.useGradient) {
+    primaryColor = settings.gradientFrom ?? settings.textColor ?? '#ffffff';
+  } else {
+    primaryColor = settings.textColor ?? '#ffffff';
+  }
 
   // Outline: stroke wenn enabled, glow wenn enabled (mit blur), beide werden im
   // Event-override kombiniert. Hier im Style nur Default-Outline für non-overridden cues.

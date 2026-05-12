@@ -93,10 +93,18 @@ export async function transcribeAudio(opts: TranscribeOpts): Promise<TranscribeR
     console.log(`[${jobId}] whisper API call (audio=${audioStats.size}b)`);
     const raw = await callWhisper(audioPath, opts.openaiApiKey, jobId);
 
-    // ─── 3. Cues parsen aus segments ──────────────────────────────────
+    // ─── 3. Cues parsen aus segments + words ─────────────────────────
+    // Phase Builder-4: word-level timestamps für genaues Subtitle-Sync.
+    // Pro segment hängen wir die enthaltenen words[] an (anhand start/end-
+    // overlap). Mobile re-chunked dann basierend auf words mit echtem
+    // per-word-Timing statt proportional aufgeteiltem Segment-Range.
     const segments =
       Array.isArray((raw as { segments?: unknown }).segments)
         ? ((raw as { segments: Array<{ start?: number; end?: number; text?: string }> }).segments)
+        : [];
+    const allWords: Array<{ word?: string; start?: number; end?: number }> =
+      Array.isArray((raw as { words?: unknown }).words)
+        ? ((raw as { words: Array<{ word?: string; start?: number; end?: number }> }).words)
         : [];
     const cues: SubtitleCue[] = [];
     for (const s of segments) {
@@ -104,7 +112,16 @@ export async function transcribeAudio(opts: TranscribeOpts): Promise<TranscribeR
       if (!text) continue;
       const start = typeof s.start === 'number' ? s.start : 0;
       const end = typeof s.end === 'number' ? s.end : start + 2;
-      cues.push({ startSec: start, endSec: end, text });
+      const words = allWords
+        .filter((w) => typeof w.start === 'number' && typeof w.end === 'number')
+        .filter((w) => (w.start as number) >= start - 0.01 && (w.end as number) <= end + 0.01)
+        .map((w) => ({
+          text: (w.word ?? '').trim(),
+          startSec: w.start as number,
+          endSec: w.end as number,
+        }))
+        .filter((w) => w.text.length > 0);
+      cues.push({ startSec: start, endSec: end, text, ...(words.length > 0 ? { words } : {}) });
     }
 
     const duration =
@@ -172,6 +189,11 @@ async function callWhisper(audioPath: string, apiKey: string, jobId: string): Pr
   form.append('file', new Blob([buf], { type: 'audio/mpeg' }), 'audio.mp3');
   form.append('model', 'whisper-1');
   form.append('response_format', 'verbose_json');
+  // Phase Builder-4: word-level timestamps zusätzlich zu segment-level.
+  // Response hat dann `words: [{ word, start, end }]` parallel zu segments[].
+  // Wir nutzen das im Mobile für word-genaues Subtitle-Sync.
+  form.append('timestamp_granularities[]', 'segment');
+  form.append('timestamp_granularities[]', 'word');
 
   const res = await fetch(WHISPER_URL, {
     method: 'POST',

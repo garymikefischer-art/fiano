@@ -2266,14 +2266,33 @@ function FullModePreview({
   introDurationSec?: number;
 }) {
   const [paused, setPaused] = useState(true);
+  const [muted, setMuted] = useState(false);
   const [videosActive, setVideosActive] = useState(false);
   const [introPlaying, setIntroPlaying] = useState(false);
   const [currentSec, setCurrentSec] = useState(0);
+  const [durationSec, setDurationSec] = useState(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [trackWidth, setTrackWidth] = useState(0);
   const videoRef = useRef<VideoRef>(null);
   const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
   const off = Math.min(1, Math.max(0, offsetX));
   const leftPct = -216 * off;
-  const isPortrait = aspect < 1; // 9:16 → portrait; 16:9 → landscape
+  const isPortrait = aspect < 1;
+  const ready = durationSec > 0;
+  const progressPct = ready ? (currentSec / durationSec) * 100 : 0;
+
+  // Auto-hide für Center-Controls — wie StackedSplitPreview.
+  useEffect(() => {
+    if (paused || !controlsVisible) return;
+    const timer = setTimeout(() => setControlsVisible(false), STACKED_AUTO_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [paused, controlsVisible, currentSec]);
+
+  // Ref-Sync für PanResponder closures (wie StackedSplitPreview).
+  const stateRef = useRef({ trackWidth, durationSec });
+  useEffect(() => {
+    stateRef.current = { trackWidth, durationSec };
+  }, [trackWidth, durationSec]);
 
   const togglePlay = () => {
     if (!videosActive) {
@@ -2287,7 +2306,40 @@ function FullModePreview({
     } else {
       setPaused((p) => !p);
     }
+    setControlsVisible(true);
   };
+
+  const skipBy = (delta: number) => {
+    if (durationSec <= 0) return;
+    const next = Math.max(0, Math.min(durationSec, currentSec + delta));
+    videoRef.current?.seek(next);
+    setCurrentSec(next);
+    setControlsVisible(true);
+    if (next === 0 && introUri) {
+      setIntroPlaying(true);
+      if (introMode === 'overlay') {
+        setTimeout(() => setIntroPlaying(false), Math.max(500, introDurationSec * 1000));
+      }
+    }
+  };
+
+  const seekFromTouch = (x: number) => {
+    const { trackWidth: w, durationSec: d } = stateRef.current;
+    if (w <= 0 || d <= 0) return;
+    const frac = Math.max(0, Math.min(1, x / w));
+    const sec = frac * d;
+    videoRef.current?.seek(sec);
+    setCurrentSec(sec);
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => seekFromTouch(evt.nativeEvent.locationX),
+      onPanResponderMove: (evt) => seekFromTouch(evt.nativeEvent.locationX),
+    }),
+  ).current;
 
   const restartFromStart = () => {
     haptic.selection();
@@ -2305,6 +2357,7 @@ function FullModePreview({
       }
     }
     setPaused(false);
+    setControlsVisible(true);
   };
 
   // Intro overlay-style: positioned + scaled bei mode=overlay; sonst full.
@@ -2350,12 +2403,14 @@ function FullModePreview({
               ref={videoRef}
               source={{ uri: sourceUri }}
               paused={paused || (introPlaying && introMode === 'before')}
+              muted={muted}
               repeat
               resizeMode="cover"
               style={StyleSheet.absoluteFill}
               ignoreSilentSwitch="ignore"
               disableFocus
-              onLoad={() => {
+              onLoad={(d) => {
+                setDurationSec(d.duration);
                 if (seekToSec > 0 && videoRef.current) videoRef.current.seek(seekToSec);
               }}
               onProgress={(d) => setCurrentSec(d.currentTime)}
@@ -2372,12 +2427,14 @@ function FullModePreview({
             ref={videoRef}
             source={{ uri: sourceUri }}
             paused={paused || (introPlaying && introMode === 'before')}
+            muted={muted}
             repeat
             resizeMode="cover"
             style={StyleSheet.absoluteFill}
             ignoreSilentSwitch="ignore"
             disableFocus
-            onLoad={() => {
+            onLoad={(d) => {
+              setDurationSec(d.duration);
               if (seekToSec > 0 && videoRef.current) videoRef.current.seek(seekToSec);
             }}
             onProgress={(d) => setCurrentSec(d.currentTime)}
@@ -2444,48 +2501,120 @@ function FullModePreview({
           />
         ))}
 
-      {/* Tap-to-Play Overlay — stays fixed im container. */}
-      <Pressable onPress={togglePlay} style={StyleSheet.absoluteFill}>
-        {(!videosActive || paused) && (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <View
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: 'rgba(255,16,57,0.85)',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Ionicons name="play" size={28} color="#fff" style={{ marginLeft: 3 }} />
-            </View>
-          </View>
-        )}
-      </Pressable>
+      {/* Tap-Layer: toggelt controls. Vor erstem Play: tap = togglePlay. */}
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={() => {
+          if (!videosActive) {
+            togglePlay();
+            return;
+          }
+          if (ready) setControlsVisible((c) => !c);
+        }}
+      />
 
-      {/* Replay-Button — sichtbar wenn video aktiv ist. */}
+      {/* Mute-Pill oben rechts */}
+      {ready && (
+        <Pressable
+          onPress={() => setMuted((m) => !m)}
+          hitSlop={6}
+          style={({ pressed }) => [
+            stackedStyles.mutePill,
+            { opacity: pressed ? 0.6 : 0.9 },
+          ]}
+        >
+          <Ionicons
+            name={muted ? 'volume-mute' : 'volume-high'}
+            size={16}
+            color="#fff"
+          />
+        </Pressable>
+      )}
+
+      {/* Replay-Pill oben links */}
       {videosActive && (
         <Pressable
           onPress={restartFromStart}
           hitSlop={6}
-          style={({ pressed }) => ({
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: 'rgba(0,0,0,0.55)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.20)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: pressed ? 0.7 : 1,
-          })}
+          style={({ pressed }) => [
+            stackedStyles.mutePill,
+            { left: 10, right: undefined, opacity: pressed ? 0.6 : 0.9 },
+          ]}
         >
-          <Ionicons name="refresh" size={18} color="#fff" />
+          <Ionicons name="refresh" size={16} color="#fff" />
         </Pressable>
+      )}
+
+      {/* Center-Controls: vor erstem Play big play-button, danach skip/play/skip. */}
+      {!videosActive && (
+        <View pointerEvents="box-none" style={stackedStyles.centerRow}>
+          <Pressable
+            onPress={togglePlay}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.playButton,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons name="play" size={28} color="#fff" />
+          </Pressable>
+        </View>
+      )}
+      {ready && controlsVisible && videosActive && (
+        <View pointerEvents="box-none" style={stackedStyles.centerRow}>
+          <Pressable
+            onPress={() => skipBy(-STACKED_SKIP_SEC)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.skipButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Ionicons name="play-back" size={18} color="#fff" />
+            <Text style={stackedStyles.skipLabel}>{STACKED_SKIP_SEC}s</Text>
+          </Pressable>
+          <Pressable
+            onPress={togglePlay}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.playButton,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Ionicons name={paused ? 'play' : 'pause'} size={28} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={() => skipBy(STACKED_SKIP_SEC)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              stackedStyles.skipButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Ionicons name="play-forward" size={18} color="#fff" />
+            <Text style={stackedStyles.skipLabel}>{STACKED_SKIP_SEC}s</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Bottom Scrubber */}
+      {ready && (
+        <View style={stackedStyles.bottomBar}>
+          <Text style={stackedStyles.time}>{formatPreviewTime(currentSec)}</Text>
+          <View
+            style={stackedStyles.trackHit}
+            onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+            {...panResponder.panHandlers}
+          >
+            <View style={stackedStyles.track}>
+              <View
+                style={[stackedStyles.trackFill, { width: `${progressPct}%` }]}
+              />
+            </View>
+            <View style={[stackedStyles.thumb, { left: `${progressPct}%` }]} />
+          </View>
+          <Text style={stackedStyles.time}>{formatPreviewTime(durationSec)}</Text>
+        </View>
       )}
     </View>
   );
