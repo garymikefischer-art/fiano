@@ -30,7 +30,9 @@ const TRY_MODELS = [
   'gemini-2.0-flash-exp', // legacy
 ];
 
-const TIMEOUT_MS = 60_000;
+// Desktop nutzt 90s; Mobile-Network-Conditions sind oft schlechter, daher 120s.
+// Nano-Banana 3.1 + große Ref-Images sind oft im Bereich 60-100s.
+const TIMEOUT_MS = 120_000;
 const THUMBS_DIR = `${FileSystem.documentDirectory}thumbnails/`;
 
 export interface GenerateThumbnailOpts {
@@ -76,10 +78,13 @@ export async function generateThumbnail(
   let result = await tryAllModels(partsWithRef, apiKey, 'pass1');
   let combinedError = 'image' in result ? null : result.lastError;
 
-  // ─── Pass 2: ohne Reference-Image bei allNoImage (Safety-Trigger) ─
-  if (!('image' in result) && result.allNoImage && opts.referenceImageBase64) {
+  // ─── Pass 2: ohne Reference-Image bei anyNoImage (Safety-Trigger) ─
+  // Lenient: wenn auch nur EIN model "no-image" gab UND wir hatten ref →
+  // retry ohne ref. Vorher war's "alle 200-OK" was zu strikt war wenn andere
+  // models 404/503 antworten.
+  if (!('image' in result) && result.anyNoImage && opts.referenceImageBase64) {
     console.warn(
-      '[gemini] PASS-1 all models returned no-image with ref-image — retry WITHOUT ref (safety-fallback). Result will ignore your reference image.',
+      '[gemini] PASS-1 model(s) returned no-image with ref-image — retry WITHOUT ref (safety-fallback). Result will ignore your reference image.',
     );
     result = await tryAllModels([{ text: opts.prompt }], apiKey, 'pass2');
     if (!('image' in result)) combinedError = result.lastError;
@@ -116,7 +121,7 @@ export async function generateThumbnail(
 interface TryResult {
   image?: { data: string; mime: string };
   model?: string;
-  allNoImage?: boolean;
+  anyNoImage?: boolean;
   lastError?: string;
 }
 
@@ -126,10 +131,13 @@ async function tryAllModels(
   label: string,
 ): Promise<
   | { image: { data: string; mime: string }; model: string }
-  | { allNoImage: boolean; lastError: string }
+  | { anyNoImage: boolean; lastError: string }
 > {
   let lastError = '';
-  let allNoImage = true;
+  // Lenient: pass-2 (text-only) triggert wenn MINDESTENS EIN model 200-OK
+  // aber "no image" zurückgab (Safety-Block durch ref). Strikt-everyone-200
+  // wäre zu konservativ wenn andere models 404/503 sind.
+  let anyNoImage = false;
 
   for (const model of TRY_MODELS) {
     const url = `${ENDPOINT_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -153,7 +161,7 @@ async function tryAllModels(
       const aborted = e?.name === 'AbortError' || ac.signal.aborted;
       lastError = aborted ? `${model}: timeout` : `${model}: ${e?.message ?? e}`;
       console.warn(`[gemini] ${lastError}`);
-      allNoImage = false; // network-error ≠ "no image"
+      // network/timeout ist KEIN "no image" — anyNoImage bleibt false dafür
       continue;
     }
     clearTimeout(timer);
@@ -162,7 +170,6 @@ async function tryAllModels(
       const txt = await res.text().catch(() => '');
       lastError = `${model}: HTTP ${res.status} ${txt.slice(0, 200)}`;
       console.warn(`[gemini] ${lastError}`);
-      allNoImage = false;
       // 401 = bad key, 403 = quota, 404 = model gone → continue zu anderen
       if (res.status === 401) throw new Error('Invalid Gemini API key');
       continue;
@@ -178,10 +185,10 @@ async function tryAllModels(
     const finishReason = candidate?.finishReason ?? 'unknown';
     lastError = `${model}: no image (${finishReason})`;
     console.warn(`[gemini] ${lastError}`);
-    // allNoImage bleibt true wenn alle 200-Responses ohne image waren
+    anyNoImage = true; // Mindestens ein model gab 200-OK aber kein Bild
   }
 
-  return { allNoImage, lastError };
+  return { anyNoImage, lastError };
 }
 
 /**

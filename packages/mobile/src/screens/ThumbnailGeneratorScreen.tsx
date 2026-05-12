@@ -125,7 +125,9 @@ export function ThumbnailGeneratorScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       base64: true,
-      quality: 0.7,
+      // Quality 0.5 = ~200-400 KB statt 700+ KB. Mobile-Upload zu Gemini
+      // wird sonst langsam (60-90s nur für die POST mit großem ref-image).
+      quality: 0.5,
       allowsEditing: false,
     });
     if (result.canceled || !result.assets[0]) return;
