@@ -45,52 +45,224 @@ import type { RootStackParamList } from '../navigation/types';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ThumbnailGenerator'>;
 type R = RouteProp<RootStackParamList, 'ThumbnailGenerator'>;
 
-type Genre = 'custom' | 'battle_royale' | 'modern_combat' | 'tactical_shooter' | 'competitive_fps';
+// Genre-Liste 1:1 wie Desktop src/renderer/src/pages/ThumbnailPage.tsx:14-22.
+// Generic ohne Markennamen — User-Custom-Mode für eigenen Spielnamen.
+type Genre =
+  | 'custom'
+  | 'battle_royale'
+  | 'modern_combat'
+  | 'tactical_shooter'
+  | 'competitive_fps'
+  | 'blocky_sandbox'
+  | 'open_world_crime'
+  | 'moba';
+
+type CustomStyle = 'default' | 'comic' | 'realistic';
 
 const GENRE_OPTIONS: { id: Genre; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'battle_royale', label: 'Battle Royale', icon: 'rocket-outline' },
   { id: 'modern_combat', label: 'Modern Combat', icon: 'shield-outline' },
   { id: 'tactical_shooter', label: 'Tactical', icon: 'locate-outline' },
   { id: 'competitive_fps', label: 'Competitive', icon: 'medal-outline' },
+  { id: 'blocky_sandbox', label: 'Sandbox', icon: 'cube-outline' },
+  { id: 'open_world_crime', label: 'Crime', icon: 'car-sport-outline' },
+  { id: 'moba', label: 'MOBA', icon: 'flash-outline' },
   { id: 'custom', label: 'Custom', icon: 'sparkles-outline' },
 ];
 
-// Generic Placeholders ohne Markennamen — analog Desktop FIELD_PLACEHOLDERS.
+// 1:1 Port von Desktop src/renderer/src/pages/ThumbnailPage.tsx:63-72.
 const FIELD_PLACEHOLDERS: Record<Genre, { background: string; effects: string; weapons: string }> = {
   custom: {
     background: 'daylight, describe the scene, depth of field',
-    effects: 'Strong rim light, glow, volumetric particles, cinematic',
+    effects: 'Strong rim light, [color] glow, volumetric gas, cinematic',
     weapons: 'objects in hand / weapons',
   },
   battle_royale: {
-    background: 'daylight, desert buildings, gas clouds spreading, debris, depth of field',
+    background: 'daylight, desert buildings, stink bomb explosion, yellow gas clouds spreading, debris, depth of field',
     effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic',
     weapons: 'futuristic rifle with skin',
   },
   modern_combat: {
-    background: 'daylight, war-torn urban area, smoke grenade, gas clouds, debris, depth of field',
-    effects: 'Strong rim light, green tactical glow, volumetric smoke, cinematic',
+    background: 'daylight, war-torn urban hospital, smoke grenade, green gas clouds spreading, debris, depth of field',
+    effects: 'Strong rim light, toxic green glow, volumetric smoke, cinematic',
     weapons: 'tactical assault rifle in hand',
   },
   tactical_shooter: {
-    background: 'sci-fi map control point, ability burst, particles, depth of field',
+    background: 'daylight, sci-fi map control point, ability burst, particles, depth of field',
     effects: 'Strong rim light, teal ability glow, volumetric light, cinematic',
     weapons: 'glowing ability orb',
   },
   competitive_fps: {
-    background: 'desert site, smoke + muzzle flash, debris, depth of field',
+    background: 'daylight, desert site, smoke + muzzle flash, debris, depth of field',
     effects: 'Strong rim light, dark contrast, sparks, dust, cinematic',
     weapons: 'iconic sniper rifle / pistol',
   },
+  blocky_sandbox: {
+    background: 'daylight, vibrant biome, lush shaders, giant pixel-style boss, depth of field',
+    effects: 'Strong rim light, blocky particles, vibrant colors, cinematic',
+    weapons: 'enchanted sword, glowing pickaxe',
+  },
+  open_world_crime: {
+    background: 'neon city at night, police chase, dramatic lighting, depth of field',
+    effects: 'Strong rim light, police lights, money particles, cinematic',
+    weapons: 'luxury car, gold pistol',
+  },
+  moba: {
+    background: 'splash-art arena baron pit, ability splashes, depth of field',
+    effects: 'Strong rim light, splash-art glow, particles, cinematic',
+    weapons: 'champion ability animation',
+  },
 };
 
-function buildPrompt(genre: Genre, fields: { background: string; effects: string; weapons: string }, customGameName: string): string {
-  const game = genre === 'custom' && customGameName.trim() ? customGameName.trim() : 'a competitive online game';
-  return `Photorealistic YouTube thumbnail for ${game}.
-Scene: ${fields.background.trim() || FIELD_PLACEHOLDERS[genre].background}
-Effects: ${fields.effects.trim() || FIELD_PLACEHOLDERS[genre].effects}
-Foreground: ${fields.weapons.trim() || FIELD_PLACEHOLDERS[genre].weapons}
-Style: 16:9 aspect ratio, high detail, dramatic lighting, depth of field, eye-catching, clickable, no text overlay.`;
+// Hardcoded Custom-Style-Defaults für 'comic' und 'realistic' (mit Markennamen —
+// User-bewusste Wahl mit Disclaimer). Direkt portiert aus Desktop.
+const COMIC_STYLE_DEFAULTS = {
+  background: 'Painted Palms, daylight, stink bomb explosion, yellow gas clouds spreading through desert buildings, debris, depth of field.',
+  effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic.',
+  weapons: 'futuristic rifle with skin',
+};
+const REALISTIC_STYLE_DEFAULTS = {
+  background: 'Verdansk Dam area, daylight, massive water-side explosion, shockwave, spray mist, debris, smoke pillars, bullet tracers, depth of field.',
+  effects: 'Strong rim light, sunlight + water reflections, cool shadows, volumetric smoke, particles, high contrast, cinematic.',
+  weapons: 'tactical assault rifle in hand',
+};
+
+// Genre-Headers + STYLE-Strings für jeden Genre. Body-Sections (FACE & HAIR,
+// FACE DETAILS, EYES, HANDS) sind identisch und werden in composePrompt geteilt.
+const GENRE_PROMPTS: Record<Genre, { intro: string; eyes: string; faceDetails: string; style: string }> = {
+  battle_royale: {
+    intro: 'Create a highly realistic YouTube thumbnail in a Battle Royale game style.\nElite operator (esport sweat), Battle Royale outfit, no helmet. Ultra close-up (Dutch tilt).',
+    faceDetails: 'Identity 100%, pores, sweat, strong glow.',
+    eyes: 'Sharp.',
+    style: 'Ultra-realistic, NO TEXT.',
+  },
+  modern_combat: {
+    intro: 'Create a highly realistic YouTube thumbnail in a Modern Combat / military shooter game style.\nElite special forces operator, tactical gear, no helmet. Ultra close-up.',
+    faceDetails: 'Identity 100%, pores, sweat, strong glow.',
+    eyes: 'Sharp.',
+    style: 'Ultra-realistic, NO TEXT.',
+  },
+  tactical_shooter: {
+    intro: 'Create a highly realistic YouTube thumbnail in a Tactical Hero Shooter game style.\nHero-shooter agent, sci-fi outfit, no helmet. Ultra close-up.',
+    faceDetails: 'Identity 100%, pores, sweat, strong glow.',
+    eyes: 'Sharp.',
+    style: 'Ultra-realistic, NO TEXT.',
+  },
+  competitive_fps: {
+    intro: 'Create a highly realistic YouTube thumbnail in a Competitive Tactical FPS game style.\nPro player operator, focused tactical pose. Ultra close-up.',
+    faceDetails: 'Identity 100%, pores, sweat, strong glow.',
+    eyes: 'Sharp.',
+    style: 'Ultra-realistic, NO TEXT.',
+  },
+  blocky_sandbox: {
+    intro: 'Create a vibrant cinematic YouTube thumbnail in a Blocky Sandbox / pixel-style game.\nPlayer character, exaggerated emotional expression. Ultra close-up.',
+    faceDetails: 'Identity 100%, vibrant lighting, exaggerated emotion.',
+    eyes: 'Bright, large.',
+    style: 'Vibrant colors, exaggerated emotions, NO TEXT.',
+  },
+  open_world_crime: {
+    intro: 'Create a cinematic YouTube thumbnail in an Open-World Crime / heist game style.\nStylish character, dramatic expression. Ultra close-up.',
+    faceDetails: 'Identity 100%, pores, sweat, strong glow.',
+    eyes: 'Sharp.',
+    style: 'Cinematic realism, NO TEXT.',
+  },
+  moba: {
+    intro: 'Create a cinematic YouTube thumbnail in a MOBA / splash-art-style game.\nChampion-styled portrait blending splash-art aesthetic with realistic features. Ultra close-up.',
+    faceDetails: 'Identity 100%, splash-art highlights, magical glow.',
+    eyes: 'Glowing.',
+    style: 'Cinematic splash-art realism, NO TEXT.',
+  },
+  custom: {
+    intro: 'Create a highly realistic YouTube thumbnail inspired by [GAME].\nStylized character/operator from the game (esport sweat), no helmet. Ultra close-up (Dutch tilt).',
+    faceDetails: 'Identity 100%, pores, sweat, strong glow.',
+    eyes: 'Sharp.',
+    style: 'Ultra-realistic, NO TEXT.',
+  },
+};
+
+/**
+ * Builds the final Gemini-Prompt analog Desktop's PROMPTS[genre](fields).
+ * Wichtigster Bestandteil: "Replace face with provided photo" + FACE & HAIR
+ * STRICT — das ist was Gemini zwingt das ref-image als Person-Face zu nutzen
+ * statt nur als style-reference.
+ */
+function buildPrompt(
+  genre: Genre,
+  fields: { background: string; effects: string; weapons: string },
+  customGameName: string,
+  customStyle: CustomStyle,
+): string {
+  // Custom-Mode mit Hardcoded-Styles
+  if (genre === 'custom' && customStyle === 'comic') {
+    const game = customGameName.trim() || 'Fortnite';
+    return `Create a highly realistic YouTube thumbnail inspired by ${game}.
+Elite operator styled as Siren skin (esport sweat), ${game} outfit, no helmet. Ultra close-up (Dutch tilt).
+Replace face with provided photo.
+FACE & HAIR (STRICT):
+Perfect alignment, head slightly larger (10–15%).
+FACE DETAILS:
+Identity 100%, pores, sweat, strong glow.
+EYES:
+Sharp.
+HANDS:
+Visible.
+BACKGROUND:
+${fields.background.trim() || COMIC_STYLE_DEFAULTS.background}
+EFFECTS:
+${fields.effects.trim() || COMIC_STYLE_DEFAULTS.effects}
+WEAPONS/SKINS:
+${fields.weapons.trim() || COMIC_STYLE_DEFAULTS.weapons}
+STYLE:
+Ultra-realistic, NO TEXT.`;
+  }
+
+  if (genre === 'custom' && customStyle === 'realistic') {
+    const game = customGameName.trim() || 'Call of Duty: Warzone (Verdansk)';
+    const weaponsBlock = fields.weapons.trim() ? `\nWEAPONS/SKINS:\n${fields.weapons.trim()}\n` : '';
+    return `Create a highly realistic YouTube thumbnail inspired by ${game}.
+Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (cinematic action tilt, slight zoom-in), face dominant, slightly off-center, aggressive forward-leaning pose.
+Replace face with provided photo.
+FACE & HAIR (STRICT):
+Perfect alignment, head slightly larger (10–15%), hairstyle EXACTLY the same, no changes, realistic relighting only.
+FACE DETAILS:
+Identity 100%, natural skin texture, pores, slight dirt + sweat, intense expression, slightly open mouth or clenched teeth.
+EYES:
+Sharp, strong contrast, cinematic catchlights, focused squint.
+HANDS:
+Visible, correct anatomy, natural, slight motion blur.
+BACKGROUND:
+${fields.background.trim() || REALISTIC_STYLE_DEFAULTS.background}
+EFFECTS:
+${fields.effects.trim() || REALISTIC_STYLE_DEFAULTS.effects}
+${weaponsBlock}STYLE:
+Ultra-realistic, no text`;
+  }
+
+  // Default genre-Prompt
+  const p = GENRE_PROMPTS[genre];
+  const intro =
+    genre === 'custom'
+      ? p.intro.replace('[GAME]', customGameName.trim() || 'a video game of your choice')
+      : p.intro;
+  const ph = FIELD_PLACEHOLDERS[genre];
+  return `${intro}
+Replace face with provided photo.
+FACE & HAIR (STRICT):
+Perfect alignment, head slightly larger (10–15%).
+FACE DETAILS:
+${p.faceDetails}
+EYES:
+${p.eyes}
+HANDS:
+Visible.
+BACKGROUND:
+${fields.background.trim() || ph.background}
+EFFECTS:
+${fields.effects.trim() || ph.effects}
+WEAPONS/SKINS:
+${fields.weapons.trim() || ph.weapons}
+STYLE:
+${p.style}`;
 }
 
 export function ThumbnailGeneratorScreen() {
@@ -102,6 +274,7 @@ export function ThumbnailGeneratorScreen() {
   const geminiKey = useAppStore((s) => s.geminiKey);
 
   const [genre, setGenre] = useState<Genre>('battle_royale');
+  const [customStyle, setCustomStyle] = useState<CustomStyle>('default');
   const [background, setBackground] = useState('');
   const [effects, setEffects] = useState('');
   const [weapons, setWeapons] = useState('');
@@ -151,7 +324,12 @@ export function ThumbnailGeneratorScreen() {
     setBusy(true);
     setErrorMsg(null);
     try {
-      const prompt = buildPrompt(genre, { background, effects, weapons }, customGameName);
+      const prompt = buildPrompt(
+        genre,
+        { background, effects, weapons },
+        customGameName,
+        customStyle,
+      );
       const result = await generateThumbnail({
         prompt,
         projectId: project.id,
@@ -332,19 +510,67 @@ export function ThumbnailGeneratorScreen() {
         </View>
 
         {genre === 'custom' && (
-          <View style={{ gap: 6 }}>
-            <Text style={SECTION_LABEL}>CUSTOM GAME NAME</Text>
-            <TextInput
-              value={customGameName}
-              onChangeText={setCustomGameName}
-              placeholder="e.g. Fortnite, Warzone, Valorant — type your own"
-              placeholderTextColor="#52525b"
-              style={INPUT_STYLE}
-            />
-            <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>
-              Using a real game name? You are responsible for trademark compliance.
-            </Text>
-          </View>
+          <>
+            <View style={{ gap: 6 }}>
+              <Text style={SECTION_LABEL}>STYLE</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {(['default', 'comic', 'realistic'] as CustomStyle[]).map((s) => {
+                  const active = customStyle === s;
+                  const label = s === 'default' ? 'Default' : s === 'comic' ? 'Comic' : 'Realistic';
+                  return (
+                    <Pressable
+                      key={s}
+                      onPress={() => {
+                        haptic.selection();
+                        setCustomStyle(s);
+                      }}
+                      style={({ pressed }) => ({
+                        flex: 1,
+                        paddingVertical: 9,
+                        borderRadius: 10,
+                        backgroundColor: active
+                          ? 'rgba(255,16,57,0.16)'
+                          : pressed
+                            ? 'rgba(255,255,255,0.10)'
+                            : 'rgba(255,255,255,0.04)',
+                        borderWidth: 1,
+                        borderColor: active ? 'rgba(255,16,57,0.45)' : 'rgba(255,255,255,0.08)',
+                        alignItems: 'center',
+                      })}
+                    >
+                      <Text
+                        style={{
+                          color: active ? '#ff1039' : '#f1f2f2',
+                          fontSize: 12,
+                          fontWeight: '700',
+                        }}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {customStyle !== 'default' && (
+                <Text style={{ color: '#fbbf24', fontSize: 10, lineHeight: 14 }}>
+                  ⚠ {customStyle === 'comic' ? 'Comic' : 'Realistic'} preset uses hardcoded references to real games (Fortnite / Warzone). You are responsible for trademark compliance.
+                </Text>
+              )}
+            </View>
+            <View style={{ gap: 6 }}>
+              <Text style={SECTION_LABEL}>CUSTOM GAME NAME (OPTIONAL)</Text>
+              <TextInput
+                value={customGameName}
+                onChangeText={setCustomGameName}
+                placeholder="e.g. Fortnite, Warzone, Valorant — type your own"
+                placeholderTextColor="#52525b"
+                style={INPUT_STYLE}
+              />
+              <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>
+                Using a real game name? You are responsible for trademark compliance.
+              </Text>
+            </View>
+          </>
         )}
 
         {/* Prompt-Fields */}
