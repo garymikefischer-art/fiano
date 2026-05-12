@@ -11,6 +11,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 
+import { Platform } from 'react-native';
+
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/stores/authStore';
 import { useAppStore } from './src/stores/appStore';
@@ -18,6 +20,24 @@ import { useNotificationsStore } from './src/stores/notificationsStore';
 import { useProjectsStore } from './src/stores/projectsStore';
 import { initLanguage } from './src/lib/i18n';
 import { initSounds, appStart as playAppStart } from './src/lib/sounds';
+
+/**
+ * Setzt die Android-Navigation-Bar-Farbe zur Laufzeit. Macht den schwarzen
+ * Balken unter der Tab-Bar weg, indem wir der System-Nav unsere Hintergrund-
+ * Tint-Farbe geben. Lazy require → no-op wenn das Native-Modul (noch) nicht
+ * verlinkt ist.
+ */
+function configureAndroidNavBar() {
+  if (Platform.OS !== 'android') return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const NavigationBar = require('expo-navigation-bar');
+    void NavigationBar.setBackgroundColorAsync('#0d0509').catch(() => {});
+    void NavigationBar.setButtonStyleAsync('light').catch(() => {});
+  } catch {
+    /* expo-navigation-bar nicht installiert oder Native-Build pending — ignorieren */
+  }
+}
 
 const navTheme = {
   ...DarkTheme,
@@ -38,13 +58,12 @@ export default function App() {
   const initProjects = useProjectsStore((s) => s.init);
 
   useEffect(() => {
+    configureAndroidNavBar();
     void initLanguage();
     void initApp();
     void initNotifications();
     void initProjects();
     initAuth();
-    // App-Start-Sound nach init (Mute-State hydriert) — ein dezentes E-Major-
-    // Triaden-Chime, gleicher Sound wie auf Desktop.
     void initSounds().then(() => playAppStart());
   }, [initAuth, initApp, initNotifications, initProjects]);
 

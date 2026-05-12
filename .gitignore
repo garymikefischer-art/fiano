@@ -14,3 +14,8 @@ resources/bin/*
 !resources/bin/LICENSE-BUNDLED.txt
 .claude/
 *.tsbuildinfo
+
+# Expo / prebuild artifacts
+.expo/
+packages/mobile/android/
+packages/mobile/ios/
