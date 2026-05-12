@@ -102,17 +102,24 @@ export function ExportScreen() {
 
     try {
       // 1. Lokale Source sicherstellen (file://-URI nicht asset://).
-      // Builder-Mode hat zwei Pfade:
-      //   a) Single-Source + builderClipIds → per-clip-trim+concat im filter_complex.
-      //   b) Multi-Source + builderSourceUris → Server `srcs[]`-concat (Phase Builder-2).
-      const isMultiSourceBuilder =
-        isBuilder &&
-        !!params.builderSourceUris &&
-        params.builderSourceUris.length >= 2;
+      // Builder-Mode (Phase Builder-3 unified): wenn builderItemPlan vorhanden,
+      // dedupliziere sourceUris[] und baue clips[] mit src-indices. Ein clip
+      // pro item-plan-entry. Funktioniert für single-source, multi-source und
+      // gemischte (highlights + extras).
+      const itemPlan = (isBuilder ? params.builderItemPlan : undefined) ?? [];
       const localSrc = await ensureLocalCopy(params.sourceUri);
-      const localSrcUris: string[] = isMultiSourceBuilder
-        ? await Promise.all(params.builderSourceUris!.map((u) => ensureLocalCopy(u)))
+      // Dedupe URIs in order of first occurrence.
+      const uniqueSrcMap = new Map<string, number>();
+      for (const item of itemPlan) {
+        if (!uniqueSrcMap.has(item.sourceUri)) {
+          uniqueSrcMap.set(item.sourceUri, uniqueSrcMap.size);
+        }
+      }
+      const builderUniqueSourceUris = Array.from(uniqueSrcMap.keys());
+      const localSrcUris: string[] = builderUniqueSourceUris.length > 0
+        ? await Promise.all(builderUniqueSourceUris.map((u) => ensureLocalCopy(u)))
         : [];
+      const isMultiSourceBuilder = builderUniqueSourceUris.length >= 2;
 
       // 2. Layout + Regions + Subtitle vom Project ableiten.
       //    Builder-Mode: layout=full (16:9 Cover-Crop) ohne facecam/gameplay-split.
@@ -121,20 +128,23 @@ export function ExportScreen() {
       const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
       const splitRatio = project?.splitRatio ?? DEFAULT_SPLIT_RATIO;
 
-      // 2b. Builder-Mode: clips[] aus project.clips + params.builderClipIds bauen.
-      //     Reihenfolge bleibt wie übergeben (UI hat schon nach clipOrder sortiert).
-      //     Bei Multi-Source-Builder ist builderClipIds undefined — der Server
-      //     konkateniert dann komplette Files via `srcs[]` ohne per-clip-trim.
-      const builderClips =
-        isBuilder &&
-        !isMultiSourceBuilder &&
-        params.builderClipIds &&
-        params.builderClipIds.length > 0
-          ? params.builderClipIds
-              .map((id) => project?.clips?.find((c) => c.id === id))
-              .filter(Boolean)
-              .map((c) => ({ startSec: c!.startSec, endSec: c!.endSec }))
-          : [];
+      // 2b. Builder-Mode: clips[] mit src-Indices aus itemPlan bauen.
+      //     Für extras mit trimEnd=-1 (unbekannte duration): wir können nicht
+      //     trimmen. Fallback: trimEnd auf eine große Zahl setzen (Server trimmt
+      //     bis source-end; ffmpeg trim mit end > duration = source-end).
+      const BIG_TRIM_END = 99999;
+      const builderClips: { src: number; startSec: number; endSec: number }[] = itemPlan
+        .map((item) => {
+          const srcIdx = uniqueSrcMap.get(item.sourceUri);
+          if (srcIdx === undefined) return null;
+          const end = item.trimEnd >= 0 ? item.trimEnd : BIG_TRIM_END;
+          return {
+            src: srcIdx,
+            startSec: Math.max(0, item.trimStart),
+            endSec: Math.max(item.trimStart + 0.1, end),
+          };
+        })
+        .filter((c): c is { src: number; startSec: number; endSec: number } => c !== null);
 
       // 3. Subtitle-Burn-In (Phase 9.6.7a + 9.6.7g + 9.6.7h):
       //    - Wenn enabled UND cues vorhanden → libass via .ass-Datei.
@@ -151,13 +161,27 @@ export function ExportScreen() {
           ? rawCues.flatMap((c) => chunkCueByWords(c, maxWords))
           : rawCues;
       // Cue-Zeiten auf Output-Timeline mappen.
-      // Single-clip 9:16: trimStart..trimEnd → 0..(trimEnd-trimStart). Wir
-      //   shiften cues um -trimStart und filtern out-of-range.
-      // Builder Multi-Clip (single-source): jeder clip wird per-clip-trim+
-      //   concat'd; cue c gehört zu clip k wenn c in [k.startSec, k.endSec],
-      //   und bekommt Output-Start `Σ_{i<k}(dur_i) + (c.startSec - k.startSec)`.
-      // Builder Multi-Source: Server konkateniert ganze Files → wir haben
-      //   pro Source eigene cues (nicht supported aktuell; cues bleiben leer).
+      //  9:16 / Manual: trimStart..trimEnd → 0..(trimEnd-trimStart). Shift -trimStart,
+      //                 cues mit partial-overlap werden geclipped statt verworfen.
+      //  Builder Multi-Clip (single-source): cue gehört zu Clip k wenn er
+      //                  in [k.startSec, k.endSec] überlappt; output-Start
+      //                  = Σ vorheriger dur + (cue.start - clip.start).
+      //  Builder Multi-Source ohne Trim: cues disabled (kein 1:1 mapping).
+      //
+      // Defensive: trimStart/trimEnd default 0 / sourceDuration; NaN-Schutz.
+      const ts = Number.isFinite(params.trimStart) ? params.trimStart : 0;
+      const te = Number.isFinite(params.trimEnd)
+        ? params.trimEnd
+        : params.sourceDuration ?? ts + 60;
+      const clipDur = Math.max(0.1, te - ts);
+
+      // Builder cue-mapping: cues sind absolute Source-Times zum project.sourceUri
+      // (Whisper-Output). Beim per-source-trim sind sie nur für clips relevant
+      // die aus dieser Source kommen. Bei Multi-Source-mit-Extras werden cues
+      // gefiltert auf clips deren src auf project.sourceUri zeigt.
+      const primarySourceUri = project?.sourceUri ?? '';
+      const primarySrcIdx = primarySourceUri ? uniqueSrcMap.get(primarySourceUri) : undefined;
+
       const mapCueToOutput = (
         c: { startSec: number; endSec: number; text: string },
       ): { startSec: number; endSec: number; text: string } | null => {
@@ -165,33 +189,45 @@ export function ExportScreen() {
           let outOffset = 0;
           for (const clip of builderClips) {
             const dur = Math.max(0, clip.endSec - clip.startSec);
-            if (c.startSec >= clip.startSec && c.endSec <= clip.endSec) {
+            // Cues nur an clips matchen die aus der primary source kommen
+            // (cues sind nur zu dieser Source absolut). Extras-clips skip.
+            if (primarySrcIdx === undefined || clip.src !== primarySrcIdx) {
+              outOffset += dur;
+              continue;
+            }
+            const overlapStart = Math.max(c.startSec, clip.startSec);
+            const overlapEnd = Math.min(c.endSec, clip.endSec);
+            if (overlapEnd > overlapStart + 0.04) {
               return {
-                startSec: outOffset + (c.startSec - clip.startSec),
-                endSec: outOffset + (c.endSec - clip.startSec),
+                startSec: outOffset + Math.max(0, overlapStart - clip.startSec),
+                endSec: outOffset + Math.min(dur, overlapEnd - clip.startSec),
                 text: c.text,
               };
             }
             outOffset += dur;
           }
-          return null; // cue liegt außerhalb aller selected clips
+          return null;
         }
-        if (isMultiSourceBuilder) {
-          return null; // Multi-Source: cues nicht supported, würde falsche Zeit-Mapping geben
-        }
-        // 9:16 / Manual: simpler trim-Shift.
-        const ts = params.trimStart;
-        const te = params.trimEnd;
-        if (c.endSec <= ts || c.startSec >= te) return null;
+        // 9:16 / Manual: shift + clamp statt strikt zu filtern.
+        const startOut = Math.max(0, c.startSec - ts);
+        const endOut = Math.min(clipDur, c.endSec - ts);
+        if (endOut <= 0 || startOut >= clipDur) return null;
         return {
-          startSec: Math.max(0, c.startSec - ts),
-          endSec: Math.min(te - ts, c.endSec - ts),
+          startSec: Number.isFinite(startOut) ? startOut : 0,
+          endSec: Number.isFinite(endOut) ? Math.max(startOut + 0.04, endOut) : startOut + 0.04,
           text: c.text,
         };
       };
       const chunkedCues = chunkedRaw
         .map(mapCueToOutput)
         .filter((c): c is { startSec: number; endSec: number; text: string } => c !== null);
+      // Diagnose-Log: wenn raw cues vorhanden waren aber nach mapping leer →
+      // hilft beim Debuggen falls subs unsichtbar bleiben.
+      if (chunkedRaw.length > 0 && chunkedCues.length === 0) {
+        console.warn(
+          `[Export] ${chunkedRaw.length} cues filtered out — none overlap with trim/clip range. ts=${ts} te=${te} mode=${isBuilder ? 'builder' : 'tiktok'} isMultiSrc=${isMultiSourceBuilder}`,
+        );
+      }
       const subEnabled = subSettings?.enabled === true && chunkedCues.length > 0;
       // Optional override für ass: standardmäßig libass an wenn cues + enabled.
       const useAss = subEnabled;
@@ -254,10 +290,13 @@ export function ExportScreen() {
       // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {DST}, {INTRO}, {MUSIC_N}, {VO_N}).
       //    Builder-Mode: clips[] hat Vorrang ggü. trimStart/trimEnd — per-clip
       //    trim+concat im filter_complex (siehe ffmpegArgs.ts).
-      // Multi-Source: srcs[]-Platzhalter ({SRC_0}, {SRC_1}, ...); sonst legacy src={SRC}.
-      const srcPlaceholders = isMultiSourceBuilder
-        ? localSrcUris.map((_, i) => `{SRC_${i}}`)
-        : undefined;
+      // Builder-Mode: builderUniqueSourceUris[] → {SRC_0}, {SRC_1}, ... Platzhalter.
+      // Single-source-builder mit 1 unique → {SRC_0} (server lädt 1 file mit SRC_0).
+      // 9:16-Mode: legacy {SRC} Platzhalter (kein srcs[]).
+      const srcPlaceholders =
+        builderUniqueSourceUris.length > 0
+          ? builderUniqueSourceUris.map((_, i) => `{SRC_${i}}`)
+          : undefined;
       const args = buildTikTokExportArgs(
         {
           src: srcPlaceholders ? srcPlaceholders[0] : '{SRC}',
@@ -297,12 +336,14 @@ export function ExportScreen() {
         'other',
       );
 
-      // 7. Cloud-Render: Multi-Input Upload → Render → Download
+      // 7. Cloud-Render: Multi-Input Upload → Render → Download.
+      // Builder-Mode (Phase Builder-3): sourceUris[] = unique localSrcUris,
+      // Server konkatiert per Trim aus jeder einzelnen Source.
+      // 9:16-Mode: single sourceUri.
       const result = await runRenderJob({
         inputs: {
-          // Single-Source: legacy sourceUri. Multi-Source-Builder: sourceUris[].
-          sourceUri: isMultiSourceBuilder ? undefined : localSrc,
-          sourceUris: isMultiSourceBuilder ? localSrcUris : undefined,
+          sourceUri: isBuilder && localSrcUris.length > 0 ? undefined : localSrc,
+          sourceUris: isBuilder && localSrcUris.length > 0 ? localSrcUris : undefined,
           introUri: intro?.path,
           musicUris: musicTracks.map((m) => m.path),
           voiceOverUris: voiceOvers.map((vo) => vo.path),

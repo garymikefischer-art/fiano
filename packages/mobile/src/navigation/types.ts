@@ -53,15 +53,12 @@ export type RootStackParamList = {
       resolution: '720p' | '1080p' | '4k';
       bitrate: '5M' | '10M' | '20M' | '40M' | '80M';
     };
-    /** Builder-Mode: IDs der ausgewählten Clips in Reihenfolge. ExportScreen
-     *  baut daraus per-clip-trim + concat (16:9 YouTube-Cut). Wenn leer/undef
-     *  + mode='builder', fällt's auf Single-Clip-Trim zurück. */
-    builderClipIds?: string[];
-    /** Multi-Source-Builder: Liste der Source-File-URIs in Reihenfolge der
-     *  selected clips. Wenn length >= 2 → Server konkatiert die separaten
-     *  Files (statt aus EINER Source zu trimmen). Mutually exclusive mit
-     *  builderClipIds (Server-FFmpeg-Pipeline nutzt entweder `srcs[]` oder
-     *  filter_complex-clips[]). */
-    builderSourceUris?: string[];
+    /** Phase Builder-3: Unified per-source-trim plan. Eine Liste von items
+     *  in finaler Reihenfolge — pro item ein sourceUri + trim-range. Export-
+     *  Screen dedupes URIs zu sourceUris[] und mapped trims auf clips[].src-
+     *  indices. Deckt single-source-highlights, multi-source-highlights,
+     *  gemischte highlights+extras (alle MIT per-clip trim) ab.
+     *  trimEnd = -1 bedeutet "ganze File" (Duration unbekannt). */
+    builderItemPlan?: { sourceUri: string; trimStart: number; trimEnd: number }[];
   };
 };

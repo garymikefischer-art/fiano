@@ -41,9 +41,9 @@ function assColor(hex: string | undefined, alpha = 0): string {
   return `&H${aa}${bb}${gg}${rr}&`;
 }
 
-/** Sekunden → ASS-Zeit `H:MM:SS.cc`. */
+/** Sekunden → ASS-Zeit `H:MM:SS.cc`. NaN/Infinity → 0. */
 function assTime(sec: number): string {
-  const safe = Math.max(0, sec);
+  const safe = Number.isFinite(sec) && sec > 0 ? sec : 0;
   const totalCs = Math.floor(safe * 100);
   const h = Math.floor(totalCs / 360000);
   const m = Math.floor((totalCs % 360000) / 6000);
