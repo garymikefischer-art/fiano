@@ -137,17 +137,61 @@ export function ExportScreen() {
           : [];
 
       // 3. Subtitle-Burn-In (Phase 9.6.7a + 9.6.7g + 9.6.7h):
-      //    - Wenn enabled UND cues vorhanden → libass via .ass-Datei (volle
-      //      Style-Parität: Glow, Drop-Shadow, Layered, Gradient-Approx).
+      //    - Wenn enabled UND cues vorhanden → libass via .ass-Datei.
       //    - chunking nach maxWordsPerChunk passiert vor dem ass-Build.
-      //    - Fallback (kein assContent): drawtext (legacy, color+stroke+pos).
+      //    - **Cues sind absolute Source-Times** (Whisper liefert sie so).
+      //      Beim Trim/Clip-Wechsel müssen wir sie auf die Output-Timeline
+      //      umrechnen, sonst zeigt das exportierte Video die Cues vom
+      //      Source-Anfang statt vom getrimmten Bereich.
       const subSettings = project?.subtitles;
       const rawCues = subSettings?.cues ?? [];
       const maxWords = subSettings?.maxWordsPerChunk ?? 0;
-      const chunkedCues =
+      const chunkedRaw =
         maxWords > 0 && maxWords < 99
           ? rawCues.flatMap((c) => chunkCueByWords(c, maxWords))
           : rawCues;
+      // Cue-Zeiten auf Output-Timeline mappen.
+      // Single-clip 9:16: trimStart..trimEnd → 0..(trimEnd-trimStart). Wir
+      //   shiften cues um -trimStart und filtern out-of-range.
+      // Builder Multi-Clip (single-source): jeder clip wird per-clip-trim+
+      //   concat'd; cue c gehört zu clip k wenn c in [k.startSec, k.endSec],
+      //   und bekommt Output-Start `Σ_{i<k}(dur_i) + (c.startSec - k.startSec)`.
+      // Builder Multi-Source: Server konkateniert ganze Files → wir haben
+      //   pro Source eigene cues (nicht supported aktuell; cues bleiben leer).
+      const mapCueToOutput = (
+        c: { startSec: number; endSec: number; text: string },
+      ): { startSec: number; endSec: number; text: string } | null => {
+        if (isBuilder && builderClips.length > 0) {
+          let outOffset = 0;
+          for (const clip of builderClips) {
+            const dur = Math.max(0, clip.endSec - clip.startSec);
+            if (c.startSec >= clip.startSec && c.endSec <= clip.endSec) {
+              return {
+                startSec: outOffset + (c.startSec - clip.startSec),
+                endSec: outOffset + (c.endSec - clip.startSec),
+                text: c.text,
+              };
+            }
+            outOffset += dur;
+          }
+          return null; // cue liegt außerhalb aller selected clips
+        }
+        if (isMultiSourceBuilder) {
+          return null; // Multi-Source: cues nicht supported, würde falsche Zeit-Mapping geben
+        }
+        // 9:16 / Manual: simpler trim-Shift.
+        const ts = params.trimStart;
+        const te = params.trimEnd;
+        if (c.endSec <= ts || c.startSec >= te) return null;
+        return {
+          startSec: Math.max(0, c.startSec - ts),
+          endSec: Math.min(te - ts, c.endSec - ts),
+          text: c.text,
+        };
+      };
+      const chunkedCues = chunkedRaw
+        .map(mapCueToOutput)
+        .filter((c): c is { startSec: number; endSec: number; text: string } => c !== null);
       const subEnabled = subSettings?.enabled === true && chunkedCues.length > 0;
       // Optional override für ass: standardmäßig libass an wenn cues + enabled.
       const useAss = subEnabled;
