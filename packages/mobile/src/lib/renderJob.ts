@@ -127,10 +127,13 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   opts.onUploadProgress?.(0);
 
   // ─── Parallele Uploads aller Inputs ────────────────────────────────
+  // explicitSources: wahr wenn caller `sourceUris[]` (Builder-Phase) explizit
+  // gesetzt hat. Dann sendet client `sources[]` (auch length=1), Server nutzt
+  // {SRC_0} statt {SRC}. Single-source-9:16 läuft den legacy-Pfad mit {SRC}.
+  const explicitSources = !!opts.inputs.sourceUris && opts.inputs.sourceUris.length >= 1;
   const sourceKeys: string[] = [];
   for (let i = 0; i < sourceUris.length; i++) {
-    // Bei single-source: index=undefined (legacy key-pattern). Bei multi: index=i.
-    const idx = sourceUris.length > 1 ? i : undefined;
+    const idx = explicitSources || sourceUris.length > 1 ? i : undefined;
     sourceKeys.push(await uploadOne(sourceUris[i], 'source', idx));
   }
   const introKey = opts.inputs.introUri
@@ -169,9 +172,10 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       inputs: {
-        // Single-source legacy: `source`. Multi-clip: `sources`.
-        source: sourceKeys.length === 1 ? sourceKeys[0] : undefined,
-        sources: sourceKeys.length > 1 ? sourceKeys : undefined,
+        // Wenn caller `sourceUris[]` explizit gesetzt hat → sources[] (auch
+        // length=1, für Builder per-source-trim). Sonst legacy `source` single.
+        source: !explicitSources && sourceKeys.length === 1 ? sourceKeys[0] : undefined,
+        sources: explicitSources || sourceKeys.length > 1 ? sourceKeys : undefined,
         intro: introKey,
         music: musicKeys.length > 0 ? musicKeys : undefined,
         voiceOvers: voKeys.length > 0 ? voKeys : undefined,

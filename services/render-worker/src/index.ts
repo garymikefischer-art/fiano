@@ -185,10 +185,13 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
     const tmpFiles: string[] = [];
 
     if (sources.length === 1) {
-      // Legacy single-source: {SRC} Platzhalter.
+      // Single-source: legacy {SRC}-Platzhalter + zusätzlich {SRC_0} für
+      // Builder-Phase-3 (per-source-trim, einheitliche indizierte Platzhalter
+      // auch bei 1 source).
       const sourceTmp = path.join(tmpdir(), `${jobId}-src.mp4`);
       await downloadToFile(sources[0], sourceTmp);
       replaceMap['{SRC}'] = sourceTmp;
+      replaceMap['{SRC_0}'] = sourceTmp;
       tmpFiles.push(sourceTmp);
     } else {
       // Multi-Clip: {SRC_0}, {SRC_1}, ... Platzhalter.

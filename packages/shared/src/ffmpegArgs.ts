@@ -248,13 +248,19 @@ export interface TikTokExportOpts {
     durationSec?: number;
   };
 
-  /* ─── Builder-Mode (Phase Builder-1): Per-Clip Trim + Concat ─────
-   * Wenn gesetzt UND >=1 entries: jeder Eintrag wird als separater Trim-Range
-   * aus der EINEN Source extrahiert und via concat-Filter zusammengefügt.
-   * Schliesst sich mit `srcs[]` aus (Multi-Source-Concat), und überschreibt
-   * `trimStart/trimEnd`. Gedacht für Builder-Tab 16:9 YouTube-Cut aus
-   * Highlight-Detection-Output. */
-  clips?: { startSec: number; endSec: number }[];
+  /* ─── Builder-Mode (Phase Builder-1 + Builder-3): Per-Clip Trim + Concat ─
+   * Wenn gesetzt UND >=1 entries: jeder Eintrag wird als Trim-Range aus der
+   * referenzierten Source extrahiert und via concat-Filter zusammengefügt.
+   *
+   *  - `src` (optional) verweist auf einen Index in `srcs[]` (oder 0 für single
+   *    `src`). Default 0. Mehrere Clips dürfen denselben src-Index nutzen —
+   *    `split` wird automatisch eingefügt.
+   *  - `startSec` / `endSec` sind absolute Source-Zeiten der jeweiligen Source.
+   *
+   * Überschreibt `trimStart/trimEnd`. Hat Vorrang vor dem Pure-Multi-Concat-
+   * Pfad (`srcs[]` ohne `clips`).
+   * Gedacht für Builder-Tab 16:9 YouTube-Cut mit Highlights + Extra-Videos. */
+  clips?: { src?: number; startSec: number; endSec: number }[];
 }
 
 /**
@@ -293,11 +299,12 @@ export function buildTikTokExportArgs(
   // Trim wird bei Multi-Clip ignoriert (User hat clips bereits vor-getrimmt).
   const sources = opts.srcs && opts.srcs.length >= 1 ? opts.srcs : [opts.src];
   const isMulti = sources.length >= 2;
-  // Builder-Mode (Phase Builder-1): clips[] gegen Single-Source ⇒ per-clip
-  // trim+setpts im filter_complex statt globalem -ss/-t. clips[] hat Vorrang
-  // ggü. trimStart/trimEnd. Mit srcs[] ist es disabled (Multi-Source-Concat
-  // erwartet schon vor-getrimmte Clips).
-  const useClipsConcat = !isMulti && !!opts.clips && opts.clips.length >= 1;
+  // Builder-Mode (Phase Builder-1 + Builder-3): clips[] → per-clip trim+setpts
+  // im filter_complex statt globalem -ss/-t. Funktioniert auch bei multi-source
+  // (clip.src referenziert sources[]). clips[] hat Vorrang ggü. trimStart/End
+  // UND ggü. pure-multi-concat ohne trim.
+  const useClipsConcat = !!opts.clips && opts.clips.length >= 1 && sources.length >= 1;
+  const usePureMultiConcat = !useClipsConcat && isMulti;
 
   const args: string[] = ['-y'];
 
@@ -340,9 +347,9 @@ export function buildTikTokExportArgs(
   // Bei Multi-Clip: pre-scale alle inputs auf 1920x1080 (Source-Intermediate)
   // + concat. Output-Labels [srcV][srcA] werden statt [0:v][0:a] in der Layout-
   // Pipeline genutzt.
-  const srcVLabel = isMulti || useClipsConcat ? '[srcV]' : '[0:v]';
-  const srcALabel = isMulti || useClipsConcat ? '[srcA]' : '[0:a]';
-  if (isMulti) {
+  const srcVLabel = usePureMultiConcat || useClipsConcat ? '[srcV]' : '[0:v]';
+  const srcALabel = usePureMultiConcat || useClipsConcat ? '[srcA]' : '[0:a]';
+  if (usePureMultiConcat) {
     const INTERMEDIATE_W = 1920;
     const INTERMEDIATE_H = 1080;
     for (let i = 0; i < sources.length; i++) {
@@ -352,31 +359,60 @@ export function buildTikTokExportArgs(
           `pad=${INTERMEDIATE_W}:${INTERMEDIATE_H}:(ow-iw)/2:(oh-ih)/2:color=black,` +
           `setsar=1,fps=${fps}[v${i}m]`,
       );
-      // Audio: aresample für gleiche sample-rate + async-Korrektur.
       filters.push(`[${i}:a]aresample=async=1:first_pts=0[a${i}m]`);
     }
     const concatPairs = sources.map((_, i) => `[v${i}m][a${i}m]`).join('');
     filters.push(`${concatPairs}concat=n=${sources.length}:v=1:a=1[srcV][srcA]`);
   } else if (useClipsConcat) {
-    // Builder-Mode: aus EINER Source N Trim-Ranges extrahieren + concat.
-    // Jeder Clip: split → trim=start:end + setpts=PTS-STARTPTS, atrim analog.
-    // [0:v] / [0:a] kann nicht direkt N-fach gelesen werden ohne split — also
-    // 1x split=N → N video-streams; analog asplit=N für audio.
+    // Phase Builder-3: Per-Clip-Trim mit src-Index. Multi-Source-fähig.
+    // Pro source: split nach Anzahl der clips die ihn nutzen. Pro clip: trim
+    // aus split-output (oder direkt aus source wenn nur 1× genutzt).
+    // Bei multi-source: zusätzlich scale+pad zu 1920x1080 für aspect-Match im
+    // concat-Filter (FFmpeg concat=v=1 crasht bei dim-mismatch).
     const clipsArr = opts.clips!;
     const n = clipsArr.length;
-    filters.push(`[0:v]split=${n}${Array.from({ length: n }, (_, i) => `[v${i}s]`).join('')}`);
-    filters.push(`[0:a]asplit=${n}${Array.from({ length: n }, (_, i) => `[a${i}s]`).join('')}`);
+    const usageBySrc = new Map<number, number>();
+    for (const c of clipsArr) {
+      const srcIdx = c.src ?? 0;
+      usageBySrc.set(srcIdx, (usageBySrc.get(srcIdx) ?? 0) + 1);
+    }
+    const isMixedSources = usageBySrc.size > 1;
+    const INTERMEDIATE_W = 1920;
+    const INTERMEDIATE_H = 1080;
+    // Splits pro source einfügen (nur wenn count > 1).
+    for (const [srcIdx, count] of usageBySrc) {
+      if (count > 1) {
+        filters.push(
+          `[${srcIdx}:v]split=${count}${Array.from({ length: count }, (_, k) => `[vs${srcIdx}_${k}]`).join('')}`,
+        );
+        filters.push(
+          `[${srcIdx}:a]asplit=${count}${Array.from({ length: count }, (_, k) => `[as${srcIdx}_${k}]`).join('')}`,
+        );
+      }
+    }
+    // Pro Clip: trim + setpts + (optional) scale-to-intermediate für mixed sources.
+    const counterBySrc = new Map<number, number>();
     for (let i = 0; i < n; i++) {
       const c = clipsArr[i];
+      const srcIdx = c.src ?? 0;
+      const used = counterBySrc.get(srcIdx) ?? 0;
+      counterBySrc.set(srcIdx, used + 1);
+      const total = usageBySrc.get(srcIdx) ?? 1;
+      const vIn = total > 1 ? `[vs${srcIdx}_${used}]` : `[${srcIdx}:v]`;
+      const aIn = total > 1 ? `[as${srcIdx}_${used}]` : `[${srcIdx}:a]`;
       const start = Math.max(0, c.startSec);
       const end = Math.max(start + 0.04, c.endSec);
+      const scalePart = isMixedSources
+        ? `,scale=${INTERMEDIATE_W}:${INTERMEDIATE_H}:force_original_aspect_ratio=decrease,` +
+          `pad=${INTERMEDIATE_W}:${INTERMEDIATE_H}:(ow-iw)/2:(oh-ih)/2:color=black`
+        : '';
       filters.push(
-        `[v${i}s]trim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
-          `setpts=PTS-STARTPTS,fps=${fps},setsar=1[v${i}m]`,
+        `${vIn}trim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
+          `setpts=PTS-STARTPTS${scalePart},fps=${fps},setsar=1[v${i}m]`,
       );
       filters.push(
-        `[a${i}s]atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
-          `asetpts=PTS-STARTPTS[a${i}m]`,
+        `${aIn}atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
+          `asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0[a${i}m]`,
       );
     }
     const concatPairs = clipsArr.map((_, i) => `[v${i}m][a${i}m]`).join('');

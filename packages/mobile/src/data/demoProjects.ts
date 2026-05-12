@@ -225,6 +225,11 @@ export interface ProjectExtraVideo {
   path: string;
   /** Original-Dateiname (Display). */
   filename?: string;
+  /** Lazy-probed Duration in Sekunden (via Video-onLoad nach Pick). Unknown=undefined. */
+  durationSec?: number;
+  /** Trim-Range innerhalb des Extras. Default 0..durationSec. */
+  trimStart?: number;
+  trimEnd?: number;
 }
 
 export interface ProjectIntro {
