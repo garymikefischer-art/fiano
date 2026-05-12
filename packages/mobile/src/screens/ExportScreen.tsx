@@ -95,21 +95,33 @@ export function ExportScreen() {
     setPhase('uploading');
     setError(null);
     setPercent(0);
-    const outputName = `fiano-${Date.now()}.mp4`;
+    const isBuilder = params.mode === 'builder';
+    const outputName = `fiano-${isBuilder ? '16x9' : Date.now()}-${Date.now()}.mp4`;
     setCurrent({ id: outputName, step: 'export', percent: 0, outputPath: outputName });
 
     try {
       // 1. Lokale Source sicherstellen (file://-URI nicht asset://).
-      // Multi-Clip-Concat ist ein Builder-Tab-Feature (future) — der 9:16-Tab
-      // exportiert immer nur den AKTIVEN Clip (caller hat den richtigen sourceUri
-      // schon als params.sourceUri durchgereicht).
+      // Builder-Mode: clips[] werden aus EINER Source via per-clip-trim + concat
+      // im filter_complex gebaut (siehe buildTikTokExportArgs.clips). Caller
+      // reicht sourceUri + builderClipIds durch.
       const localSrc = await ensureLocalCopy(params.sourceUri);
 
       // 2. Layout + Regions + Subtitle vom Project ableiten.
-      const layout = project?.tiktokLayout ?? 'stacked';
+      //    Builder-Mode: layout=full (16:9 Cover-Crop) ohne facecam/gameplay-split.
+      const layout = isBuilder ? 'full' : (project?.tiktokLayout ?? 'stacked');
       const facecamRegion = project?.facecamRegion ?? defaultFacecam ?? { x: 0.06, y: 0.06, w: 0.28, h: 0.32 };
       const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
       const splitRatio = project?.splitRatio ?? DEFAULT_SPLIT_RATIO;
+
+      // 2b. Builder-Mode: clips[] aus project.clips + params.builderClipIds bauen.
+      //     Reihenfolge bleibt wie übergeben (UI hat schon nach clipOrder sortiert).
+      const builderClips =
+        isBuilder && params.builderClipIds && params.builderClipIds.length > 0
+          ? params.builderClipIds
+              .map((id) => project?.clips?.find((c) => c.id === id))
+              .filter(Boolean)
+              .map((c) => ({ startSec: c!.startSec, endSec: c!.endSec }))
+          : [];
 
       // 3. Subtitle-Burn-In (Phase 9.6.7a + 9.6.7g): wenn enabled UND cues
       //    vorhanden → multi-cue drawtext mit between(t,start,end). Plus:
@@ -150,17 +162,20 @@ export function ExportScreen() {
       const intro = project?.intro;
       const voiceOvers = project?.voiceOvers ?? [];
 
-      // 5. ExportSettings → Width/Height/FPS/Bitrate aus appStore
+      // 5. ExportSettings → Width/Height/FPS/Bitrate aus appStore.
+      //    Builder = 16:9 landscape, TikTok = 9:16 portrait.
       const [w, h] = (() => {
         switch (exportSettings.resolution) {
-          case '720p':  return [720, 1280];
-          case '1080p': return [1080, 1920];
-          case '4k':    return [2160, 3840];
-          default:      return [1080, 1920];
+          case '720p':  return isBuilder ? [1280, 720]  : [720, 1280];
+          case '1080p': return isBuilder ? [1920, 1080] : [1080, 1920];
+          case '4k':    return isBuilder ? [3840, 2160] : [2160, 3840];
+          default:      return isBuilder ? [1920, 1080] : [1080, 1920];
         }
       })();
 
-      // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {DST}, {INTRO}, {MUSIC_N}, {VO_N})
+      // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {DST}, {INTRO}, {MUSIC_N}, {VO_N}).
+      //    Builder-Mode: clips[] hat Vorrang ggü. trimStart/trimEnd — per-clip
+      //    trim+concat im filter_complex (siehe ffmpegArgs.ts).
       const args = buildTikTokExportArgs(
         {
           src: '{SRC}',
@@ -185,6 +200,7 @@ export function ExportScreen() {
             volume: vo.volume,
           })),
           intro: intro ? { path: '{INTRO}' } : undefined,
+          clips: builderClips.length > 0 ? builderClips : undefined,
         },
         'other',
       );
@@ -233,17 +249,20 @@ export function ExportScreen() {
         });
       }
 
+      const doneBody = isBuilder
+        ? t('export.notifBodyBuilder', '16:9 video saved to your camera roll.')
+        : t('export.notifBody', '9:16 clip saved to your camera roll.');
       addNotification({
         icon: 'cloud-done-outline',
         iconColor: '#22c55e',
         iconBg: 'rgba(34,197,94,0.15)',
         title: t('export.notifTitle', 'Export complete'),
-        body: t('export.notifBody', '9:16 clip saved to your camera roll.'),
+        body: doneBody,
         time: t('common.justNow', 'Just now'),
       });
       void scheduleLocalNotification({
         title: t('export.notifTitle', 'Export complete'),
-        body: t('export.notifBody', '9:16 clip saved to your camera roll.'),
+        body: doneBody,
       });
     } catch (err: any) {
       const msg = err?.message ?? String(err);
@@ -269,7 +288,7 @@ export function ExportScreen() {
     if (params.projectId) updateProject(params.projectId, { status: 'failed', errorMessage: 'Canceled by user' });
   };
 
-  const meta = phaseMeta(phase, t);
+  const meta = phaseMeta(phase, t, params.mode === 'builder');
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
@@ -453,6 +472,7 @@ export function ExportScreen() {
 function phaseMeta(
   phase: Phase,
   t: (k: string, f?: string) => string,
+  isBuilder = false,
 ): {
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
@@ -477,7 +497,9 @@ function phaseMeta(
         iconColor: '#ff1039',
         iconBg: 'rgba(255,16,57,0.12)',
         ringColor: 'rgba(255,16,57,0.32)',
-        title: t('export.phaseRendering', 'Rendere 9:16 in der Cloud…'),
+        title: isBuilder
+          ? t('export.phaseRendering16x9', 'Rendere 16:9 in der Cloud…')
+          : t('export.phaseRendering', 'Rendere 9:16 in der Cloud…'),
         subtitle: t('export.phaseRenderingSub', 'FFmpeg läuft auf dem Render-Worker. Dauert ~30s pro Minute Clip.'),
       };
     case 'saving':

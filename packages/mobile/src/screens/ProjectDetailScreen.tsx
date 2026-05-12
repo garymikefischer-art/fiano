@@ -3070,14 +3070,8 @@ function BuilderTab({
   selectedClipIds: Set<string>;
   t: (k: string, f?: string) => string;
 }) {
+  const nav = useNavigation<Nav>();
   const updateProject = useProjectsStore((s) => s.updateProject);
-  const [tts, setTts] = useState(false);
-  const [musicTracks, setMusicTracks] = useState<AudioTrack[]>([]);
-  const [musicShuffle, setMusicShuffle] = useState(false);
-  const [introUri, setIntroUri] = useState<string | null>(null);
-  const [introName, setIntroName] = useState<string | null>(null);
-  const [introMode, setIntroMode] = useState<'before' | 'overlay'>('before');
-  const [introPosition, setIntroPosition] = useState<'top' | 'center' | 'bottom' | 'full'>('full');
 
   // Stabile Reihenfolge der ausgewählten Clips:
   // 1. clipOrder am Project bevorzugen (User hat reordered)
@@ -3090,6 +3084,56 @@ function BuilderTab({
   }, [project.clips, project.clipOrder, selectedClipIds]);
   const selected = orderedSelectedClips;
   const totalDuration = selected.reduce((s, c) => s + (c.endSec - c.startSec), 0);
+
+  // Add-Ons aus project.* lesen (analog TikTokTab — persistent über Tab-Wechsel,
+  // App-Restart und Multi-Tab-Sync). Phase Builder-1.
+  const subSettings: SubtitleSettings = { ...DEFAULT_SUBTITLES, ...project.subtitles };
+  const subtitles = subSettings.enabled;
+  const setSubtitles = (next: boolean) => {
+    updateProject(project.id, { subtitles: { ...subSettings, enabled: next } });
+  };
+  const [subModalOpen, setSubModalOpen] = useState(false);
+  const [builderCueEditorOpen, setBuilderCueEditorOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const exportSettings = useAppStore((s) => s.exportSettings);
+  const setExportSettingsStore = useAppStore((s) => s.setExportSettings);
+  const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
+
+  const musicTracks: AudioTrack[] = (project.musicTracks ?? []).map((m) => ({
+    uri: m.path,
+    filename: m.filename ?? 'audio',
+  }));
+  const setMusicTracks = (next: AudioTrack[]) => {
+    updateProject(project.id, {
+      musicTracks: next.map((tr) => {
+        const existing = project.musicTracks?.find((m) => m.path === tr.uri);
+        return { path: tr.uri, filename: tr.filename, volume: existing?.volume ?? 0.6 };
+      }),
+    });
+  };
+  const musicShuffle = project.musicShuffle ?? false;
+  const setMusicShuffle = (next: boolean) => {
+    updateProject(project.id, { musicShuffle: next });
+  };
+  const introUri = project.intro?.path ?? null;
+  const introName = project.intro?.filename ?? null;
+  const introMode = project.intro?.mode ?? 'before';
+  const setIntroMode = (mode: 'before' | 'overlay') => {
+    if (project.intro) {
+      updateProject(project.id, { intro: { ...project.intro, mode } });
+    }
+  };
+  const setIntroUri = (uri: string | null) => {
+    if (uri) {
+      updateProject(project.id, {
+        intro: { path: uri, filename: introName ?? undefined, mode: introMode },
+      });
+    } else {
+      updateProject(project.id, { intro: undefined });
+    }
+  };
+  // Overlay-Position (UI-only bis Phase 9.6.6.1 Intro x/y).
+  const [introPosition, setIntroPosition] = useState<'top' | 'center' | 'bottom' | 'full'>('full');
 
   const moveClip = (clipId: string, direction: -1 | 1) => {
     haptic.selection();
@@ -3108,8 +3152,13 @@ function BuilderTab({
     haptic.medium();
     const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
     if (picked) {
-      setIntroUri(picked.uri);
-      setIntroName(picked.filename ?? 'video');
+      updateProject(project.id, {
+        intro: {
+          path: picked.uri,
+          filename: picked.filename ?? 'video',
+          mode: introMode,
+        },
+      });
       haptic.success();
     }
   };
@@ -3221,13 +3270,61 @@ function BuilderTab({
           overflow: 'hidden',
         }}
       >
-        <ToggleRow
-          icon="mic-outline"
-          label={t('builder.tts', 'TTS Voice-over')}
-          desc={t('builder.ttsDesc', 'AI-generated narration over the combined cut')}
-          value={tts}
-          onChange={setTts}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 6 }}>
+          <View style={{ flex: 1 }}>
+            <ToggleRow
+              icon="chatbubble-ellipses-outline"
+              label={t('builder.subtitles', 'Subtitles')}
+              desc={t('builder.subtitlesDesc', 'Burn-in word-highlight subs')}
+              value={subtitles}
+              onChange={setSubtitles}
+            />
+          </View>
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              setSubModalOpen(true);
+            }}
+            hitSlop={8}
+            style={({ pressed }) => ({
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.10)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: 4,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons name="options-outline" size={16} color="#a1a1aa" />
+          </Pressable>
+        </View>
+        {(subSettings.cues?.length ?? 0) > 0 && (
+          <Pressable
+            onPress={() => {
+              haptic.medium();
+              setBuilderCueEditorOpen(true);
+            }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'rgba(255,16,57,0.10)',
+              borderTopWidth: 1,
+              borderTopColor: 'rgba(255,16,57,0.25)',
+            })}
+          >
+            <Ionicons name="create-outline" size={14} color="#ff1039" />
+            <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '700' }}>
+              {t('builder.editCuesInline', `Edit subtitle text (${subSettings.cues!.length} cues)`)}
+            </Text>
+          </Pressable>
+        )}
         <Divider />
         <MultiAudioPicker
           tracks={musicTracks}
@@ -3244,10 +3341,7 @@ function BuilderTab({
           desc={t('builder.introDesc', 'Pick a short video to prepend or overlay')}
           assetName={introName}
           onPick={pickIntro}
-          onClear={() => {
-            setIntroUri(null);
-            setIntroName(null);
-          }}
+          onClear={() => setIntroUri(null)}
         />
         {introUri && (
           <View
@@ -3320,7 +3414,14 @@ function BuilderTab({
         )}
       </View>
 
-      {(musicTracks.length > 0 || introUri || tts) && (
+      {/* Voice-Overs (TTS) — eigene Section analog Desktop's VoiceOversSection. */}
+      <VoiceOversSection
+        project={project}
+        totalDurationHint={totalDuration > 0 ? totalDuration : project.durationSec}
+        title={t('builder.tts', 'TTS Voice-over')}
+      />
+
+      {(musicTracks.length > 0 || introUri || hasVoiceOvers || subtitles) && (
         <View
           style={{
             backgroundColor: 'rgba(255,16,57,0.06)',
@@ -3337,7 +3438,8 @@ function BuilderTab({
           </Text>
           <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 16 }}>
             {[
-              tts && 'TTS',
+              subtitles && t('builder.subtitles', 'Subtitles'),
+              hasVoiceOvers && `${(project.voiceOvers ?? []).length} ${(project.voiceOvers ?? []).length === 1 ? 'TTS' : 'TTS tracks'}`,
               musicTracks.length > 0 && `${musicTracks.length} ${musicTracks.length === 1 ? 'track' : 'tracks'}${musicShuffle ? ' (shuffle)' : ''}`,
               introUri && `Intro · ${introMode}${introMode === 'overlay' ? ` · ${introPosition}` : ''}`,
             ]
@@ -3350,14 +3452,16 @@ function BuilderTab({
 
       <Pressable
         onPress={() => {
+          if (!project.sourceUri && !(project.sourceUris && project.sourceUris.length > 0)) {
+            haptic.warning();
+            Alert.alert(
+              t('builder.exportTitle', 'Export 16:9'),
+              t('builder.exportNoSource', 'Dieses Projekt hat noch kein Source-Video. Erst Video importieren.'),
+            );
+            return;
+          }
           haptic.medium();
-          Alert.alert(
-            t('builder.exportTitle', 'Build & export'),
-            t(
-              'builder.exportSoonBody',
-              'Combines selected clips in order with optional intro/music/TTS into a single 16:9 MP4. Wired up with the FFmpeg native bridge.',
-            ),
-          );
+          setExportModalOpen(true);
         }}
         style={({ pressed }) => ({
           backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
@@ -3372,7 +3476,7 @@ function BuilderTab({
       >
         <Ionicons name="hammer" size={16} color="#fff" />
         <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
-          {t('builder.exportButton', 'Build combined video')}
+          {t('builder.exportButton', 'Build 16:9 video')}
         </Text>
       </Pressable>
 
@@ -3387,9 +3491,58 @@ function BuilderTab({
       >
         {t(
           'builder.reorderHint',
-          'Drag-to-reorder ships next phase. Today the order matches the Highlights tab.',
+          'Use the up/down arrows above to set the clip order — the final cut concatenates them in that order.',
         )}
       </Text>
+
+      {/* Subtitle-Settings-Modal — lazy mount. */}
+      {subModalOpen && (
+        <SubtitleSettingsModal
+          visible={subModalOpen}
+          settings={subSettings}
+          onClose={() => setSubModalOpen(false)}
+          onChange={(next) => updateProject(project.id, { subtitles: next })}
+        />
+      )}
+
+      <CueEditorModal
+        visible={builderCueEditorOpen}
+        cues={subSettings.cues ?? []}
+        onClose={() => setBuilderCueEditorOpen(false)}
+        onSave={(nextCues) =>
+          updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
+        }
+      />
+
+      {exportModalOpen && (project.sourceUri || (project.sourceUris && project.sourceUris.length > 0)) && (
+        <ExportSettingsModal
+          visible={exportModalOpen}
+          initialSettings={exportSettings}
+          onClose={() => setExportModalOpen(false)}
+          onConfirm={(next, saveAsDefault) => {
+            if (saveAsDefault) {
+              void setExportSettingsStore(next);
+            }
+            setExportModalOpen(false);
+            // ExportScreen liest project.clips + builderClipIds und baut daraus
+            // per-clip-trim + concat (16:9). sourceUri ist Fallback für ensureLocalCopy.
+            const fallbackSrc =
+              project.sourceUri ?? project.sourceUris?.[0] ?? '';
+            const firstClip = selected[0];
+            const lastClip = selected[selected.length - 1];
+            nav.navigate('Export', {
+              sourceUri: fallbackSrc,
+              projectId: project.id,
+              trimStart: firstClip?.startSec ?? 0,
+              trimEnd: lastClip?.endSec ?? project.durationSec,
+              sourceDuration: project.durationSec,
+              mode: 'builder',
+              exportSettings: next,
+              builderClipIds: selected.map((c) => c.id),
+            });
+          }}
+        />
+      )}
     </ScrollView>
   );
 }
