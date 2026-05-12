@@ -5,17 +5,22 @@
  * - Liste mit Filename + ↑/↓-Reorder + Delete
  * - Shuffle-Toggle (Random-Order beim Render — wird in Phase X.x als
  *   Shuffle-Flag an FFmpeg-Command-Builder weitergereicht)
+ * - Pro-Track Volume-Slider (0..1.5), default 0.6
  */
 
+import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { pickAudiosFromFiles, type PickedAudio } from '../lib/mediaPicker';
 import { haptic } from '../lib/haptics';
+import { SimpleSlider } from './SimpleSlider';
 
 export interface AudioTrack {
   uri: string;
   filename: string;
+  /** 0..1.5. Default 0.6 (Music soll source-audio nicht überdecken). */
+  volume?: number;
 }
 
 interface Props {
@@ -33,11 +38,17 @@ export function MultiAudioPicker({ tracks, shuffle, onChange, onShuffleChange, l
     const picked: PickedAudio[] = await pickAudiosFromFiles();
     if (picked.length === 0) return;
     haptic.success();
-    const newTracks = picked.map((p) => ({
+    const newTracks: AudioTrack[] = picked.map((p) => ({
       uri: p.uri,
       filename: p.filename ?? 'audio',
+      volume: 0.6,
     }));
     onChange([...tracks, ...newTracks]);
+  };
+
+  const onVolumeChange = (idx: number, vol: number) => {
+    const next = tracks.map((t, i) => (i === idx ? { ...t, volume: vol } : t));
+    onChange(next);
   };
 
   const onRemove = (idx: number) => {
@@ -76,56 +87,16 @@ export function MultiAudioPicker({ tracks, shuffle, onChange, onShuffleChange, l
       {tracks.length > 0 && (
         <View style={{ gap: 6 }}>
           {tracks.map((track, idx) => (
-            <View
+            <TrackRow
               key={track.uri}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingVertical: 8,
-                paddingHorizontal: 10,
-                borderRadius: 10,
-                backgroundColor: 'rgba(255,255,255,0.04)',
-                borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.06)',
-              }}
-            >
-              <View style={{ gap: 2 }}>
-                <ReorderArrow
-                  icon="chevron-up"
-                  disabled={idx === 0 || shuffle}
-                  onPress={() => onMove(idx, -1)}
-                />
-                <ReorderArrow
-                  icon="chevron-down"
-                  disabled={idx === tracks.length - 1 || shuffle}
-                  onPress={() => onMove(idx, 1)}
-                />
-              </View>
-              <View
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 6,
-                  backgroundColor: 'rgba(255,16,57,0.18)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '800' }}>
-                  {idx + 1}
-                </Text>
-              </View>
-              <Text
-                numberOfLines={1}
-                style={{ flex: 1, color: '#f1f2f2', fontSize: 12, fontWeight: '600' }}
-              >
-                {track.filename}
-              </Text>
-              <Pressable onPress={() => onRemove(idx)} hitSlop={6} style={{ padding: 4 }}>
-                <Ionicons name="close-circle" size={16} color="#71717a" />
-              </Pressable>
-            </View>
+              track={track}
+              idx={idx}
+              isLast={idx === tracks.length - 1}
+              shuffle={shuffle}
+              onMove={onMove}
+              onRemove={onRemove}
+              onVolumeChange={onVolumeChange}
+            />
           ))}
         </View>
       )}
@@ -184,6 +155,109 @@ export function MultiAudioPicker({ tracks, shuffle, onChange, onShuffleChange, l
             </Text>
           </Pressable>
         )}
+      </View>
+    </View>
+  );
+}
+
+function TrackRow({
+  track,
+  idx,
+  isLast,
+  shuffle,
+  onMove,
+  onRemove,
+  onVolumeChange,
+}: {
+  track: AudioTrack;
+  idx: number;
+  isLast: boolean;
+  shuffle: boolean;
+  onMove: (idx: number, dir: -1 | 1) => void;
+  onRemove: (idx: number) => void;
+  onVolumeChange: (idx: number, vol: number) => void;
+}) {
+  const [localVol, setLocalVol] = useState(track.volume ?? 0.6);
+  return (
+    <View
+      style={{
+        gap: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.06)',
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ gap: 2 }}>
+          <ReorderArrow
+            icon="chevron-up"
+            disabled={idx === 0 || shuffle}
+            onPress={() => onMove(idx, -1)}
+          />
+          <ReorderArrow
+            icon="chevron-down"
+            disabled={isLast || shuffle}
+            onPress={() => onMove(idx, 1)}
+          />
+        </View>
+        <View
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 6,
+            backgroundColor: 'rgba(255,16,57,0.18)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '800' }}>{idx + 1}</Text>
+        </View>
+        <Text
+          numberOfLines={1}
+          style={{ flex: 1, color: '#f1f2f2', fontSize: 12, fontWeight: '600' }}
+        >
+          {track.filename}
+        </Text>
+        <Pressable onPress={() => onRemove(idx)} hitSlop={6} style={{ padding: 4 }}>
+          <Ionicons name="close-circle" size={16} color="#71717a" />
+        </Pressable>
+      </View>
+
+      {/* Volume-Slider (0..1.5). Live-Update via setLocalVol, persist auf release. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 32 }}>
+        <Ionicons
+          name={localVol === 0 ? 'volume-mute' : localVol < 0.5 ? 'volume-low' : 'volume-high'}
+          size={12}
+          color="#71717a"
+        />
+        <View style={{ flex: 1 }}>
+          <SimpleSlider
+            value={localVol}
+            min={0}
+            max={1.5}
+            step={0.05}
+            onChange={setLocalVol}
+            onCommit={(v) => {
+              haptic.selection();
+              onVolumeChange(idx, v);
+            }}
+          />
+        </View>
+        <Text
+          style={{
+            color: '#a1a1aa',
+            fontSize: 10,
+            fontWeight: '600',
+            fontVariant: ['tabular-nums'],
+            minWidth: 32,
+            textAlign: 'right',
+          }}
+        >
+          {Math.round(localVol * 100)}%
+        </Text>
       </View>
     </View>
   );

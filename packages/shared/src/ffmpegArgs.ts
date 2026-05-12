@@ -385,14 +385,19 @@ export function buildTikTokExportArgs(
 
   // Video-Composition: layout-spezifisch. Endet auf [vmain].
   if (opts.layout === 'full') {
-    // Cover-crop auf 9:16 mit horizontalem Offset (Phase 9.5.8.4).
+    // Cover-crop auf 9:16/16:9 mit horizontalem Offset (Phase 9.5.8.4).
     // x = (iw - cropW) * offsetX → Slider verschiebt sichtbaren Ausschnitt.
-    // y bleibt zentriert (User-Wunsch: nur links/rechts beweglich).
+    // y bleibt zentriert.
+    //
+    // WICHTIG: `min(iw,ih*W/H)` enthält ein `,` das FFmpeg's filter_complex-
+    // Parser als Filter-Chain-Separator interpretiert. Wir nutzen named-args
+    // (w=/h=/x=/y=) + single-quotes um die Expressions zu schützen.
     const offX = clamp(opts.fullOffsetX ?? 0.5, 0, 1);
     const cropW = `min(iw,ih*${W}/${H})`;
     const cropH = `min(ih,iw*${H}/${W})`;
     filters.push(
-      `${srcVLabel}crop=${cropW}:${cropH}:(iw-${cropW})*${offX}:(ih-${cropH})/2,` +
+      `${srcVLabel}crop=w='${cropW}':h='${cropH}':` +
+        `x='(iw-${cropW})*${offX}':y='(ih-${cropH})/2',` +
         `scale=${W}:${H}:flags=lanczos,fps=${fps},setsar=1[vmain]`,
     );
   } else if (opts.layout === 'stacked') {

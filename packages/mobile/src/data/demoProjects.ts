@@ -68,6 +68,10 @@ export interface DemoProject {
   musicShuffle?: boolean;
   /** Intro-Video (Phase 9.6.6) — wird vor dem Main-Clip eingeblendet. */
   intro?: ProjectIntro;
+  /** Builder-Extras (Phase Builder-3): zusätzliche Videos die in der
+   *  YouTube-Cut-Reihenfolge zwischen die Highlight-Clips eingefügt werden.
+   *  IDs sind 'extra-<uuid>' und werden in `clipOrder` referenziert. */
+  builderExtras?: ProjectExtraVideo[];
   /** Letzte Fehlermeldung wenn status === 'failed'. */
   errorMessage?: string;
   /** Generated Thumbnail-URIs aus Phase 9.8 Gemini-Thumbs. Persistent in
@@ -211,6 +215,18 @@ export interface ProjectMusicTrack {
 
 /** Intro-Video (Phase 9.6.6). 'before' = prepend, 'overlay' = transparent
  *  über die ersten 3 Sek. Aktuell unterstützt nur 'before'. */
+/** Phase Builder-3: Zusätzliches Video das im Builder zwischen die Highlight-
+ *  Clips eingefügt werden kann (z.B. Intro-Bumper, Outro, B-Roll). Wird mit
+ *  den selected clips in `clipOrder` gemischt. */
+export interface ProjectExtraVideo {
+  /** 'extra-<uuid>' — eindeutig, kollidiert nicht mit Highlight-Clip-IDs. */
+  id: string;
+  /** file:// URI in documentDirectory/extras/. */
+  path: string;
+  /** Original-Dateiname (Display). */
+  filename?: string;
+}
+
 export interface ProjectIntro {
   /** file:// URI. */
   path: string;
