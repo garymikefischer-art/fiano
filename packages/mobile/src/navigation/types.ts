@@ -53,5 +53,9 @@ export type RootStackParamList = {
       resolution: '720p' | '1080p' | '4k';
       bitrate: '5M' | '10M' | '20M' | '40M' | '80M';
     };
+    /** Builder-Mode: IDs der ausgewählten Clips in Reihenfolge. ExportScreen
+     *  baut daraus per-clip-trim + concat (16:9 YouTube-Cut). Wenn leer/undef
+     *  + mode='builder', fällt's auf Single-Clip-Trim zurück. */
+    builderClipIds?: string[];
   };
 };

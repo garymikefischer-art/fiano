@@ -228,6 +228,14 @@ export interface TikTokExportOpts {
   /* ─── Phase 9.6.6: Intro ─────────────────────────────────────── */
   /** Intro-Video das VOR dem Main-Clip eingeblendet wird ('before'-mode). */
   intro?: { path: string };
+
+  /* ─── Builder-Mode (Phase Builder-1): Per-Clip Trim + Concat ─────
+   * Wenn gesetzt UND >=1 entries: jeder Eintrag wird als separater Trim-Range
+   * aus der EINEN Source extrahiert und via concat-Filter zusammengefügt.
+   * Schliesst sich mit `srcs[]` aus (Multi-Source-Concat), und überschreibt
+   * `trimStart/trimEnd`. Gedacht für Builder-Tab 16:9 YouTube-Cut aus
+   * Highlight-Detection-Output. */
+  clips?: { startSec: number; endSec: number }[];
 }
 
 /**
@@ -266,10 +274,15 @@ export function buildTikTokExportArgs(
   // Trim wird bei Multi-Clip ignoriert (User hat clips bereits vor-getrimmt).
   const sources = opts.srcs && opts.srcs.length >= 1 ? opts.srcs : [opts.src];
   const isMulti = sources.length >= 2;
+  // Builder-Mode (Phase Builder-1): clips[] gegen Single-Source ⇒ per-clip
+  // trim+setpts im filter_complex statt globalem -ss/-t. clips[] hat Vorrang
+  // ggü. trimStart/trimEnd. Mit srcs[] ist es disabled (Multi-Source-Concat
+  // erwartet schon vor-getrimmte Clips).
+  const useClipsConcat = !isMulti && !!opts.clips && opts.clips.length >= 1;
 
   const args: string[] = ['-y'];
 
-  if (!isMulti) {
+  if (!isMulti && !useClipsConcat) {
     if (opts.trimStart && opts.trimStart > 0) {
       args.push('-ss', String(opts.trimStart));
     }
@@ -308,8 +321,8 @@ export function buildTikTokExportArgs(
   // Bei Multi-Clip: pre-scale alle inputs auf 1920x1080 (Source-Intermediate)
   // + concat. Output-Labels [srcV][srcA] werden statt [0:v][0:a] in der Layout-
   // Pipeline genutzt.
-  const srcVLabel = isMulti ? '[srcV]' : '[0:v]';
-  const srcALabel = isMulti ? '[srcA]' : '[0:a]';
+  const srcVLabel = isMulti || useClipsConcat ? '[srcV]' : '[0:v]';
+  const srcALabel = isMulti || useClipsConcat ? '[srcA]' : '[0:a]';
   if (isMulti) {
     const INTERMEDIATE_W = 1920;
     const INTERMEDIATE_H = 1080;
@@ -325,6 +338,30 @@ export function buildTikTokExportArgs(
     }
     const concatPairs = sources.map((_, i) => `[v${i}m][a${i}m]`).join('');
     filters.push(`${concatPairs}concat=n=${sources.length}:v=1:a=1[srcV][srcA]`);
+  } else if (useClipsConcat) {
+    // Builder-Mode: aus EINER Source N Trim-Ranges extrahieren + concat.
+    // Jeder Clip: split → trim=start:end + setpts=PTS-STARTPTS, atrim analog.
+    // [0:v] / [0:a] kann nicht direkt N-fach gelesen werden ohne split — also
+    // 1x split=N → N video-streams; analog asplit=N für audio.
+    const clipsArr = opts.clips!;
+    const n = clipsArr.length;
+    filters.push(`[0:v]split=${n}${Array.from({ length: n }, (_, i) => `[v${i}s]`).join('')}`);
+    filters.push(`[0:a]asplit=${n}${Array.from({ length: n }, (_, i) => `[a${i}s]`).join('')}`);
+    for (let i = 0; i < n; i++) {
+      const c = clipsArr[i];
+      const start = Math.max(0, c.startSec);
+      const end = Math.max(start + 0.04, c.endSec);
+      filters.push(
+        `[v${i}s]trim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
+          `setpts=PTS-STARTPTS,fps=${fps},setsar=1[v${i}m]`,
+      );
+      filters.push(
+        `[a${i}s]atrim=start=${start.toFixed(3)}:end=${end.toFixed(3)},` +
+          `asetpts=PTS-STARTPTS[a${i}m]`,
+      );
+    }
+    const concatPairs = clipsArr.map((_, i) => `[v${i}m][a${i}m]`).join('');
+    filters.push(`${concatPairs}concat=n=${n}:v=1:a=1[srcV][srcA]`);
   }
 
   // Video-Composition: layout-spezifisch. Endet auf [vmain].
