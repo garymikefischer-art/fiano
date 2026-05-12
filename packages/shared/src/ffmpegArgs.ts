@@ -208,13 +208,18 @@ export interface TikTokExportOpts {
   /** Voice-Over-Tracks mit position (startSec im Output) + volume. */
   voiceOvers?: { path: string; startSec: number; volume: number }[];
 
-  /* ─── Phase 9.6.5: Subtitle Burn-In ──────────────────────────── */
-  /** Wenn gesetzt: Subtitle wird via drawtext aufgebrannt.
-   *  - Wenn `cues[]` gegeben → multi-cue burn-in mit enable=between(t,start,end).
-   *  - Sonst → single-line `text` (legacy / Manual). */
+  /* ─── Phase 9.6.5 / 9.6.7h: Subtitle Burn-In ─────────────────────
+   * Drei Modi:
+   *  1) `assPath` gesetzt → libass via `ass`-Filter (volle Style-Parität:
+   *     Gradient, Glow, Drop-Shadow, Layered). Phase 9.6.7h.
+   *  2) `cues[]` gesetzt → drawtext multi-cue (legacy). Style-limitiert.
+   *  3) `text` gesetzt → drawtext single-line (Manual). */
   subtitle?: {
     text: string;
     cues?: { startSec: number; endSec: number; text: string }[];
+    /** Phase 9.6.7h: Pfad zur .ass-Datei. Wenn gesetzt, übernimmt libass — alle
+     *  weiteren Style-Felder hier werden ignoriert (Style steckt in der .ass). */
+    assPath?: string;
     fontSize?: number;
     color?: string;
     strokeColor?: string;
@@ -225,9 +230,23 @@ export interface TikTokExportOpts {
     uppercase?: boolean;
   };
 
-  /* ─── Phase 9.6.6: Intro ─────────────────────────────────────── */
-  /** Intro-Video das VOR dem Main-Clip eingeblendet wird ('before'-mode). */
-  intro?: { path: string };
+  /* ─── Phase 9.6.6 + 9.6.6.1: Intro ────────────────────────────────
+   * Zwei Modi:
+   *  - 'before' (default): Intro spielt komplett, dann Main-Clip via concat.
+   *  - 'overlay': Intro liegt skaliert über den Main-Clip für die ersten
+   *               `durationSec` Sekunden, mit x/y Anker-Position (0..1). */
+  intro?: {
+    path: string;
+    mode?: 'before' | 'overlay';
+    /** overlay-only. 0.2..1.0, Default 1.0. */
+    scale?: number;
+    /** overlay-only. 0..1 horizontale TOP-LEFT-Position auf Output-Frame. */
+    x?: number;
+    /** overlay-only. 0..1 vertikale TOP-LEFT-Position auf Output-Frame. */
+    y?: number;
+    /** overlay-only. Sichtbarkeitsdauer in Sekunden, Default 3. */
+    durationSec?: number;
+  };
 
   /* ─── Builder-Mode (Phase Builder-1): Per-Clip Trim + Concat ─────
    * Wenn gesetzt UND >=1 entries: jeder Eintrag wird als separater Trim-Range
@@ -408,12 +427,21 @@ export function buildTikTokExportArgs(
     );
   }
 
-  // ─── Subtitle Burn-In (drawtext) ────────────────────────────────────
+  // ─── Subtitle Burn-In (libass ODER drawtext) ───────────────────────
+  // Phase 9.6.7h: wenn `assPath` gesetzt → ass-Filter (full style-parity via
+  // libass). Sonst Legacy-Pfad mit drawtext (color + stroke + position only).
   let videoComposed = '[vmain]';
   const sub = opts.subtitle;
-  const hasCues = !!sub?.cues && sub.cues.length > 0;
-  const hasText = !!sub?.text && sub.text.trim().length > 0;
-  if (sub && (hasCues || hasText)) {
+  const hasAss = !!sub?.assPath && sub.assPath.length > 0;
+  const hasCues = !hasAss && !!sub?.cues && sub.cues.length > 0;
+  const hasText = !hasAss && !!sub?.text && sub.text.trim().length > 0;
+  if (sub && hasAss) {
+    // libass-Pfad — ass-Filter konsumiert das Video, output [vsub].
+    // original_size hilft libass beim Resolution-Scaling (.ass deklariert
+    // PlayResX/Y, ass-Filter mappt das auf den tatsächlichen Video-Stream).
+    filters.push(`[vmain]ass=${sub.assPath}:original_size=${W}x${H}[vsub]`);
+    videoComposed = '[vsub]';
+  } else if (sub && (hasCues || hasText)) {
     const fontSize = sub.fontSize ?? 64;
     const fontColor = (sub.color ?? '#ffffff').replace('#', '');
     const strokeColor = (sub.strokeColor ?? '#000000').replace('#', '');
@@ -487,20 +515,40 @@ export function buildTikTokExportArgs(
     filters.push(`[srcAv]anull[aMain]`);
   }
 
-  // ─── Intro-before-Mode: concat Intro + Main ────────────────────────
-  // 'before' = Intro spielt komplett, dann Main-Composition. Beide auf 9:16.
+  // ─── Intro: 'before' (concat) ODER 'overlay' (transparent über Anfang) ──
   let finalVideo: string;
   let finalAudio: string;
-  if (opts.intro && introInputIdx >= 0) {
-    // Intro auf 9:16 cover-cropped
+  const introMode = opts.intro?.mode ?? 'before';
+  if (opts.intro && introInputIdx >= 0 && introMode === 'overlay') {
+    // Phase 9.6.6.1: Intro skaliert + per x/y positioniert + zeitlich begrenzt.
+    const scale = clamp(opts.intro.scale ?? 1.0, 0.2, 1.0);
+    const introW = Math.round(W * scale);
+    const introH = Math.round(H * scale);
+    const xFrac = clamp(opts.intro.x ?? 0, 0, 1);
+    const yFrac = clamp(opts.intro.y ?? 0, 0, 1);
+    // Position misst die TOP-LEFT-Ecke der skalierten Intro. Bei scale<1
+    // multiplizieren wir mit (W - introW) damit x=1 die rechte Kante ist.
+    const overlayX = Math.round((W - introW) * xFrac);
+    const overlayY = Math.round((H - introH) * yFrac);
+    const overlayDur = Math.max(0.5, opts.intro.durationSec ?? 3);
+    filters.push(
+      `[${introInputIdx}:v]scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
+        `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black@0,fps=${fps},setsar=1[introV]`,
+    );
+    filters.push(
+      `${videoComposed}[introV]overlay=${overlayX}:${overlayY}:` +
+        `enable='between(t,0,${overlayDur.toFixed(2)})'[vfinal]`,
+    );
+    finalVideo = '[vfinal]';
+    finalAudio = '[aMain]'; // overlay-Mode behält source-audio (kein intro-audio).
+  } else if (opts.intro && introInputIdx >= 0) {
+    // 'before' = Intro spielt komplett, dann Main-Composition. Beide auf 9:16/16:9.
     filters.push(
       `[${introInputIdx}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,` +
         `crop=${W}:${H},fps=${fps},setsar=1[introV]`,
     );
     filters.push(`[${introInputIdx}:a]aresample=async=1[introA]`);
-    // concat n=2 — Syntax: [v0][a0][v1][a1]concat=n=2:v=1:a=1
-    // FFmpeg erwartet ALTERNATING video+audio pro segment, NICHT [v0][v1][a0][a1].
-    // Vorher: [introV][vsub][introA][aMain] → Media-type-Mismatch-Crash.
+    // concat n=2 erwartet alternating video+audio pro segment: [v0][a0][v1][a1].
     filters.push(
       `[introV][introA]${videoComposed}[aMain]concat=n=2:v=1:a=1[vfinal][afinal]`,
     );

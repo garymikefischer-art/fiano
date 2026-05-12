@@ -57,5 +57,11 @@ export type RootStackParamList = {
      *  baut daraus per-clip-trim + concat (16:9 YouTube-Cut). Wenn leer/undef
      *  + mode='builder', fällt's auf Single-Clip-Trim zurück. */
     builderClipIds?: string[];
+    /** Multi-Source-Builder: Liste der Source-File-URIs in Reihenfolge der
+     *  selected clips. Wenn length >= 2 → Server konkatiert die separaten
+     *  Files (statt aus EINER Source zu trimmen). Mutually exclusive mit
+     *  builderClipIds (Server-FFmpeg-Pipeline nutzt entweder `srcs[]` oder
+     *  filter_complex-clips[]). */
+    builderSourceUris?: string[];
   };
 };
