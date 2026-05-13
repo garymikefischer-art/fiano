@@ -2298,41 +2298,66 @@ function FullModePreview({
   const activeUri = activeItem?.uri ?? sourceUri;
   const activeStart = activeItem ? activeItem.startSec : seekToSec;
   const activeEnd = activeItem && activeItem.endSec > 0 ? activeItem.endSec : -1;
-  // Phase Builder-7: Cumulative-Scrubber für Sequence. totalDur = Σ aller
-  // trimmed item-Längen (oder durationSec wenn single-source). cumulativeSec
-  // = abgespielte items + position-im-aktuellen-item. Wenn ein item endSec=-1
-  // (unknown duration): fallback auf current-item-only display.
+  // Phase Builder-8: probed durations pro source-item (lazy via hidden video).
+  // Erlaubt totalDur-Berechnung selbst wenn endSec=-1 für mehrere items.
+  const [itemDurations, setItemDurations] = useState<Record<string, number>>({});
+  const probeKey = (uri: string, idx: number) => `${idx}-${uri}`;
+
+  // Cumulative-Scrubber für Sequence. totalDur = Σ aller trimmed item-Längen.
+  // Bei item.endSec=-1 (sentinel "ganze Source"): nutze itemDurations[probe-key].
   const totalDur = useMemo(() => {
     if (!hasSequence) return durationSec;
     let total = 0;
-    for (const item of sources!) {
+    for (let i = 0; i < sources!.length; i++) {
+      const item = sources![i];
       if (item.endSec > 0) {
-        total += item.endSec - item.startSec;
-      } else if (durationSec > 0 && item.uri === activeUri) {
-        // current item: nutze probed duration als estimate.
-        total += durationSec - item.startSec;
+        total += Math.max(0, item.endSec - item.startSec);
       } else {
-        return -1; // unknown
+        const probed = itemDurations[probeKey(item.uri, i)] ?? 0;
+        if (probed > 0) {
+          total += Math.max(0, probed - item.startSec);
+        } else if (i === currentIdx && durationSec > 0) {
+          total += Math.max(0, durationSec - item.startSec);
+        } else {
+          // Partial-unknown: kein hard return -1 mehr. User sieht zumindest
+          // partial-total bis duration probed wurde.
+        }
       }
     }
     return total;
-  }, [hasSequence, sources, durationSec, activeUri]);
+  }, [hasSequence, sources, durationSec, currentIdx, itemDurations]);
   const cumulativeSec = useMemo(() => {
     if (!hasSequence) return currentSec;
     let cumul = 0;
     for (let i = 0; i < currentIdx && i < sources!.length; i++) {
       const item = sources![i];
-      const itemDur = item.endSec > 0 ? (item.endSec - item.startSec) : 0;
-      cumul += itemDur;
+      const realEnd = item.endSec > 0
+        ? item.endSec
+        : (itemDurations[probeKey(item.uri, i)] ?? item.startSec);
+      cumul += Math.max(0, realEnd - item.startSec);
     }
     const itemStart = sources![currentIdx]?.startSec ?? 0;
     cumul += Math.max(0, currentSec - itemStart);
     return cumul;
-  }, [hasSequence, sources, currentIdx, currentSec]);
+  }, [hasSequence, sources, currentIdx, currentSec, itemDurations]);
   const displayDur = totalDur > 0 ? totalDur : durationSec;
   const displayCurrent = hasSequence ? cumulativeSec : currentSec;
   const ready = displayDur > 0;
   const progressPct = ready ? (displayCurrent / displayDur) * 100 : 0;
+
+  // Phase Builder-8: probe duration für ALL items in sources[]. Hidden videos
+  // mounten parallel + onLoad-Callback füllt itemDurations. Skipped wenn
+  // endSec bekannt (kein probe nötig) oder bereits probed.
+  const itemsToProbe = useMemo(() => {
+    if (!hasSequence) return [];
+    return sources!
+      .map((item, i) => ({ ...item, idx: i }))
+      .filter(
+        (item) =>
+          item.endSec <= 0 &&
+          !itemDurations[probeKey(item.uri, item.idx)],
+      );
+  }, [hasSequence, sources, itemDurations]);
 
   // Auto-hide für Center-Controls — wie StackedSplitPreview.
   useEffect(() => {
@@ -2593,6 +2618,27 @@ function FullModePreview({
             paused={paused || (introPlaying && introMode === 'before')}
           />
         ))}
+
+      {/* Phase Builder-8: Hidden Probe-Videos für Duration aller items in
+          sources[] mit endSec=-1. Pro item ein 1×1 onLoad → setItemDurations. */}
+      {itemsToProbe.map((item) => (
+        <Video
+          key={`probe-${probeKey(item.uri, item.idx)}`}
+          source={{ uri: item.uri }}
+          paused
+          muted
+          style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
+          onLoad={(d) => {
+            const k = probeKey(item.uri, item.idx);
+            setItemDurations((prev) =>
+              prev[k] ? prev : { ...prev, [k]: d.duration },
+            );
+          }}
+          onError={() => {
+            /* silent fail — probe is best-effort */
+          }}
+        />
+      ))}
 
       {/* Tap-Layer: toggelt controls. Vor erstem Play: tap = togglePlay. */}
       <Pressable
