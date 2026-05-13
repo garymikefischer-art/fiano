@@ -91,22 +91,27 @@ function isBoldStyle(style: string | undefined): number {
   return style === 'bold' || style === 'gaming' || style === 'fiano' ? 1 : 0;
 }
 
-/** SubtitlePosition → ASS-Alignment (numpad). */
-function alignmentFor(position: string | undefined): number {
-  if (position === 'top') return 8; // top-center
-  if (position === 'center') return 5; // middle-center
-  return 2; // bottom-center (default)
+/** SubtitlePosition → ASS-Alignment. Phase Builder-8: wir nutzen IMMER
+ *  middle-center (=5) damit pro-cue `\pos(cx, cy)` den TEXT-CENTER auf
+ *  fixem y verankert. So bleibt eine 1-Zeile und 2-Zeilen-Cue auf gleicher
+ *  Höhe (vorher Alignment=2/8 ⇒ bottom/top-edge fix ⇒ 2-Zeilen rückten
+ *  nach oben hoch). */
+function alignmentFor(_position: string | undefined): number {
+  return 5;
 }
 
-/** MarginV in pixels — Distanz von oberer/unterer Edge bei align 8/2. */
-function marginVFor(position: string | undefined, height: number, customY?: number): number {
-  if (position === 'top') return Math.round(height * 0.06);
-  if (position === 'center') return 0;
+/** Vertical-Center-Y für `\pos(cx, cy)`-Override pro cue. */
+function centerYFor(
+  position: string | undefined,
+  height: number,
+  customY?: number,
+): number {
+  if (position === 'top') return Math.round(height * 0.12);
+  if (position === 'center') return Math.round(height * 0.5);
   if (position === 'custom' && typeof customY === 'number') {
-    // customY = 0..1 von oben; ASS-Margin bei align=2 misst von unten
-    return Math.round(height * (1 - customY));
+    return Math.round(height * customY);
   }
-  return Math.round(height * 0.08); // bottom default
+  return Math.round(height * 0.88); // bottom default
 }
 
 /* ─── Style-Builder ────────────────────────────────────────────────── */
@@ -190,7 +195,9 @@ function buildDefaultStyle(settings: SubtitleSettings, w: number, h: number): St
     back: assColor(shadowColor),
     bold: isBoldStyle(settings.style),
     alignment: alignmentFor(settings.position),
-    marginV: marginVFor(settings.position, h, settings.customY),
+    // Phase Builder-8: MarginV=0 — Position kommt via per-cue \pos-override.
+    // Damit ist 1-Zeile / 2-Zeilen-Text immer auf gleicher vertikaler Mitte.
+    marginV: 0,
     outlineWidth,
     shadow: shadowMax,
     spacing: Math.round((settings.letterSpacing ?? 0) * 10),
@@ -305,6 +312,11 @@ export function buildAssSubtitle(opts: AssBuildOpts): string {
   const style = buildDefaultStyle(settings, width, height);
   const overrides = buildCueOverrides(settings);
   const isLayered = settings.style === 'layered';
+  // Phase Builder-8: per-cue \pos(cx,cy)-Anker. text-center bleibt fix bei
+  // 1-Zeile / 2-Zeilen (alignment=5 = middle-center, kein margin-shift).
+  const cx = Math.round(width / 2);
+  const cy = centerYFor(settings.position, height, settings.customY);
+  const posTag = `\\pos(${cx},${cy})`;
 
   const header = [
     '[Script Info]',
@@ -328,8 +340,12 @@ export function buildAssSubtitle(opts: AssBuildOpts): string {
     const body = isLayered
       ? buildLayeredText(rawText, settings, style.fontsize)
       : escapeAss(rawText);
+    // Override-Prefix: position-tag IMMER FIRST damit es nicht von \1c/\bord
+    // overrides "leaked" wird (ASS-spec: pos kann nur als erstes funktionieren
+    // in der Override-Block — andere Tags davor mischen kann visual flicker).
+    const prefix = `{${posTag}${overrides.replace(/^\{|\}$/g, '')}}`;
     events.push(
-      `Dialogue: 0,${assTime(cue.startSec)},${assTime(cue.endSec)},Default,,0,0,0,,${overrides}${body}`,
+      `Dialogue: 0,${assTime(cue.startSec)},${assTime(cue.endSec)},Default,,0,0,0,,${prefix}${body}`,
     );
   }
 
