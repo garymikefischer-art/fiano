@@ -2467,7 +2467,7 @@ function FullModePreview({
 
   // Intro overlay-style: positioned + scaled bei mode=overlay; sonst full.
   const introIsOverlay = introMode === 'overlay';
-  const introWidthPct = introIsOverlay ? Math.max(0.2, Math.min(1, introScale)) : 1;
+  const introWidthPct = introIsOverlay ? Math.max(0.2, Math.min(4, introScale)) : 1;
   const introLeftPct = introIsOverlay ? introX * (1 - introWidthPct) : 0;
   const introTopPct = introIsOverlay ? introY * (1 - introWidthPct) : 0;
   const introStyle = introIsOverlay
@@ -2580,9 +2580,14 @@ function FullModePreview({
           source={{ uri: introUri }}
           paused={paused || !introPlaying}
           repeat={false}
-          // Phase Builder-9: contain bei overlay (volles Intro sichtbar mit
-          // black bars falls aspect mismatch), cover bei before (full-screen).
-          resizeMode={introMode === 'overlay' ? 'contain' : 'cover'}
+          // Phase Builder-10: bei overlay-mode + scale>1 cover (intro überlappt
+          // Box, kein Letterbox), sonst contain (volles intro mit black bars).
+          // Bei before-mode immer cover (full-screen).
+          resizeMode={
+            introMode === 'overlay'
+              ? introScale > 1 ? 'cover' : 'contain'
+              : 'cover'
+          }
           onEnd={() => setIntroPlaying(false)}
           onError={() => setIntroPlaying(false)}
           style={[
@@ -3004,7 +3009,7 @@ function StackedSplitPreview({
           Pre-mounted für weniger Stutter beim zweiten Play. */}
       {videosActive && introUri && (() => {
         const isOverlay = introMode === 'overlay';
-        const widthPct = isOverlay ? Math.max(0.2, Math.min(1, introScale)) : 1;
+        const widthPct = isOverlay ? Math.max(0.2, Math.min(4, introScale)) : 1;
         const heightPct = widthPct;
         const leftPct = isOverlay ? introX * (1 - widthPct) : 0;
         const topPct = isOverlay ? introY * (1 - heightPct) : 0;
@@ -3024,9 +3029,14 @@ function StackedSplitPreview({
             source={{ uri: introUri }}
             paused={paused || !introPlaying}
             repeat={false}
-            // Phase Builder-9: contain bei overlay damit Intro vollständig
-            // sichtbar ist (kein seitliches Cropping). Cover bei before.
-            resizeMode={introMode === 'overlay' ? 'contain' : 'cover'}
+            // Phase Builder-10: scale>1 = cover (intro überlappt Box),
+            // scale≤1 = contain (volles intro mit Letterbox). Before-mode
+            // immer cover.
+            resizeMode={
+              introMode === 'overlay'
+                ? introScale > 1 ? 'cover' : 'contain'
+                : 'cover'
+            }
             onEnd={() => setIntroPlaying(false)}
             onError={() => setIntroPlaying(false)}
             style={[
@@ -3712,8 +3722,8 @@ function IntroOverlayControls({
         <SimpleSlider
           value={localScale}
           min={0.2}
-          max={1}
-          step={0.05}
+          max={4}
+          step={0.1}
           onChange={setLocalScale}
           onCommit={(v) => {
             haptic.selection();

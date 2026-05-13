@@ -565,7 +565,12 @@ export function buildTikTokExportArgs(
     // begrenzt. Aspect: CONTAIN-mode (decrease+pad) — Intro wird vollständig
     // sichtbar, mit black bars falls aspect mismatch zur Box. RN-Preview nutzt
     // `resizeMode="contain"` zur Parität.
-    const scale = clamp(opts.intro.scale ?? 1.0, 0.2, 1.0);
+    // Phase Builder-10: scale-Range 0.2..4.0. Auto-Mode:
+    //  scale ≤ 1.0 → CONTAIN (decrease+pad): volles Intro sichtbar, evtl. mit
+    //                schwarzen Balken bei aspect mismatch zur Box.
+    //  scale > 1.0  → COVER (increase+crop): Intro überlappt Box, kein Letter-
+    //                box mehr. Crops sind dafür sichtbar.
+    const scale = clamp(opts.intro.scale ?? 1.0, 0.2, 4.0);
     const introW = Math.round(W * scale);
     const introH = Math.round(H * scale);
     const xFrac = clamp(opts.intro.x ?? 0, 0, 1);
@@ -573,9 +578,13 @@ export function buildTikTokExportArgs(
     const overlayX = Math.round((W - introW) * xFrac);
     const overlayY = Math.round((H - introH) * yFrac);
     const overlayDur = Math.max(0.5, opts.intro.durationSec ?? 3);
+    const introFitFilter = scale > 1.0
+      ? `scale=${introW}:${introH}:force_original_aspect_ratio=increase,` +
+        `crop=${introW}:${introH}`
+      : `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
+        `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black`;
     filters.push(
-      `[${introInputIdx}:v]scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
-        `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black,fps=${fps},setsar=1[introV]`,
+      `[${introInputIdx}:v]${introFitFilter},fps=${fps},setsar=1[introV]`,
     );
     filters.push(
       `${videoComposed}[introV]overlay=${overlayX}:${overlayY}:` +
