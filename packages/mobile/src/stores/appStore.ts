@@ -27,6 +27,7 @@ const LAST_PROJECT_KEY = 'fiano.lastOpenedProject';
 // kein Permanent-Credential-Leak-Risiko vergleichbar zu OpenAI-Keys.
 const YOUTUBE_COOKIES_KEY = 'fiano.api.youtube-cookies';
 const SUBTITLE_PRESETS_KEY = 'fiano.subtitle.presets';
+const INTRO_DEFAULTS_KEY = 'fiano.intro.defaults';
 
 /** Region-Coords als Anteile (0..1) auf der Source-Video-Fläche. */
 export interface Region {
@@ -97,6 +98,10 @@ interface AppState {
   exportSettings: ExportSettings;
   /** Letzte projectId die der User in ProjectDetail geöffnet hat — für Tab-Quick-Open. */
   lastOpenedProjectId: string | null;
+  /** Phase Builder-5: Default-Intro-Position-Preset. Wird beim Intro-Pick als
+   *  initial values genutzt — damit User die overlay-Position nicht jedes Mal
+   *  neu eingeben muss. Null = keinem Default (intro-pick startet bei 0/0/1). */
+  introDefaults: { mode: 'before' | 'overlay'; x: number; y: number; scale: number; durationSec: number } | null;
 
   init: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -111,6 +116,10 @@ interface AppState {
   /** Subtitle-Preset speichern (cues werden NICHT mit-persistiert, nur styling). */
   saveSubtitlePreset: (name: string, settings: SubtitleSettings) => Promise<void>;
   removeSubtitlePreset: (id: string) => Promise<void>;
+  /** Phase Builder-5: aktuelle Intro-Position als Default speichern. */
+  setIntroDefaults: (
+    d: { mode: 'before' | 'overlay'; x: number; y: number; scale: number; durationSec: number } | null,
+  ) => Promise<void>;
 }
 
 /** Liest entweder einen JSON-Region oder einen Legacy-Preset-String. */
@@ -151,6 +160,7 @@ export const useAppStore = create<AppState>((set) => ({
   customSubtitlePresets: [],
   exportSettings: DEFAULT_EXPORT,
   lastOpenedProjectId: null,
+  introDefaults: null,
 
   init: async () => {
     try {
@@ -164,6 +174,7 @@ export const useAppStore = create<AppState>((set) => ({
         presetsRaw,
         exportRaw,
         lastProject,
+        introDefaultsRaw,
       ] = await Promise.all([
         SecureStore.getItemAsync(ONBOARDING_KEY),
         SecureStore.getItemAsync(FACECAM_KEY),
@@ -174,6 +185,7 @@ export const useAppStore = create<AppState>((set) => ({
         AsyncStorage.getItem(SUBTITLE_PRESETS_KEY),
         SecureStore.getItemAsync(EXPORT_KEY),
         SecureStore.getItemAsync(LAST_PROJECT_KEY),
+        SecureStore.getItemAsync(INTRO_DEFAULTS_KEY),
       ]);
       let exportSettings = DEFAULT_EXPORT;
       if (exportRaw) {
@@ -193,6 +205,28 @@ export const useAppStore = create<AppState>((set) => ({
           /* keep empty */
         }
       }
+      let introDefaults: AppState['introDefaults'] = null;
+      if (introDefaultsRaw) {
+        try {
+          const parsed = JSON.parse(introDefaultsRaw);
+          if (
+            parsed &&
+            typeof parsed.x === 'number' &&
+            typeof parsed.y === 'number' &&
+            typeof parsed.scale === 'number'
+          ) {
+            introDefaults = {
+              mode: parsed.mode === 'overlay' ? 'overlay' : 'before',
+              x: parsed.x,
+              y: parsed.y,
+              scale: parsed.scale,
+              durationSec: typeof parsed.durationSec === 'number' ? parsed.durationSec : 3,
+            };
+          }
+        } catch {
+          /* keep null */
+        }
+      }
       set({
         onboardingCompleted: onboarding === '1',
         facecamRegion: parseRegion(facecam, FACECAM_PRESETS, DEFAULT_FACECAM),
@@ -204,6 +238,7 @@ export const useAppStore = create<AppState>((set) => ({
         customSubtitlePresets,
         exportSettings,
         lastOpenedProjectId: lastProject ?? null,
+        introDefaults,
         initializing: false,
       });
     } catch {
@@ -323,6 +358,19 @@ export const useAppStore = create<AppState>((set) => ({
     set({ customSubtitlePresets: next });
     try {
       await AsyncStorage.setItem(SUBTITLE_PRESETS_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  },
+
+  setIntroDefaults: async (d) => {
+    set({ introDefaults: d });
+    try {
+      if (d) {
+        await SecureStore.setItemAsync(INTRO_DEFAULTS_KEY, JSON.stringify(d));
+      } else {
+        await SecureStore.deleteItemAsync(INTRO_DEFAULTS_KEY);
+      }
     } catch {
       /* ignore */
     }

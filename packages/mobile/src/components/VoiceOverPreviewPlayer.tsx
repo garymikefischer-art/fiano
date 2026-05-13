@@ -42,6 +42,9 @@ interface Props {
 const DRIFT_THRESHOLD_SEC = 0.3;
 
 export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paused }: Props) {
+  // expo-av setVolumeAsync expects 0..1. UI-volume kann 0..1.5 (loud-TTS).
+  // Clampen für die Preview — Export-Path (FFmpeg amix) ist unaffected.
+  const previewVol = Math.max(0, Math.min(1, volume));
   const soundRef = useRef<InstanceType<NonNullable<AvModule>['Audio']['Sound']> | null>(null);
   const loadedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -50,11 +53,11 @@ export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paus
   const currentSecRef = useRef(currentSec);
   const pausedRef = useRef(paused);
   const startSecRef = useRef(startSec);
-  const volumeRef = useRef(volume);
+  const volumeRef = useRef(previewVol);
   useEffect(() => { currentSecRef.current = currentSec; }, [currentSec]);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
   useEffect(() => { startSecRef.current = startSec; }, [startSec]);
-  useEffect(() => { volumeRef.current = volume; }, [volume]);
+  useEffect(() => { volumeRef.current = previewVol; }, [previewVol]);
 
   // Audio-Mode einmal beim Mount — sichert dass playback klappt auch wenn
   // iOS-Stille-Switch an oder Android-Audio-Session-Constraints.
@@ -112,10 +115,10 @@ export function VoiceOverPreviewPlayer({ uri, startSec, volume, currentSec, paus
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSec, paused, startSec]);
 
-  // Volume sync
+  // Volume sync — clamp auf 0..1 (expo-av), Export-Path unaffected.
   useEffect(() => {
-    void soundRef.current?.setVolumeAsync(volume).catch(() => {});
-  }, [volume]);
+    void soundRef.current?.setVolumeAsync(previewVol).catch(() => {});
+  }, [previewVol]);
 
   /**
    * Sync das Audio zur aktuellen Master-Video-Position. Wird sowohl beim Load
