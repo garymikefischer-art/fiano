@@ -111,6 +111,20 @@ async function playSound(name: SoundName) {
     await snd.setPositionAsync(0);
     await snd.playAsync();
   } catch (e) {
+    // Transient errors (Audio-Focus-Race beim App-Start, Phone-Call-Conflict
+    // etc.) sollen NICHT die ganze Sound-API permanent abschalten — nur das
+    // eine play wird verworfen, future Aufrufe versuchen es neu.
+    const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+    const isTransient =
+      msg.includes('audiofocusnotacquired') ||
+      msg.includes('audio focus') ||
+      msg.includes('interrupted') ||
+      msg.includes('busy');
+    if (isTransient) {
+      // Soft-warn, kein permanent disable.
+      console.warn(`[sounds] transient ${name} failure (will retry):`, msg);
+      return;
+    }
     // Native-Modul fehlt komplett (z.B. zwischen Install + Build) → für den
     // Rest der App-Session stilllegen, sonst Logs-Spam bei jeder Action.
     disableAfterError(name, e);
