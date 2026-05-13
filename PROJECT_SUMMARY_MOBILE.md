@@ -1,15 +1,22 @@
 # 📋 PROJECT SUMMARY — fiano (Mobile + Desktop Hybrid)
 
-> Letzter Update: **Phase 9.6.6 abgeschlossen + UX-Fixes** (Cloud-Render
-> komplett funktional, Multi-Input live, Tab-Navigation mit Quick-Open,
-> Music+TTS+Intro in Preview hörbar/sichtbar, Subtitle-Styling, ExportSettings-
-> Popup). **Nächste offene Phase: 9.6.7 AI-Highlights (Whisper).**
+> **Stand: 2026-05-13** — Builder-Tab Phase 1–10 abgeschlossen.
+> Worker rev `00017-9rh` live. Letzter Backup-Tag: `pre-phase-builder-completed-20260513`.
 
 ---
 
-## 🏗 1. Architektur
+## 1. Architektur
 
-### Monorepo
+### Tech-Stack
+
+| Plattform | Stack |
+|---|---|
+| **Desktop** | Electron 31 (CommonJS Main, Vite-Renderer), TypeScript strict, React 18 + Tailwind + Zustand, react-router HashRouter, bundled FFmpeg (`resources/bin/${os}-${arch}/`), bundled yt-dlp, electron-updater, Supabase Auth+DB, Stripe, Resend SMTP. 9 Sprachen. v0.2.0. |
+| **Mobile** | Expo SDK 52, React Native 0.76, React-Navigation v7, Zustand, react-native-video v6, react-native-svg, expo-av/haptics/localization/secure-store/document-picker/image-picker/video-thumbnails/notifications/blur/file-system/media-library/web-browser/linking, react-native-webview, @react-native-cookies/cookies, expo-navigation-bar. Supabase JS SDK. |
+| **Cloud-Render** | Google Cloud Run (Node 22 + Express + apt-ffmpeg + yt-dlp). Cloudflare R2 (S3-API). |
+
+### Monorepo-Struktur (ABSOLUT KRITISCH — Pfade einprägen!)
+
 ```
 /Users/garyfischer/Downloads/fiano-monorepo/
 ├── src/                          ← Desktop (Electron Main + Renderer)
@@ -17,62 +24,49 @@
 │   ├── preload/
 │   └── renderer/                 ← Vite + React + Tailwind Desktop UI
 ├── packages/
-│   ├── shared/                   ← Geteilt zwischen Desktop + Mobile
-│   │   ├── src/types.ts          ← Project, Highlight, ClipSegment, FacecamRegion …
-│   │   ├── src/subtitles.ts      ← Subtitle-Cue-Parser
+│   ├── shared/                   ← Geteilt Desktop+Mobile (Symlink-Monorepo)
+│   │   ├── src/types.ts          ← Project, Highlight, ClipSegment, SubtitleSettings…
+│   │   ├── src/subtitles.ts      ← SubtitleCue + Transcript-Parser
+│   │   ├── src/ffmpegArgs.ts     ← Plattform-neutral (buildTikTokExportArgs)
+│   │   ├── src/assBuilder.ts     ← SubtitleSettings → libass .ass-Datei
 │   │   ├── src/i18n/             ← 9 Locales (de/en/it/ru/es/fr/pt/nl/pl)
-│   │   └── src/ffmpegArgs.ts     ← Plattform-neutrale FFmpeg-Argument-Builder
-│   │                                inkl. buildTikTokExportArgs (stacked/split/full
-│   │                                + audio-mix + subtitles + intro)
-│   └── mobile/                   ← React-Native + Expo SDK 52
-│       ├── src/screens/          ← Home/Library/ProjectDetail/Export/Add/Settings
+│   │   └── src/index.ts          ← Barrel-Export
+│   └── mobile/                   ← Expo + React Native
+│       ├── App.tsx               ← Root: Auth/Tabs/Theme
+│       ├── app.config.js         ← Inline-Plugin für largeHeap (Android)
+│       ├── app.json              ← Expo Base-Config
+│       ├── src/screens/          ← ProjectDetail, Export, AddVideoProject, Library, etc.
 │       ├── src/components/       ← VideoPlayer, RegionCroppedVideoPlayer,
-│       │                          StackedSplitPreview, RegionPreviewCard,
-│       │                          SubtitleSettingsModal, SubtitleOverlay,
-│       │                          ColorPickerModal, MiniColorPicker,
-│       │                          MultiAudioPicker, VoiceOversSection,
-│       │                          TtsModal, SimpleSlider
+│       │                          SubtitleSettingsModal/Overlay, MultiAudioPicker,
+│       │                          MusicPreviewPlayer, VoiceOverPreviewPlayer,
+│       │                          SimpleSlider, CueEditorModal, ExportSettingsModal
 │       ├── src/stores/           ← Zustand: app/auth/projects/notifications/jobs
-│       ├── src/lib/              ← env, supabase, sounds, haptics, thumbnails,
-│       │                          pushNotifications, tts, renderJob (Cloud-API)
-│       ├── plugins/with-large-heap.js  (legacy, durch app.config.js ersetzt)
-│       ├── app.config.js         ← Inline Expo-Config-Plugin für largeHeap
-│       └── app.json              ← Expo Base-Config
-├── services/
-│   └── render-worker/            ← Cloud Run FFmpeg-Worker (Phase 9.6)
-│       ├── Dockerfile            ← Node 22 + apt FFmpeg
-│       ├── src/index.ts          ← Express + /v1/upload-url + /v1/render
-│       ├── src/auth.ts           ← Supabase JWT Auth-Middleware
-│       ├── src/r2.ts             ← Cloudflare R2 (S3-kompatibel) Storage
-│       ├── src/render.ts         ← FFmpeg-spawn + Timeout + Progress-Log
-│       └── README.md             ← Full deployment guide
-├── PROJECT_SUMMARY.md            ← Desktop-Summary (v0.2.0)
-└── PROJECT_SUMMARY_MOBILE.md     ← (diese Datei)
+│       ├── src/lib/              ← supabase, sounds, haptics, thumbnails,
+│       │                          pushNotifications, tts, whisper, renderJob
+│       └── src/navigation/       ← Root + MainTabs Param-Types
+└── services/
+    └── render-worker/            ← Cloud Run FFmpeg-Worker (separates Deploy)
+        ├── Dockerfile            ← Node 22 + apt-ffmpeg + yt-dlp
+        ├── src/index.ts          ← Express + Endpoints
+        ├── src/auth.ts           ← Supabase JWT-Middleware
+        ├── src/r2.ts             ← Cloudflare R2 (S3 via @aws-sdk)
+        ├── src/render.ts         ← FFmpeg-spawn + Timeout + Progress
+        ├── src/transcribe.ts     ← Whisper API word-timestamps + Highlight
+        ├── src/audioEnergy.ts    ← ebur128 audio-peak detection
+        ├── src/highlights.ts     ← Phrase + audio-energy heuristics
+        └── src/youtube.ts        ← yt-dlp wrapper
 ```
 
-### Desktop Stack
-- Electron 31 (CommonJS Main, Vite-built Renderer)
-- TypeScript strict, React 18 + Tailwind + Zustand + react-router HashRouter
-- **Bundled FFmpeg** (per-arch in `resources/bin/${os}-${arch}/`) — lokal, kein Cloud
-- Bundled yt-dlp, electron-updater
-- Supabase (Auth + Subscriptions), Stripe, Resend SMTP
-- 9 Sprachen via shared i18n
-- Aktuell **v0.2.0**
+### Wichtige Systeme
 
-### Mobile Stack
-- Expo SDK 52, React Native 0.76
-- React-Navigation v7 (Stack + BottomTabs)
-- Zustand für State
-- expo-av (Sounds), react-native-video v6 (Player), react-native-svg (gradient subtitle)
-- expo-haptics, expo-localization, expo-secure-store, AsyncStorage
-- expo-document-picker, expo-image-picker, expo-video-thumbnails, expo-notifications
-- expo-blur (Liquid-Glass-Tabbar), expo-file-system (HTTP-Upload + persistente Files)
-- Supabase JS SDK (gleiche Auth wie Desktop)
-- **Phase 9.6.6 abgeschlossen** — Cloud-Render läuft
+- **media:// Custom-Protocol** (Desktop): lokale Video/Audio mit Range-Support
+- **Job Queue** (Desktop, `core/queue.ts`): serialisiert FFmpeg-Pipelines (concurrency=1)
+- **IPC Layer**: typed Channels `IpcResponse<T>`
+- **Cloud-Render API** (Mobile, `lib/renderJob.ts`): Multi-File-Upload + signed-URL-PUT-zu-R2
+- **Settings persistent**: Desktop `userData/*.json` + safeStorage; Mobile expo-secure-store + AsyncStorage
+- **Mobile File-Persistence** in `documentDirectory/{imports,thumbs,voice-overs,exports,thumbnails}/`
 
-### Cloud-Render-Infrastructure (Phase 9.6+)
-**Architektur** ohne lokales FFmpeg auf Mobile — wegen Patent-Risiko (MPEG LA H.264/H.265)
-und Hardware-Limits (Vivo OOM-Crashes):
+### Cloud-Render-Pipeline
 
 ```
 Mobile (Expo)              Google Cloud Run         Cloudflare R2
@@ -81,312 +75,241 @@ POST /v1/upload-url    →   pre-signed PUT-URL
 PUT file               ─────────────────────→       sources/{user}/...
 POST /v1/render        →   ├ download from R2 ←     (parallel files)
    { inputs:                ├ ffmpeg ${args}
-     {source, intro?,        ├ upload result   ──→  outputs/{user}/...
-      music?[], vo?[]},      └ pre-signed DL-URL
+     {source/sources,        ├ upload result   ──→  outputs/{user}/...
+      intro?, music?[],      └ signed DL-URL
+      voiceOvers?[],
+      subtitle?(.ass)},
      args[], projectId }
-GET signed-URL         ←   signed-DL-URL
-   (download to phone)  ←─────────────────────       outputs/...
+GET signed-URL         ←   signed-DL-URL                 outputs/...
 ```
 
-**Kostenmodell:**
-- Cloud Run: **scale-to-zero** — 0€/Monat wenn niemand exportiert
-- R2: **unlimited free egress** (Killer-Feature ggü. Supabase Storage)
-- Free-Tier deckt ~10000 Renders/Monat — bei MVP gratis, später ~5-15€/Monat
+**Args-Platzhalter** (Server ersetzt mit tmp-Pfaden — Anti-Injection):
+`{SRC}`, `{SRC_N}`, `{INTRO}`, `{MUSIC_N}`, `{VO_N}`, `{ASS}`, `{DST}`
 
-### Wichtige Systeme
-- **media:// Custom Protocol** (Desktop) — lokale File-URIs für Video/Audio mit Range-Support
-- **Job Queue** (Desktop, `core/queue.ts`) — serialisiert FFmpeg-Pipelines
-- **IPC Layer** — typed Channels mit `IpcResponse<T>`
-- **Cloud-Render API** (Mobile, `lib/renderJob.ts`) — Multi-File-Upload + signed-URL-PUT-zu-R2
-- **Settings** persistent in:
-  - Desktop: `userData/app-defaults.json`, `userData/api-key.enc`
-  - Mobile: `expo-secure-store` (encrypted)
-- **AsyncStorage** (Mobile) für Projekte + Notifications
-
-### Mobile File-Persistence
-Gepickte Videos/Audio via `persistInDocuments()` aus temp-Cache in
-`FileSystem.documentDirectory/imports/` (Videos), `/thumbs/` (Frames),
-`/voice-overs/` (TTS-MP3s), `/exports/` (Cloud-Render-Results).
+**Kostenmodell:** Cloud Run scale-to-zero, R2 unlimited free egress, Free-Tier ≈ 10k Renders/Monat.
 
 ---
 
-## ✅ 2. FERTIG (Mobile, alles getestet)
+## 2. Features die FERTIG sind
 
-### Auth + i18n (Phase 9.4.2 → 9.4.9)
-- Login / Signup mit Supabase + 9-Sprach-i18n + Geräte-Locale-Detection
-- Settings: Sign-out, Delete-Account-Stub, Language-Picker, Replay-Onboarding
+### Auth + i18n + Onboarding
+- Supabase Email-Login, Geräte-Locale-Detection (9 Sprachen)
+- Settings: Sign-out, Language-Picker, Replay-Onboarding
+- 4-Slide Carousel beim Erststart, persistent
 
-### Navigation (9.4.3 → 9.4.5)
-- BottomTab-Liquid-Glass-Bar (BlurView, Capsule-Indicator)
-- 5 Tabs: Home / Projects / Clips / TikTok / Builder
+### Navigation
+- Liquid-Glass-BottomTab: Home / Projects / Clips / TikTok / Builder / Thumbs
 - Modals: AddVideoProject, Search, RegionPicker, LanguagePicker, Notifications, Pricing
 - Sub-Screens: ProjectDetail (4 Tabs), Settings, Help, Legal, Onboarding, Export
 
-### UI / Theme (9.4.3 → 9.5)
-- Dark-Mode mit roter Brand-Identität
-- BackgroundGlow (SVG-Radial-Gradients)
-- LiquidGlassTabBar mit dynamic Insets
-- 5 prozedurale Sounds via expo-av
-- Haptics bei jeder Aktion
+### Project Detail mit 4 Tabs
+- **Highlights**: AI-Clip-Liste, Multi-Select, Re-Analyze, „Build YouTube video" → Builder
+- **Manual**: Mark-In/Out, Clip-Liste
+- **9:16 (TikTok)**: Stacked/Split/Full Layout, Region-Cards, Subs/Music/TTS/Intro/Export
+- **Builder**: 16:9 YouTube-Cut mit Highlights + Extra-Videos, Per-Clip-Trim, Concat-Export
 
-### Onboarding (9.4.10)
-- 4-Slide Carousel bei Erststart, persistiert via SecureStore
+### Cloud-Render-Worker
+- /health, /v1/upload-url (kinds: source/intro/music/voice-over/subtitle)
+- /v1/render (Multi-Input-Pipeline mit unified clips[].src? trim+concat)
+- /v1/download (yt-dlp YouTube/Twitch → R2)
+- /v1/transcribe (Whisper word-level + audio-energy + Highlight-Detection)
+- Worker rev `00017-9rh` deployed
 
-### Project Detail mit 4 Tabs (Phase 9.4.28 → 9.5)
-- **Highlights**: VideoPlayer + Multi-Select + Build-YouTube → Builder
-- **Manual**: Mark-In/Out + Clip-Liste
-- **9:16 (TikTok)**: Layout-aware Preview, Region-Cards, Subtitle-Modal, TTS, Music, Intro
-- **Builder**: Reorder Up/Down + ClipOrder
+### FFmpeg-Args (`shared/ffmpegArgs.ts`)
+- `buildTikTokExportArgs` mit:
+  - `layout='full' | 'stacked' | 'split'`, `splitRatio`, `fullOffsetX`
+  - Audio: `sourceAudioVolume`, `music[]`, `voiceOvers[]`
+  - `subtitle`: entweder `assPath` (libass) ODER `cues[]` (drawtext-legacy)
+  - `intro`: mode `before|overlay`, scale 0.2..4.0, x/y, durationSec, **Auto-Fit-Mode**
+    (contain ≤1.0, cover >1.0)
+  - `clips[].src?`-Index (per-source-trim mit unique sources[])
+  - `srcs[]` (multi-source-concat ohne trim)
 
-### VideoPlayer Pro Controls (9.4.25)
-- Mute / Skip ±5s / Tap+Drag Scrubber
-- Auto-Hide nach 2.5s
-- HEVC-Error-Overlay mit Hint
+### Subtitle System (Phase 9.6.7a-h + Builder-4 + Builder-8)
+- **Whisper word-timestamps** (`granularities=word`) → cue.words[]
+- **Chunking** via word-array (echtes Per-Word-Timing, kein proportional mehr)
+- **Cue-Mapping**: 9:16 trim-shift, Builder Multi-Clip an primarySource gebunden
+- **libass (.ass) Renderer** mit full Style-Parität:
+  - Glow (\blur+\bord+\3c), Drop-Shadow (\xshad/\yshad+\4c+blur)
+  - Layered (per-word \fs+\1c-Switching mit highlightFontScale, highlightDropShadow, highlightGlow)
+  - Metallic: Silver-blend approximation (blend gradientFrom↔gradientTo, gewichtet 0.4)
+  - **Position-Stability** (Phase Builder-8): pro-cue `{\pos(cx,cy)\an5}` middle-center →
+    1-Zeile + 2-Zeilen-Cue gleicher vertikaler Mitte
+- **Cue-Editor** (Modal): text-only editing pro cue
+- **30+ Properties** wie Desktop, **15+ Android-System-Fonts**
+- **SVG-basierter Preview** (RN/react-native-svg) für Gradient/Metallic/Glow/Shadow
 
-### Stacked/Split-Preview mit echtem Region-Crop (Phase 9.5.1 → 9.5.4)
-- `RegionCroppedVideoPlayer` — Image.getSize + cover-fit-math
-- `StackedSplitPreview` — zentrales Control (Master-Slave-Sync, click-to-play)
-- `RegionPreviewCard` — separate Cards unten mit Snap-Presets
-- Aspect-mismatch korrekt behandelt
+### Audio/Video Add-Ons
+- **Music** Multi-Picker mit per-Track Volume (0..1.5 UI; clamp 0..1 preview, 0..1.5 export)
+- **TTS Voice-Over** (OpenAI tts-1, voices alloy/echo/fable/nova/onyx/shimmer)
+- **Intro**: Pick + Mode-Toggle (before/overlay) + IntroOverlayControls
+  - 4 Quick-Presets (Top/Center/Bottom/Full)
+  - 4 Slider: X/Y/Scale 0.2..4.0/Duration 0.5..30s
+  - **Save-as-default-Preset** (appStore.introDefaults) → nächster Intro-Pick übernimmt
+  - **Auto-Fit-Mode**: scale ≤1 contain, scale >1 cover
+- **Live-Preview** (`FullModePreview` + `StackedSplitPreview`):
+  - Alle Add-Ons sichtbar/hörbar
+  - Tap-to-Play, Mute, Skip ±5s, Replay, Scrubber mit Tap+Drag, Auto-Hide nach 2.5s
+  - **Cumulative Scrubber** für Builder-Sequenz (Phase Builder-7+8): probed durations
+    via hidden 1×1 Video, total = Σ aller items, Scrubber-thumb cumulative
+  - **Sequential Multi-Source-Playback**: alle items (Highlights+Extras) hintereinander mit auto-advance
 
-### Facecam-Size-Slider (Phase 9.5.3)
-- `SimpleSlider` (PanResponder-based, JS-only)
-- splitRatio persistiert auf project, default 0.4
-- Live-Reflektion in Stacked-Preview
-
-### TTS Voice-Over (Phase 9.5.5)
-- `TtsModal` mit Sprache/Gender/Voice/Text
-- OpenAI TTS-API (`lib/tts.ts`) — model `tts-1`, voices alloy/echo/fable/nova/onyx/shimmer
-- Audio in `documentDirectory/voice-overs/` persistiert
-- `VoiceOversSection` mit Liste + Edit + StartSec-Slider + Volume-Slider
-
-### Subtitle-Styling Modal (Phase 9.5.6)
-- `SubtitleSettingsModal` mit allen 30+ Properties analog Desktop
-- `SubtitlePreviewCard` + `SubtitleOverlay` (auch in Stacked-Preview live)
-- `ColorPickerModal` mit Hex + RGB-Sliders + 24-Preset-Grid
-- 15+ Android-System-Fonts + Custom-Input
-- SVG-basierter Gradient/Metallic-Render via react-native-svg
-- Drop-Shadow + Glow via SVG `<Filter>` mit FeGaussianBlur (echter Multi-Pass)
-- Strict `enabled === true` Checks (verhindert false-positive cross-effect-Pollution)
-- Enable-Toggle als erste Section im Modal
-
-### Cloud-Render-Worker (Phase 9.6.1)
-- Google Cloud Run mit Node 22 + apt FFmpeg
-- Cloudflare R2 Storage (S3-kompatibel via @aws-sdk)
-- Express + JWT-Auth (Supabase Service-Role)
-- Endpoints: GET /health, POST /v1/upload-url, POST /v1/render
-- `largeHeap=true` via Expo-Config-Plugin (Vivo-Compat)
-- Setup-Anleitung in `services/render-worker/README.md`
-
-### Cloud-Export End-to-End (Phase 9.6.2)
-- `lib/renderJob.ts` mit Multi-File-Upload (parallel PUT zu R2)
-- ExportScreen verkabelt — Phases uploading/rendering/saving/done
-- Save zu Camera-Roll via expo-media-library
+### Cloud-Export End-to-End
+- ExportSettingsModal vor Export (Resolution 720p/1080p/4k, FPS 24/30/60, Bitrate 5M..80M)
+- `runRenderJob`: Multi-File-Upload + Render + Save-to-Camera-Roll
 - Local-Notification bei Done
+- Phase + Cancel-Button im ExportScreen
+- 9:16 (1080×1920) ODER 16:9 (1920×1080) auto
 
-### FFmpeg-Args für TikTok-Composition (Phase 9.6.3 - 9.6.6)
-- `buildTikTokExportArgs` in shared/ffmpegArgs.ts (plattform-neutral)
-- **Stacked**: split=2 + crop(facecam) + crop(gameplay) + vstack mit aspect-fix
-- **Split**: hstack analog
-- **Full**: center-cover-crop
-- **Subtitle**: drawtext mit color/stroke/position
-- **Audio-Mix**: amix von [src][music][voiceOvers] mit volume + adelay
-- **Intro**: concat n=2:v=1:a=1 mit prepended intro-clip
-- **Platzhalter-System**: `{SRC}` `{INTRO}` `{MUSIC_N}` `{VO_N}` `{DST}` — Server ersetzt
-  mit echten tmp-Pfaden (Anti-Injection)
+### Builder-Tab (Phase 1–10 abgeschlossen)
+- **TikTok-Parität**: alle Add-Ons persistent auf `project.*`
+- **Extra-Videos**: pick + Trim-Editor pro Extra (probed duration via hidden Video)
+- **Per-Source-Trim Pipeline** (`clips[].src?`-index): Highlights + Extras gemischt mit
+  unique `sourceUris[]`, ffmpeg `split=N` pro source + trim+setpts+concat
+- **Sequential Preview**: alle items hintereinander mit cumulative-Scrubber
+- **16:9 Export** mit layout='full' + named-args crop-Filter (single-quotes für `min(iw,...)`)
+- **Multi-Clip-Import-Support**: `endSec=0` (DocumentPicker liefert keine Duration) → `-1`-sentinel
+  → BIG_TRIM_END im ffmpeg trim
+- **Cumulative Scrubber + Total-Length-Display**
 
----
+### Gemini Thumbnails (Phase 9.8)
+- ThumbnailGeneratorScreen mit Genre-Chips (**Custom first** seit heute)
+- Style-Picker (default/comic/realistic)
+- Prompt-Form + Reference-Image-Picker
+- API: `gemini-2.5-flash-image-preview`, camelCase inlineData
+- Auto-fetch Models + History-Gallerie pro Projekt
+- Persistent in `documentDirectory/thumbnails/{projectId}/`
 
-## 🟡 3. TEILWEISE FERTIG
-
-### Phase 9.6 — Multi-Input nicht testweise deployed
-- Worker-Code v0.3.0 mit Multi-Input ist im claude-Branch gepusht
-- **User muss noch redeployen** mit `gcloud run deploy --source .`
-- Erster Single-Export (nur Stacked) bereits getestet — funktionierte
-- Audio-Mix + Subtitle-Burn-In + Intro **noch nicht getestet**
-
-### Intro Overlay-Mode (Phase 9.6.6)
-- 'before'-Mode (prepend) funktioniert
-- **'overlay'-Mode (transparent über erste 3s)** noch nicht — braucht overlay-filter
-  mit x/y/scale-position
-- Intro-Position x/y wäre Phase 9.6.6.1
-
-### AI-Highlights (Whisper) — Phase 9.6.7
-- UI komplett (Highlights-Tab)
-- **Fehlt**: Whisper-API-Call, Cue-Parsing, Auto-Clip-Selection
-- Server-side: neuer Endpoint `/v1/transcribe` mit OpenAI Whisper API
-
-### Builder Multi-Clip-Import + Drag-Reorder
-- UI im AddVideoProjectScreen sichtbar (mit „SOON"-Badge)
-- **Fehlt**: Project-Modell `sourceUris[]` statt single `sourceUri`
-- **Fehlt**: BuilderTab multi-source-concat-args
-- **Fehlt**: Drag-to-Reorder via `react-native-draggable-flatlist` (Native-Dep)
-
-### Thumbnail-Generierung on-demand
-- Beim Import via expo-video-thumbnails ✓
-- **Fehlt**: alte Projekte ohne `thumbUri` → automatisch im Hintergrund extrahieren
-  beim Library-Open oder ProjectDetail-Open
+### i18n × 9 vollständig
+- Alle Builder + TikTok + Intro-Position + Export-Strings in 9 Locales
+- ~65 neue Keys pro File (Phase Builder-2)
 
 ---
 
-## 📋 4. Offene TODOs (priorisiert)
+## 3. Features die TEILWEISE fertig sind
 
-### 🔴 HIGH — Sofortige nächste Phasen
+### Highlight-Detection (Whisper-Pipeline)
+- ✅ Server-side word-timestamps + segment-cues
+- ✅ Audio-Energy via ebur128 (1 Hz peaks)
+- ✅ SHORT (gaming, 6-20s) + LONG (podcast, 20-60s) Profile
+- 🟡 Quality bei Fortnite-Audio teilweise schwach (background-game-sounds dominieren → wenige Cues)
+- 🟡 Multi-Clip-Import: Whisper analysiert nur `sourceUri` (= sourceUris[0]), nicht andere clips
 
-1. **Phase 9.6 Multi-Input testen** (User-Action): redeploy + Test mit Music/VO/Intro
-2. **Phase 9.6.7 — AI-Highlights via Whisper**
-   - Server: `/v1/transcribe` Endpoint mit OpenAI Whisper API
-   - Mobile: `lib/whisper.ts` analog `lib/tts.ts`
-   - Highlights-Algorithmus aus Desktop nach `packages/shared/` portieren
-   - Project-Status `analyzing → ready` mit clips[]
-3. **Builder Multi-Clip-Import** (User-Wunsch)
-   - DemoProject: `sourceUris?: string[]` zusätzlich zu single sourceUri
-   - BuilderTab: Liste von Clips mit Reorder
-   - FFmpeg-Args: concat-demuxer für Multi-Source
+### Subtitle-Styling
+- ✅ Drawtext (color + stroke + position + uppercase + chunking) — legacy fallback
+- ✅ libass mit Glow/Drop-Shadow/Layered/Metallic-Approximation
+- 🟡 Metallic im Export = blend-Single-Color (libass kann keine echten Gradients)
+- 🟡 Layered Big-Word-Zoom-Animation (Desktop hat \t() zoom) — Mobile static
 
-### 🟡 MEDIUM
+### Intro Overlay
+- ✅ Position x/y/scale (0.2..4.0) + Duration (0.5..30s) + Save-as-default Preset
+- ✅ Auto-Fit-Mode (contain/cover je nach scale)
+- 🟡 Letterbox bei intro-File mit eigenen black bars (workaround: scale > 1.0)
 
-4. **Phase 9.6.6.1 — Intro x/y Position** (für overlay-mode)
-   - DemoProject.intro: `{ scale, x, y }` analog Desktop's `DEFAULT_INTRO_OVERLAY`
-   - UI: Position-Picker (Top/Center/Bottom/Full + custom x/y)
-   - FFmpeg overlay-filter mit `x=W*${x}:y=H*${y}`
-5. **Thumbnail-Generierung on-demand** für alte Projekte
-   - Library-Mount/ProjectDetail-Open: wenn `!thumbUri && sourceUri` → background-extract
-6. **Phase 9.7 — Light-Theme**
-   - Theme-Provider via React-Context oder dedicated Store
-   - Color-Tokens (`lib/theme.ts`) mit dark/light Maps
-   - BackgroundGlow-Variant für Light
-   - Settings → Appearance: System / Dark / Light
-7. **Phase 9.8 — Thumbnails-Page mit Gemini**
-   - Eigener Tab in ProjectDetail (5.) ODER eigener Screen
-   - Game-Switcher (Fortnite/Warzone/Valorant/Custom)
-   - Gemini-Image-Generation API
-   - History-Galerie
-8. **Phase 9.9 — YouTube/Twitch URL-Import** via Supabase Edge-Function mit yt-dlp
-9. **Phase 9.10 — AI-Highlights Mobile** (Vollausbau)
-
-### 🟢 LOW
-
-10. **Phase 9.11 — Multi-Clip Manual-Mode** (mit Builder zusammen)
-11. **Phase 9.13 — Cross-Device-Sync** via Supabase storage + RLS-table
-12. **Phase 9.14 — Effects-System Mobile** (motionBlur, filter-Presets) — braucht
-    FFmpeg-Filter `eq`, `colorbalance`, `unsharp`, `minterpolate`
-13. **Phase 9.15 — Push-Token-Registrierung** beim Login (Expo-Push-Token in Supabase
-    profile-Tabelle für server-side Pushes)
-14. **Phase 9.16 — Auto-Update Mobile (EAS Update)**
-    - JS-only-OTA-Patches ohne Store-Review
-    - Setup: `npm install -g eas-cli`, `eas update:configure`, dann
-      `eas update --channel production` bei jedem Release
-    - Settings → "Check for updates" Button (Desktop hat das schon)
-15. **ExportSettings-Popup** vor Export-Klick (FPS/Resolution/Bitrate override per Export)
+### Audio-Volume Range
+- ✅ Music/VO UI 0..1.5
+- ✅ Export 0..1.5 (FFmpeg amix)
+- ✅ Preview clamp 0..1 (expo-av-Limit)
 
 ---
 
-## 🔄 5. Workflow-Referenz
+## 4. Offene TODOs (priorisiert)
 
-### Code-Änderungen propagieren (Desktop + Mobile)
-- **`packages/shared/`** → wirkt auf BEIDE Plattformen automatisch (Monorepo-Symlink)
-- **`src/`** → nur Desktop
-- **`packages/mobile/`** → nur Mobile
-- **`services/render-worker/`** → nur Cloud-Worker (separates Deploy)
+### 🔴 HOCH
 
-### Mobile-Workflow
-```bash
-# JS-only-Änderungen (Stores, Components, Screens, FFmpeg-Args)
-cd packages/mobile && npm run start:clear   # Metro mit Cache-Reset
-# Im Metro-Terminal: r → Reload auf dem Phone
+| # | Task | Aufwand | Notes |
+|---|---|---|---|
+| 1 | **Supabase RLS-Setup** | 1-2h | Vor Cross-Device-Sync Pflicht. `auth.uid() = user_id` Policies auf allen User-Tabellen |
+| 2 | **Phase 9.10 Thumbnail-on-demand** | ~1h | Alte Library-Cards ohne thumbUri beim Mount extrahieren |
+| 3 | **Phase 9.11 Multi-Clip Manual + Drag-Reorder** | 2-3h | `react-native-draggable-flatlist` |
+| 4 | **Multi-Clip-Import + Whisper** | 1-2h | Mehrere sources analysieren ODER warn-Hint |
 
-# Native-Änderungen (neue native deps oder app.json plugin-Änderungen)
-ANDROID_SERIAL=10AF7Y16R70010X npx expo prebuild --clean
-ANDROID_SERIAL=10AF7Y16R70010X npx expo run:android
-# 3–5 min beim ersten Mal, danach inkrementell
-```
+### 🟡 MITTEL
 
-### Desktop-Workflow
-```bash
-npm run dev          # electron-vite dev
-npm run build:mac    # produktion DMG für Apple Silicon + Intel
-npm run release:mac  # bauen + zu GitHub-Releases publishen (= triggert
-                     # electron-updater bei allen Installationen)
-```
+| # | Task | Aufwand | Notes |
+|---|---|---|---|
+| 5 | **Phase 9.7 Light-Theme** | 4-6h | `lib/theme.ts` + Settings → Appearance Switch |
+| 6 | **Phase 9.14 Effects-System Mobile** | 3-4h | `clip.effects`, FFmpeg eq/colorbalance/unsharp |
+| 7 | **Phase 9.13 Cross-Device-Sync** | 6-8h | Supabase + RLS (!), Storage-Bucket, Pull-Sync |
+| 8 | **Phase 9.9 YouTube/Twitch URL-Import Mobile** | 2-3h | Worker `/v1/download` existiert, Mobile-UI fehlt |
 
-### Cloud-Render-Worker-Workflow
-```bash
-cd services/render-worker
-# Lokal testen:
-npm run dev   # läuft auf localhost:8080
+### 🟢 PRE-LAUNCH
 
-# Production deploy (Cloud Run):
-gcloud run deploy fiano-render-worker \
-  --source . \
-  --region europe-west1 \
-  --allow-unauthenticated \
-  --memory 2Gi --cpu 2 --timeout 600 \
-  --max-instances 10 --min-instances 0
-# env-vars bleiben vom letzten Deploy — bei neuen vars --set-env-vars dazu
+| # | Task | Aufwand | Notes |
+|---|---|---|---|
+| 9 | **Phase 9.15 Push-Token-Registrierung** | ~2h | Expo-Push-Token bei Login in Supabase profiles |
+| 10 | **Phase 9.16 EAS Auto-Update** | ~3h | JS-only-OTA, kein Store-Review |
+| 11 | **Phase 9.17 RevenueCat IAP** | 6-8h | Subscription-Gateway |
 
-# Logs lesen:
-gcloud run services logs read fiano-render-worker --region europe-west1 --limit 50
-```
+### 📌 Desktop-Feature-Audit (Mobile-Lücken)
 
-### Git-Workflow (sehr wichtig)
-- **Claude arbeitet in `claude/<branch>` im Worktree** unter `.claude/worktrees/...`
-- Branch wird zu GitHub gepusht: `garymikefischer-art/fiano`
-- **User merged via**:
-  ```bash
-  cd /Users/garyfischer/Downloads/fiano-monorepo
-  git fetch origin
-  git merge --no-ff origin/claude/<branch-name> -m "merge: <description>"
-  ```
-- Vor jeder größeren Phase: `git tag pre-phase-9.X && git push --tags`
-- Rollback: `git reset --hard <tag>`
-
-### Auto-Update-Strategie
-- **Desktop** (vollständig wired):
-  1. Code-Änderungen committen, in main mergen
-  2. `git tag v0.2.X` (z.B. v0.2.1) und `git push --tags`
-  3. `npm run release:mac` (oder release:win) — bauen + GitHub-Releases-Upload
-  4. Bestehende Installs prüfen via electron-updater + ziehen automatisch
-  5. `.env` muss im Worktree liegen vor DMG-Build
-- **Mobile** (noch nicht wired, Phase 9.16):
-  - EAS Update für JS-only-OTA (kein Store-Review)
-  - Settings → "Check for updates" + Auto-Check-on-Start
-  - Native-Updates (z.B. neue expo-modules) gehen weiterhin nur über App-Store-Release
-- **Cloud-Worker**:
-  - Kein Auto-Update — manueller `gcloud run deploy` bei Code-Änderungen
-  - Cloud Run macht automatisch Health-Check + Zero-Downtime-Rollout
+| Feature | Status Mobile |
+|---|---|
+| Color-Correction (lift/gamma/gain) | ❌ fehlt |
+| Effects-Manager (eq/colorbalance/unsharp/motionBlur) | ❌ Phase 9.14 |
+| Multi-Cam-Sync (Audio-Waveform-Alignment) | ❌ fehlt |
+| Audio-Ducking (Source dimmen bei TTS) | ❌ fehlt |
+| Watermark Overlay | ❌ fehlt |
+| YT-Direct-Upload (OAuth + YouTube Data API v3) | ❌ fehlt |
+| Custom-Subtitle-Templates (Style-Presets Bibliothek) | ✅ via `customSubtitlePresets` |
+| Layered big-word Zoom-Animation | 🟡 static da, \t() animation fehlt |
+| Color-Picker mit Eyedropper | ✅ via ColorPickerModal |
+| Drag-Reorder im Builder | 🟡 nur Up/Down-Buttons, kein DragDrop |
+| Cross-Device-Sync | ❌ Phase 9.13 |
+| Push-Notifications | ❌ Phase 9.15 |
+| Subscription / Pricing | ❌ Phase 9.17 |
+| Auto-Updates | ❌ Phase 9.16 |
 
 ---
 
-## 📊 6. Datenmodell (Mobile)
+## 5. Datenmodell
 
-### Project (`packages/mobile/src/data/demoProjects.ts`)
+### Project (`packages/mobile/src/data/demoProjects.ts` + `packages/shared/src/types.ts`)
+
 ```ts
 interface DemoProject {
   id, title, subtitle, durationSec, status, thumbHue, clips,
   // Source
-  sourceUri?, sourceUrl?, thumbUri?, mode?, videoType?, sourceType?,
-  trimStart?, trimEnd?, createdAt?,
+  sourceUri?, sourceUris?, sourceUrl?, thumbUri?, videoType?, sourceType?,
+  trimStart?, trimEnd?, createdAt?, mode?,
   // Regions / Layout
-  facecamRegion?: {x,y,w,h} | null,
-  gameplayRegion?: {x,y,w,h},
-  splitRatio?: number,          // 0.2..0.8, default 0.4
+  facecamRegion?: Region | null,
+  gameplayRegion?: Region,
+  splitRatio?: number,         // 0.2..0.8 default 0.4
+  fullOffsetX?: number,        // 0..1
   tiktokLayout?: 'stacked' | 'full' | 'split',
-  // Clips
-  clipOrder?: string[],
+  clipOrder?: string[],        // clip-IDs + extra-IDs gemischt
   // Add-Ons
   voiceOvers?: ProjectVoiceOver[],
   subtitles?: SubtitleSettings,
   musicTracks?: ProjectMusicTrack[],
   musicShuffle?: boolean,
   intro?: ProjectIntro,
+  builderExtras?: ProjectExtraVideo[],
   // Misc
   errorMessage?: string,
+  thumbnails?: GeneratedThumb[],
 }
 
-interface ProjectVoiceOver { path, startSec, volume, text?, voice? }
-interface ProjectMusicTrack { path, filename?, volume }
-interface ProjectIntro { path, filename?, mode?: 'before'|'overlay' }
+interface DemoClip { id, startSec, endSec, label, score, thumbUri? }
+
+interface ProjectIntro {
+  path, filename?,
+  mode?: 'before' | 'overlay',
+  scale?: number,        // 0.2..4.0
+  x?, y?: number,        // 0..1
+  durationSec?: number,  // 0.5..30s overlay-only
+}
+
+interface ProjectExtraVideo {
+  id, path, filename?,
+  durationSec?, trimStart?, trimEnd?: number,
+}
+
+interface SubtitleCue {
+  text, startSec, endSec,
+  words?: { text, startSec, endSec }[],  // Phase Builder-4 word-timestamps
+}
 
 interface SubtitleSettings {
   enabled, style: 'default'|'bold'|'gaming'|'fiano'|'layered',
@@ -395,216 +318,351 @@ interface SubtitleSettings {
   strokeEnabled?, strokeWidth?, strokeColor?,
   glowEnabled?, glowBlur?, glowStrength?, glowColor?,
   shadowEnabled?, shadowOffsetX?, shadowOffsetY?, shadowColor?, shadowBlur?,
-  metallic?, maxWordsPerChunk?, highlightWords?,
-  // Layered-Style
+  metallic?, maxWordsPerChunk?,
+  highlightWords?, cues?,
+  // Layered-specific:
   highlightUseGradient?, highlightGradientFrom?, highlightGradientTo?,
   highlightFontScale?, highlightDropShadow?, highlightMetallic?,
   highlightGlow?, highlightGlowColor?, highlightGlowStrength?,
 }
 ```
 
-### App-Settings (`packages/mobile/src/stores/appStore.ts`)
+### App-Settings
+
 ```ts
-interface Region { x, y, w, h: number }  // 0..1
-interface ExportSettings {
-  fps: 24|30|60,
-  resolution: '720p'|'1080p'|'4k',
-  bitrate: '5M'|'10M'|'20M'|'40M'|'80M',
-}
 interface AppState {
   initializing, onboardingCompleted,
   facecamRegion: Region | null,
   gameplayRegion: Region,
-  openaiKey: string,         // SecureStore: fiano.api.openai
-  geminiKey: string,         // SecureStore: fiano.api.gemini
-  exportSettings: ExportSettings,
+  openaiKey, geminiKey, youtubeCookies,
+  customSubtitlePresets, exportSettings,
+  lastOpenedProjectId,
+  introDefaults: { mode, x, y, scale, durationSec } | null,  // Phase Builder-5
 }
 ```
 
-### Shared Types (`packages/shared/src/types.ts`)
-Desktop+Mobile shared: `TikTokLayout = 'full'|'stacked'|'split'`, `SubtitleStyle`, `SubtitleSettings`, `Highlight`, `ClipSegment`, `ClipEffects`, etc.
+### Nav-Types
 
-### FFmpeg-Args Shared Builder (`packages/shared/src/ffmpegArgs.ts`)
 ```ts
-buildMobileExportArgs(opts)        // single-video legacy (deprecated)
-buildTikTokExportArgs(opts)        // ↑ aktuelle main-Function
-  - layout: 'stacked'|'full'|'split'
-  - facecamRegion, gameplayRegion, splitRatio
-  - sourceAudioVolume?, music?[], voiceOvers?[], subtitle?, intro?
-  - return: string[] mit {SRC},{DST},{INTRO},{MUSIC_N},{VO_N} Platzhaltern
+Export: {
+  sourceUri, trimStart, trimEnd, sourceDuration,
+  mode?: 'highlights'|'manual'|'tiktok'|'builder',
+  projectId?, exportSettings?,
+  builderItemPlan?: { sourceUri, trimStart, trimEnd }[]  // Phase Builder-3
+}
 ```
 
 ---
 
-## 🐛 7. Bekannte Bugs / Limits (Stand 9.6.6)
+## 6. Bekannte Bugs / Limits
 
-| Bug / Limit | Status | Fix-Path |
+| Bug / Limit | Status | Notes |
 |---|---|---|
-| Multi-Input-Worker noch nicht gedeployed | User-Action pending | `gcloud run deploy --source .` |
-| Intro 'overlay'-Mode mit x/y nicht implementiert | by-design (9.6.6.1) | overlay-Filter + Position-Picker |
-| AI-Highlights ohne echte Detection | by-design (9.6.7) | Whisper-Pipeline |
-| Builder Multi-Source-Concat fehlt | by-design (9.11) | Schema-Erweiterung + FFmpeg concat-demuxer |
-| Alte Projekte ohne thumbUri zeigen schwarzen BG | by-design | Auto-Generate on-demand |
-| Vivo V40 Lite HEVC mit 1 Decoder | env-dependent | Click-to-play implemented, beide Streams parallel laden — bei 2 HEVC könnte trotzdem trouble geben |
-| Mobile-Cancel von laufendem Cloud-Render | by-design | Soft-Cancel (UI), Worker läuft bis MAX_DURATION_SEC |
+| Whisper-Quality bei Fortnite-Audio | by-design | Background-game-sounds dominieren |
+| Multi-Clip-Import Whisper nur sourceUri[0] | by-design | Eigene Pipeline nötig |
+| Intro Letterbox bei intro-File mit eigenen black bars | Workaround | scale > 1.0 cropt eigene bars weg |
+| Layered Big-Word-Zoom-Animation fehlt | Phase 9.6.7i (post-MVP) | libass kann \t() animation |
+| Mobile-Cancel von laufendem Cloud-Render | by-design | Soft-Cancel, Worker läuft bis MAX_DURATION_SEC |
+| Vivo HEVC 1-Decoder | env-dependent | 2 HEVC parallel = OOM-Risk |
+| Drag-to-Seek in Builder-Scrubber wirkt nur in current item | Phase Builder-11 (TODO) | Item-Switch via Drag nicht impl |
 
 ---
 
-## 🎯 8. Wichtige Designentscheidungen
+## 7. Wichtige Designentscheidungen
 
-- **16:9 Master-First** (Desktop) — Pipeline rendert IMMER 16:9 als Master pro Highlight, alles weitere (9:16, Builder-Concat) leitet davon ab
-- **TikTok-Tab ≠ Builder** — TikTok = pro-Clip-Export mit Layout/Effects/Subs. Builder = Multi-Clip-Concat NUR für YouTube
-- **Manual-Mode ohne AI** — Quick-9:16 + Multi-Clip-Import bypass'd Whisper
-- **Cloud-Render statt Local FFmpeg auf Mobile** (Phase 9.6) — wegen Patent-Risiko (MPEG LA) + Hardware-Constraints (Vivo OOM)
-- **R2 statt Supabase Storage** — unlimited free egress vs. 2 GB/Monat
-- **Click-to-play in Stacked-Preview** — vor User-Tap kein Video-Decoder aktiv
-- **Mobile Files persistent** in documentDirectory (überlebt App-Restart)
-- **safeStorage / SecureStore** für API-Keys — nie Klartext
-- **Job Queue concurrency=1** (Desktop) — FFmpeg saturiert eh Hardware
-- **Lazy-Load Native-Module** — alle expo-Module via try/catch + cached null. App boot auch ohne neuen Native-Build
-- **Strict subtitle-flag-Checks** — `enabled === true` statt fallback-? um cross-effect Pollution zu vermeiden
+- **16:9 Master-First** (Desktop): Pipeline rendert IMMER 16:9 als Master, alles weitere leitet davon ab
+- **TikTok-Tab ≠ Builder-Tab**: TikTok = pro-Clip 9:16; Builder = Multi-Clip 16:9
+- **Manual-Mode ohne AI**: Quick-9:16 + Multi-Clip-Import bypass'd Whisper
+- **Cloud-Render statt Local-FFmpeg auf Mobile**: MPEG-LA-Patent-Risiko + Hardware-Constraints
+- **R2 statt Supabase Storage**: unlimited free egress vs. 2 GB/Monat
+- **Click-to-play in Stacked-Preview**: vor User-Tap kein Video-Decoder
+- **Lazy-Load Native-Module** (`try/catch + cached null`): Boot ohne Native-Build
+- **Files persistent** in documentDirectory (überlebt App-Restart)
+- **safeStorage / SecureStore** für API-Keys
+- **Job-Queue concurrency=1** (Desktop): FFmpeg saturiert Hardware
+- **Strict subtitle-flag-Checks** (`enabled === true`): cross-effect-Pollution-Schutz
+- **Per-Source-Trim Pipeline** (Phase Builder-3): unified `builderItemPlan[]` deckt
+  single-source-with-clips, multi-source-without-trim, mixed-extras-with-trim ab
+- **libass für Subtitle-Style-Parität** (Phase 9.6.7h): drawtext nur Fallback
+- **introDefaults-Preset** (Phase Builder-5): einmal einstellen, beim nächsten Pick automatisch
 
 ---
 
-## 💾 9. Storage / Folder / Git / Sync
+## 8. Workflow-Referenz
 
-### Speicherorte Mobile
+### Code-Propagation Desktop ↔ Mobile
+
+- **`packages/shared/`** → wirkt auf BEIDE Plattformen automatisch (Symlink-Monorepo)
+- **`src/`** → nur Desktop
+- **`packages/mobile/`** → nur Mobile
+- **`services/render-worker/`** → nur Cloud-Worker (separates Deploy nötig)
+
+### Mobile-Workflow
+
+```bash
+# JS-only-Änderungen (Stores, Components, Screens, FFmpeg-Args, Subtitle-Style):
+cd packages/mobile && npm run start:clear   # Metro mit Cache-Reset
+# Im Metro-Terminal: r → Reload auf Phone
+
+# Native-Änderungen (neue native deps ODER app.json plugin-Änderungen):
+ANDROID_SERIAL=10AF7Y16R70010X npx expo prebuild --clean
+ANDROID_SERIAL=10AF7Y16R70010X npx expo run:android
+# 3–5 min beim ersten Mal, danach inkrementell
+
+# Phone-Serial: ANDROID_SERIAL=10AF7Y16R70010X (Vivo V40 Lite, Mediatek)
 ```
-expo-secure-store      — API-Keys, Onboarding-Flag, Sprache, Sounds-Mute, Region-Defaults
-AsyncStorage           — Projekte (fiano.projects), Notifications (fiano.notifications)
-documentDirectory/imports/      — Source-Videos persistent
+
+### Desktop-Workflow
+
+```bash
+npm run dev          # electron-vite dev
+npm run build:mac    # production DMG für Apple Silicon + Intel
+npm run release:mac  # build + GitHub-Releases-Upload
+                     # → triggert electron-updater bei allen Installationen
+```
+
+### Cloud-Render-Worker-Workflow
+
+```bash
+cd services/render-worker
+npm run dev   # lokal auf localhost:8080
+
+# Production deploy:
+gcloud run deploy fiano-render-worker \
+  --source . --region europe-west1 \
+  --memory 2Gi --cpu 2 --timeout 600 \
+  --max-instances 10 --min-instances 0
+# env-vars bleiben vom letzten Deploy. Bei NEUEN: --set-env-vars KEY=VAL
+
+# Logs:
+gcloud run services logs read fiano-render-worker --region europe-west1 --limit 50
+
+# Health:
+curl https://fiano-render-worker-491699066139.europe-west1.run.app/health
+```
+
+---
+
+## 9. Git-Workflow
+
+### Claude-Worktree-Pattern
+
+- Claude arbeitet in `claude/<branch-id>` unter `.claude/worktrees/<branch-id>/`
+- Branch wird zu `origin/garymikefischer-art/fiano` gepusht
+- **User merged in main** vom Root-Repo:
+
+```bash
+cd /Users/garyfischer/Downloads/fiano-monorepo
+git stash       # falls uncommitted Sachen (App.tsx etc.) liegen
+git fetch origin
+git merge --no-ff origin/claude/<branch-name> -m "merge: <description>"
+git push origin main
+git stash pop
+```
+
+### Backup-Strategie
+
+```bash
+# Vor jeder größeren Phase:
+git tag pre-phase-X.Y-backup && git push origin pre-phase-X.Y-backup
+
+# Rollback (nur eigenen branch!):
+git reset --hard pre-phase-X.Y-backup
+```
+
+**Aktuelle Backup-Tags (auf GitHub):**
+- `pre-phase-builder-completed-20260513` ← **aktuell**
+- `pre-phase-builder-v2-20260512`
+- `pre-phase-builder-20260512`
+- `pre-phase-9.8-completed-backup`
+
+### Auto-Update-Strategien
+
+| Plattform | Mechanismus | Status |
+|---|---|---|
+| **Desktop** | `git tag v0.2.X` → `npm run release:mac` → electron-updater pulls auto on app-start | ✅ wired |
+| **Mobile** | EAS Update für JS-only-OTA (`eas update --channel production`) | ❌ Phase 9.16 |
+| **Cloud-Worker** | `gcloud run deploy` manuell, Zero-Downtime-Rollout | ✅ wired |
+
+**Desktop Release-Flow:**
+```bash
+# Code-Änderungen committen + in main mergen
+git tag v0.2.X && git push --tags
+npm run release:mac     # bauen + GitHub-Releases-Upload
+# electron-updater pulls bei allen Installs automatisch beim nächsten Start
+```
+
+**Worker Deploy-Flow** (manuell bei Code-Änderungen in services/render-worker/):
+```bash
+cd services/render-worker
+gcloud run deploy fiano-render-worker --source . --region europe-west1 \
+  --memory 2Gi --cpu 2 --timeout 600 --max-instances 10 --min-instances 0
+```
+
+---
+
+## 10. Quick-Reference
+
+- **Worker-URL**: `https://fiano-render-worker-491699066139.europe-west1.run.app`
+- **Worker-Rev**: `00017-9rh` (Phase Builder-5 deployed — word-timestamps aktiv)
+- **GitHub-Repo**: `garymikefischer-art/fiano`
+- **Aktueller Branch zum Mergen**: `claude/exciting-yalow-924ed7`
+- **Letzter Commit**: `ff098c7` (Thumbnail Custom-Game first)
+- **Backup-Tag**: `pre-phase-builder-completed-20260513`
+- **Letzte Phase**: Builder-10 (Intro scale 0..4 + Auto-Fit-Mode)
+
+### Speicherorte
+
+#### Mobile
+```
+expo-secure-store      — API-Keys, Onboarding-Flag, Sprache, Sounds-Mute,
+                         Region-Defaults, exportSettings, lastOpenedProject,
+                         introDefaults
+AsyncStorage           — Projekte (fiano.projects), Notifications,
+                         YouTube-Cookies, customSubtitlePresets
+documentDirectory/imports/      — Source-Videos
 documentDirectory/thumbs/       — extrahierte Frame-Thumbnails
 documentDirectory/voice-overs/  — TTS-MP3s
 documentDirectory/exports/      — Cloud-Render-Results
-cacheDirectory/        — Picker-Tempfiles (OS cleant)
+documentDirectory/thumbnails/   — Gemini-generated thumbnails
+cacheDirectory/        — Picker-Tempfiles (OS cleant), .ass-tmp
 ```
 
-### Speicherorte Desktop
+#### Desktop
 ```
 userData/projects/{id}/exports/    — 16:9 Master-MP4s
-userData/app-defaults.json         — facecam, gameplay, splitRatio
+userData/app-defaults.json         — facecam, gameplay, splitRatio, etc.
 userData/api-key.enc + gemini-key.enc — safeStorage encrypted
 ```
 
-### Cloud-Render Storage (R2)
+#### Cloud R2
 ```
 fiano-renders/sources/{userId}/{projectId}/{kind}-{uuid}-{idx}.{ext}
-  kinds: source.mp4, intro.mp4, music-0.mp3, voice-over-0.mp3, …
+  kinds: source.mp4, intro.mp4, music-N.mp3, voice-over-N.mp3, subtitle.ass
   Lifecycle: 1 Tag (auto-delete)
 
 fiano-renders/outputs/{userId}/{projectId}/{jobId}.mp4
-  Lifecycle: 7 Tage (User hat Zeit zum Download)
+  Lifecycle: 7 Tage
 ```
 
-### Synchronisation Mobile ↔ Desktop
-- **Geteilter Code**: `packages/shared/` — Änderungen wirken auf beide
-- **Geteilte Auth**: Supabase, beide Plattformen sehen denselben User
-- **Projekte sind LOKAL pro Plattform**: Cross-Sync wäre Phase 9.13
-- **Settings nicht synced**: API-Keys, Capture-Regions, Export-Defaults sind PER-DEVICE
+---
 
-### Backups
-- **Vor jeder Phase: git tag**. Aktuelle Tags (Auswahl): `pre-phase-9.5.1`, `pre-phase-9.5.2`, …, `pre-phase-9.6.1`
-- **Rollback**: `git reset --hard <tag>` lokal
-- **Worktree-Pattern**: Claude-Branches landen in `claude/<branch>/worktree`, User merged in main
+## 11. SYSTEM-PROMPT für nächsten Chat (copy-paste)
+
+```
+Hi! Ich arbeite an "fiano" — einer Hybrid-Desktop+Mobile-Video-App mit Cloud-
+Render-Backend. Wir haben gerade Builder-Tab Phase 1–10 abgeschlossen (TikTok-
+Parität + per-source-trim + libass + Intro x/y/scale + Sequential-Preview +
+word-sync Subtitles). Volle Doku in:
+/Users/garyfischer/Downloads/fiano-monorepo/PROJECT_SUMMARY_MOBILE.md
+(~500 Zeilen — lies sie zuerst).
+
+# SYSTEM-PROMPT
+Du bist Senior-Software-Engineer und arbeitest mit dem User an "fiano" —
+einer Hybrid-Desktop+Mobile-Video-App mit Cloud-Render-Backend.
+
+**Stack:**
+- Desktop: Electron 31 + TypeScript + React 18 + Tailwind + Zustand +
+  bundled FFmpeg + bundled yt-dlp + Supabase + Stripe + electron-updater.
+  9 Sprachen. v0.2.0.
+- Mobile: Expo SDK 52 + React Native 0.76 + react-native-video v6 +
+  react-native-svg + expo-av/secure-store/document-picker etc. Zustand.
+- Cloud-Render: Google Cloud Run (Express + Node 22 + apt-ffmpeg + yt-dlp)
+  + Cloudflare R2 (S3-API). Endpoints: /v1/upload-url, /v1/render,
+  /v1/download, /v1/transcribe (Whisper word-timestamps).
+  Args-Platzhalter: {SRC}/{SRC_N}/{INTRO}/{MUSIC_N}/{VO_N}/{ASS}/{DST}.
+
+**Working Dir (IMMER hier arbeiten):**
+/Users/garyfischer/Downloads/fiano-monorepo/
+
+**GitHub:** garymikefischer-art/fiano
+
+**Monorepo-Struktur:**
+- src/ — Desktop (Electron Main + Renderer)
+- packages/shared/ — geteilt (types.ts, ffmpegArgs.ts, assBuilder.ts, subtitles.ts, i18n/)
+- packages/mobile/ — Expo + React Native
+- services/render-worker/ — Cloud Run FFmpeg-Worker (separates Deploy)
+
+**Arbeitsstil:** Deutsch, MVP-First, Plan zeigen → OK abwarten → implementieren.
+i18n × 9 immer. Vor jeder größeren Phase: git tag pre-phase-X.Y-backup && git push --tags.
+PROJECT_SUMMARY_MOBILE.md im Repo-Root hat alle Details — lies sie zuerst.
+
+**Memory-Feedback (sehr wichtig):** Nach JEDEM Code-Ship schreibe einen
+"🧪 Was du testen sollst"-Block mit Shell-Befehlen + Click-Path + Expected-
+Outcomes. User-Wunsch vom 2026-05-12.
+
+**WICHTIG für Mobile:**
+- Native-Module via lazy-load mit try/catch (sounds.ts/haptics.ts pattern)
+- Source-Files via persistInDocuments() in documentDirectory speichern
+- Settings via expo-secure-store (encrypted) ODER AsyncStorage (große Daten)
+- Bei neuer Native-Dep ODER app.json-plugin-Änderung:
+  npx expo prebuild --clean && npx expo run:android (3-5 min)
+- JS-only-Änderungen: npm run start:clear (NICHT nur r bei Env-Var-Änderungen!)
+- Phone-Serial: ANDROID_SERIAL=10AF7Y16R70010X (Vivo V40 Lite, Mediatek,
+  256 MB default heap, braucht largeHeap=true via app.config.js)
+
+**WICHTIG für Cloud-Worker:**
+- Bei Code-Änderungen in services/render-worker/: redeploy via
+  cd services/render-worker && gcloud run deploy fiano-render-worker
+  --source . --region europe-west1 --memory 2Gi --cpu 2 --timeout 600
+  --max-instances 10 --min-instances 0
+- env-vars bleiben vom letzten Deploy. Bei neuen: --set-env-vars dazu.
+- Logs: gcloud run services logs read fiano-render-worker --region europe-west1 --limit 50
+- Health: curl https://fiano-render-worker-491699066139.europe-west1.run.app/health
+
+**Git-Workflow:**
+Claude arbeitet in Worktree-Branch claude/<id> unter .claude/worktrees/<id>/.
+Branch wird zu origin gepusht. User merged in main von Root-Repo:
+  cd /Users/garyfischer/Downloads/fiano-monorepo
+  git stash; git fetch origin
+  git merge --no-ff origin/claude/<branch-name> -m "merge: <description>"
+  git push origin main; git stash pop
+
+**Auto-Update-Strategie:**
+- Desktop (wired): git tag v0.2.X → npm run release:mac → electron-updater pulls
+- Mobile (Phase 9.16, NICHT wired): EAS Update geplant
+- Cloud-Worker (manuell): gcloud run deploy bei jedem Code-Update
 
 ---
 
-## 🚀 10. Roadmap — Nächste Phasen
+# Nächste Phasen (priorisiert)
 
-### Phase 9.6.7 — AI-Highlights via Whisper [HIGH]
-- Server: neuer Endpoint `/v1/transcribe` mit OpenAI Whisper API
-- Mobile: `lib/whisper.ts`, Project-Status-Workflow `analyzing → ready`
-- Highlight-Algorithm: Audio-Spike-Detection (gaming) ODER LLM (podcast)
-- Optional: client-side audio-extract via FFmpeg-on-Cloud-Run statt full source-upload
+🔴 HOCH:
+1. **Supabase RLS-Setup** (1-2h) — Pflicht vor Cross-Device-Sync
+2. **Phase 9.10 Thumbnail-on-demand** (~1h) — alte Library-Cards ohne thumbUri
+3. **Phase 9.11 Multi-Clip Manual + Drag-Reorder** (2-3h) — react-native-draggable-flatlist
+4. **Multi-Clip-Import + Whisper** (1-2h) — sources[1..N] analysieren ODER warn-Hint
 
-### Phase 9.6.6.1 — Intro Position Adjust [HIGH]
-- DemoProject.intro: `{ scale, x, y }` analog Desktop's DEFAULT_INTRO_OVERLAY
-- UI: Position-Picker im Add-Ons-Block (Top/Center/Bottom/Full + custom)
-- FFmpeg overlay-filter `[main][introV]overlay=W*${x}:H*${y}:enable='between(t,0,${dur})'`
+🟡 MITTEL:
+5. **Phase 9.7 Light-Theme** (4-6h)
+6. **Phase 9.14 Effects-System Mobile** (3-4h)
+7. **Phase 9.13 Cross-Device-Sync** (6-8h, mit RLS!)
+8. **Phase 9.9 YouTube/Twitch URL-Import Mobile** (2-3h)
 
-### Phase 9.11 — Multi-Clip Manual-Mode [HIGH]
-- Project-Type-Erweiterung: `sourceUris: string[]` statt single
-- BuilderTab unterstützt multi-source-concat (FFmpeg concat-demuxer)
-- AddVideoProject „Import multiple clips"-Card aktivieren
-- Drag-to-Reorder via `react-native-draggable-flatlist` (Native-Dep) — alternativ Up/Down-Buttons wie aktuell
+🟢 PRE-LAUNCH:
+9. **Phase 9.15 Push-Token** (~2h)
+10. **Phase 9.16 EAS Auto-Update** (~3h)
+11. **Phase 9.17 RevenueCat IAP** (6-8h)
 
-### Phase 9.7 — Light-Theme [MEDIUM]
-- Theme-Provider via Context oder Store
-- Color-Tokens `lib/theme.ts` mit dark/light Maps
-- Migration aller hardcoded `#0d0509`, `#f1f2f2`, `rgba(255,16,57,…)` zu Tokens
-- Settings → Appearance: System/Dark/Light Switch
-- BackgroundGlow-Variant für Light
-
-### Phase 9.8 — Thumbnails-Page mit Gemini [MEDIUM]
-- Sub-Tab oder Screen in ProjectDetail
-- Game-Switcher (Fortnite/Warzone/Valorant/Custom)
-- Prompt-Form + Reference-Image-Picker
-- Gemini-API-Call mit `useAppStore.geminiKey`
-- Auto-fetch models → Dropdown
-- History-Gallerie pro Projekt
-
-### Phase 9.9 — YouTube/Twitch-URL-Import [MEDIUM]
-- Supabase Edge-Function `download-video` mit yt-dlp
-- Mobile fetch'd Video als Stream → file://
-- Status-Tracking während Download
-
-### Phase 9.10 — Thumbnail-Generation on-demand [LOW]
-- Library-/ProjectDetail-Mount: wenn alte Projekt-Daten ohne thumbUri
-- Background `extractVideoThumbnail(sourceUri, 1000)` + `updateProject({ thumbUri })`
-
-### Phase 9.12 — ExportSettings-Override-Modal [LOW]
-- Vor Export-Click: Modal mit FPS/Resolution/Bitrate
-- "Use settings defaults" vs "Custom this export"
-- User pickt, dann start
-
-### Phase 9.13 — Cross-Device-Sync [LOW]
-- Supabase `projects`-Tabelle mit RLS
-- Storage-Bucket für Source+Thumb
-- Desktop pulls — und umgekehrt
-
-### Phase 9.14 — Effects-System (Mobile) [LOW]
-- `clip.effects: ClipEffects` analog Desktop
-- TikTok-Tab + Builder-Tab Effects-Section
-- FFmpeg-Filter `eq`, `colorbalance`, `unsharp`, `minterpolate`
-
-### Phase 9.15 — Push-Token-Registrierung [LOW]
-- Beim Login Expo-Push-Token holen
-- In Supabase profile-Tabelle speichern
-- Server-side Pushes via Edge-Functions
-
-### Phase 9.16 — Auto-Update Mobile (EAS Update) [LOW]
-- `eas update:configure` einrichten
-- Setting → "Check for updates" Button
-- Auto-Check-on-Start
-- `eas update --channel production` bei jedem Release
+📌 Desktop-Feature-Audit (Mobile-Lücken):
+- Color-Correction, Effects-Manager, Multi-Cam-Sync, Audio-Ducking,
+  Watermark, YT-Direct-Upload, Layered-Big-Word-Animation
 
 ---
 
-**Letzter Stand (Stand: Phase 9.6.6 + UX-Fixes):**
-- Worker-URL: `https://fiano-render-worker-491699066139.europe-west1.run.app`
-- Branch: `claude/wizardly-merkle-27113a` (in main mergen)
-- Cloud-Render End-to-End funktional (Stacked + Music + TTS + Subtitle + Intro)
-- Live-Preview zeigt alle Add-Ons (Music/TTS hörbar, Intro sichtbar mit Restart-Replay)
-- Bottom-Nav: Highlights/9:16/Builder öffnen direkt das zuletzt geöffnete Projekt
-  via tabPress-Listener (preventDefault — kein Back-Button-Loop mehr)
-- ExportSettings-Modal: Auflösung/FPS/Bitrate-Override vor jedem Export
+# Quick-Reference
+- Worker-URL: https://fiano-render-worker-491699066139.europe-west1.run.app
+- Worker-Rev: 00017-9rh
+- Aktueller Branch: claude/exciting-yalow-924ed7
+- Letzter Commit: ff098c7 (Thumbnail Custom-Game first)
+- Backup-Tag: pre-phase-builder-completed-20260513
 
-**Aus alten Phasen 9.4.x noch offen:**
-- 🟡 Google Sign-In (nur Email-Auth wired, OAuth über expo-auth-session fehlt)
-- 🟡 Delete-Account-Flow (Stub-Alert — Supabase RPC noch nicht wired)
-- 🟢 Onboarding-Tooltips (interaktive Spotlights — low priority)
-- 🟡 Builder Multi-Source-Concat (im Add-Dialog "Multi-Clip" mit SOON-Badge) → Phase 9.11
-- 🟡 Highlights AI-Detection (Whisper-Pipeline) → Phase 9.6.7
-- 🟡 YouTube/Twitch URL-Import (Stub mit Coming-Soon-Alert) → Phase 9.9
+Bitte lies PROJECT_SUMMARY_MOBILE.md durch und sag dann was du als ersten
+Schritt empfiehlst. Vor Start: git tag pre-phase-X.Y-backup && git push --tags.
+```
 
-**Erledigt in 9.5-9.6:**
-✅ Stacked-Preview + Region-Crops + Aspect-Fix
-✅ Audio-Mix (Music + TTS + Source) — Server + Mobile-Preview
-✅ Subtitle-Burn-In via drawtext (Placeholder-Text bis Whisper, dann echte Cues)
-✅ Intro-before-Mode (concat) — Preview mit Pre-Mount + Restart-Replay
-✅ TTS-Modal mit OpenAI (Sprache/Gender/Voice/Text)
-✅ Subtitle-Styling (30+ Properties, SVG-Gradient/Metallic/Glow/Shadow,
-   ColorPicker-Popup mit Hex+RGB+Presets, 15+ Android-System-Fonts)
-✅ Cloud-Render-Worker auf Cloud Run + Cloudflare R2 Storage
-✅ ExportSettings-Modal vor Export (Resolution/FPS/Bitrate + "Save as default")
-✅ Tab-Navigation: Bottom-Tabs öffnen direkt das letzte Projekt im richtigen Tab
+---
+
+**Stand 2026-05-13** — Builder-Tab Phase 1–10 abgeschlossen.
+Commit `ff098c7` + Backup-Tag `pre-phase-builder-completed-20260513`.
+Worker rev `00017-9rh` aktiv.
