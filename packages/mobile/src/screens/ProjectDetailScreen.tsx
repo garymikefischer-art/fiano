@@ -2292,14 +2292,47 @@ function FullModePreview({
   const off = Math.min(1, Math.max(0, offsetX));
   const leftPct = -216 * off;
   const isPortrait = aspect < 1;
-  const ready = durationSec > 0;
-  const progressPct = ready ? (currentSec / durationSec) * 100 : 0;
   // Active sequence-item: bei sources[] der currentIdx, sonst single sourceUri.
   const hasSequence = !!sources && sources.length > 0;
   const activeItem = hasSequence ? sources![currentIdx] : null;
   const activeUri = activeItem?.uri ?? sourceUri;
   const activeStart = activeItem ? activeItem.startSec : seekToSec;
   const activeEnd = activeItem && activeItem.endSec > 0 ? activeItem.endSec : -1;
+  // Phase Builder-7: Cumulative-Scrubber für Sequence. totalDur = Σ aller
+  // trimmed item-Längen (oder durationSec wenn single-source). cumulativeSec
+  // = abgespielte items + position-im-aktuellen-item. Wenn ein item endSec=-1
+  // (unknown duration): fallback auf current-item-only display.
+  const totalDur = useMemo(() => {
+    if (!hasSequence) return durationSec;
+    let total = 0;
+    for (const item of sources!) {
+      if (item.endSec > 0) {
+        total += item.endSec - item.startSec;
+      } else if (durationSec > 0 && item.uri === activeUri) {
+        // current item: nutze probed duration als estimate.
+        total += durationSec - item.startSec;
+      } else {
+        return -1; // unknown
+      }
+    }
+    return total;
+  }, [hasSequence, sources, durationSec, activeUri]);
+  const cumulativeSec = useMemo(() => {
+    if (!hasSequence) return currentSec;
+    let cumul = 0;
+    for (let i = 0; i < currentIdx && i < sources!.length; i++) {
+      const item = sources![i];
+      const itemDur = item.endSec > 0 ? (item.endSec - item.startSec) : 0;
+      cumul += itemDur;
+    }
+    const itemStart = sources![currentIdx]?.startSec ?? 0;
+    cumul += Math.max(0, currentSec - itemStart);
+    return cumul;
+  }, [hasSequence, sources, currentIdx, currentSec]);
+  const displayDur = totalDur > 0 ? totalDur : durationSec;
+  const displayCurrent = hasSequence ? cumulativeSec : currentSec;
+  const ready = displayDur > 0;
+  const progressPct = ready ? (displayCurrent / displayDur) * 100 : 0;
 
   // Auto-hide für Center-Controls — wie StackedSplitPreview.
   useEffect(() => {
@@ -2657,10 +2690,12 @@ function FullModePreview({
         </View>
       )}
 
-      {/* Bottom Scrubber */}
+      {/* Bottom Scrubber — bei sequence cumulative (0..totalDur), bei single
+          item normal (0..durationSec). Time-Labels zeigen displayCurrent /
+          displayDur damit User die total length sieht statt nur current clip. */}
       {ready && (
         <View style={stackedStyles.bottomBar}>
-          <Text style={stackedStyles.time}>{formatPreviewTime(currentSec)}</Text>
+          <Text style={stackedStyles.time}>{formatPreviewTime(displayCurrent)}</Text>
           <View
             style={stackedStyles.trackHit}
             onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
@@ -2673,7 +2708,7 @@ function FullModePreview({
             </View>
             <View style={[stackedStyles.thumb, { left: `${progressPct}%` }]} />
           </View>
-          <Text style={stackedStyles.time}>{formatPreviewTime(durationSec)}</Text>
+          <Text style={stackedStyles.time}>{formatPreviewTime(displayDur)}</Text>
         </View>
       )}
     </View>
@@ -3511,6 +3546,7 @@ function IntroOverlayControls({
   const [localX, setLocalX] = useState(() => project.intro?.x ?? 0);
   const [localY, setLocalY] = useState(() => project.intro?.y ?? 0);
   const [localScale, setLocalScale] = useState(() => project.intro?.scale ?? 1);
+  const [localDuration, setLocalDuration] = useState(() => project.intro?.durationSec ?? 3);
 
   // Wenn das Project von außen die Intro zurücksetzt (z.B. neues Intro
   // gepickt) → local-state seed neu. Dependency auf `intro?.path` damit
@@ -3519,12 +3555,13 @@ function IntroOverlayControls({
     setLocalX(project.intro?.x ?? 0);
     setLocalY(project.intro?.y ?? 0);
     setLocalScale(project.intro?.scale ?? 1);
+    setLocalDuration(project.intro?.durationSec ?? 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.intro?.path]);
 
   const activePreset = activeIntroPreset(localX, localY, localScale);
 
-  const commitOne = (key: 'x' | 'y' | 'scale', v: number) => {
+  const commitOne = (key: 'x' | 'y' | 'scale' | 'durationSec', v: number) => {
     if (!project.intro) return;
     // Lese den FRISCHEN Project-State um cross-state-talk zu vermeiden bei
     // schnellen aufeinanderfolgenden Commits.
@@ -3631,6 +3668,21 @@ function IntroOverlayControls({
           onCommit={(v) => {
             haptic.selection();
             commitOne('scale', v);
+          }}
+        />
+        <SliderLabelRow
+          label={t('intro.sliderDuration', 'Duration')}
+          value={`${localDuration.toFixed(1)}s`}
+        />
+        <SimpleSlider
+          value={localDuration}
+          min={0.5}
+          max={30}
+          step={0.5}
+          onChange={setLocalDuration}
+          onCommit={(v) => {
+            haptic.selection();
+            commitOne('durationSec', v);
           }}
         />
       </View>
@@ -3870,13 +3922,11 @@ function BuilderTab({
   const orderedItems = useMemo<BuilderItem[]>(() => {
     const clipsMap = new Map(project.clips.map((c) => [c.id, c]));
     const extrasMap = new Map(extras.map((e) => [e.id, e]));
-    // Default-Order falls clipOrder nicht gesetzt: Clips first (in original order),
-    // dann Extras (in builderExtras-order).
-    const fallbackOrder = [
-      ...project.clips.map((c) => c.id),
-      ...extras.map((e) => e.id),
-    ];
-    const order = project.clipOrder ?? fallbackOrder;
+    // Iteration: erst über clipOrder (für gewünschte Reihenfolge), dann
+    // catch-up der nicht-orderten selected clips + neuer extras. Wichtig:
+    // wenn clipOrder LEER ist (z.B. nach extra-delete bei pure-highlight-
+    // projects), dürfen wir nicht alle selected clips verlieren.
+    const order = project.clipOrder ?? [];
     const out: BuilderItem[] = [];
     const seen = new Set<string>();
     for (const id of order) {
@@ -3890,6 +3940,13 @@ function BuilderTab({
       const extra = extrasMap.get(id);
       if (extra) {
         out.push({ kind: 'extra', id, extra });
+      }
+    }
+    // Selected highlights die nicht in clipOrder waren → in original-Reihenfolge anhängen.
+    for (const clip of project.clips) {
+      if (!seen.has(clip.id) && selectedClipIds.has(clip.id)) {
+        out.push({ kind: 'clip', id: clip.id, clip });
+        seen.add(clip.id);
       }
     }
     // Extras die nicht in clipOrder sind → ans Ende.
