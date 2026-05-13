@@ -2580,7 +2580,9 @@ function FullModePreview({
           source={{ uri: introUri }}
           paused={paused || !introPlaying}
           repeat={false}
-          resizeMode="cover"
+          // Phase Builder-9: contain bei overlay (volles Intro sichtbar mit
+          // black bars falls aspect mismatch), cover bei before (full-screen).
+          resizeMode={introMode === 'overlay' ? 'contain' : 'cover'}
           onEnd={() => setIntroPlaying(false)}
           onError={() => setIntroPlaying(false)}
           style={[
@@ -3022,7 +3024,9 @@ function StackedSplitPreview({
             source={{ uri: introUri }}
             paused={paused || !introPlaying}
             repeat={false}
-            resizeMode="cover"
+            // Phase Builder-9: contain bei overlay damit Intro vollständig
+            // sichtbar ist (kein seitliches Cropping). Cover bei before.
+            resizeMode={introMode === 'overlay' ? 'contain' : 'cover'}
             onEnd={() => setIntroPlaying(false)}
             onError={() => setIntroPlaying(false)}
             style={[
