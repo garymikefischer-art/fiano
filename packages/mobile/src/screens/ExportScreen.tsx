@@ -28,7 +28,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { useJobStore } from '../stores/jobStore';
 import { useNotificationsStore } from '../stores/notificationsStore';
-import { useProjectsStore } from '../stores/projectsStore';
+import { useProjectsStore, flushProjectsNow } from '../stores/projectsStore';
 import { scheduleLocalNotification } from '../lib/pushNotifications';
 import { useT } from '../lib/i18n';
 import * as sounds from '../lib/sounds';
@@ -40,16 +40,36 @@ type R = RouteProp<RootStackParamList, 'Export'>;
 type Phase = 'idle' | 'uploading' | 'rendering' | 'saving' | 'done' | 'failed' | 'canceled';
 
 /**
- * Splittet eine Cue in N-Wort-Chunks (Phase 9.6.7g). Time-Range wird proportional
- * verteilt: chunk i bekommt [start + i*chunkDur, start + (i+1)*chunkDur].
- * Wenn maxWords >= cue.words.length → nur 1 chunk (unverändert).
+ * Splittet eine Cue in N-Wort-Chunks. Phase Builder-4: wenn cue.words mit
+ * Word-level-Timestamps (Whisper) vorhanden ist, nutze ECHTE per-word-Zeiten.
+ * Sonst fallback auf proportionale Aufteilung des cue-Ranges.
  */
 function chunkCueByWords(
-  cue: { startSec: number; endSec: number; text: string },
+  cue: { startSec: number; endSec: number; text: string; words?: { text: string; startSec: number; endSec: number }[] },
   maxWords: number,
 ): { startSec: number; endSec: number; text: string }[] {
+  // Word-level path: nutze echte Whisper-Timestamps.
+  if (cue.words && cue.words.length > 0) {
+    if (cue.words.length <= maxWords) {
+      // Cue ist klein genug → behalte als ein chunk mit ursprünglichem Text.
+      return [{ startSec: cue.startSec, endSec: cue.endSec, text: cue.text }];
+    }
+    const out: { startSec: number; endSec: number; text: string }[] = [];
+    for (let i = 0; i < cue.words.length; i += maxWords) {
+      const chunkWords = cue.words.slice(i, i + maxWords);
+      out.push({
+        startSec: chunkWords[0].startSec,
+        endSec: chunkWords[chunkWords.length - 1].endSec,
+        text: chunkWords.map((w) => w.text).join(' '),
+      });
+    }
+    return out;
+  }
+  // Fallback: proportionale Aufteilung (für alte Projekte ohne word-timestamps).
   const words = cue.text.trim().split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return [cue];
+  if (words.length <= maxWords) {
+    return [{ startSec: cue.startSec, endSec: cue.endSec, text: cue.text }];
+  }
   const totalDur = Math.max(0.1, cue.endSec - cue.startSec);
   const out: { startSec: number; endSec: number; text: string }[] = [];
   for (let i = 0; i < words.length; i += maxWords) {
@@ -369,11 +389,16 @@ export function ExportScreen() {
       setPhase('done');
       sounds.exportDone();
 
-      // Projekt-Status: ready, mit erstem Clip aus dem Trim-Range.
+      // Projekt-Status: ready. clips NICHT überschreiben — vorher wurde hier
+      // ein "Imported clip"-Dummy gesetzt, der AI-Highlights nach Export
+      // wegnahm (User-Report 2026-05-12). Wenn das Projekt noch keine clips
+      // hatte (klassischer Import ohne Whisper-Analyse), legen wir EINEN
+      // Default-Clip an, sonst lassen wir bestehende Highlights stehen.
       if (params.projectId) {
-        updateProject(params.projectId, {
-          status: 'ready',
-          clips: [
+        const existing = project?.clips ?? [];
+        const updates: Partial<NonNullable<typeof project>> = { status: 'ready' };
+        if (existing.length === 0) {
+          updates.clips = [
             {
               id: 'c1',
               startSec: 0,
@@ -381,8 +406,11 @@ export function ExportScreen() {
               label: 'Imported clip',
               score: 0.9,
             },
-          ],
-        });
+          ];
+        }
+        updateProject(params.projectId, updates);
+        // Phase 9.6.7g: flush damit App-Kill den state nicht killt.
+        await flushProjectsNow().catch(() => {});
       }
 
       const doneBody = isBuilder

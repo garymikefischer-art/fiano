@@ -562,6 +562,9 @@ export function buildTikTokExportArgs(
   const introMode = opts.intro?.mode ?? 'before';
   if (opts.intro && introInputIdx >= 0 && introMode === 'overlay') {
     // Phase 9.6.6.1: Intro skaliert + per x/y positioniert + zeitlich begrenzt.
+    // Aspect: COVER-mode (force_original_aspect_ratio=increase + crop) — matched
+    // den RN-Preview-Player (resizeMode="cover"). Vorher decrease+pad sah im
+    // Export anders aus als in der Preview (User-Report Phase Builder-4).
     const scale = clamp(opts.intro.scale ?? 1.0, 0.2, 1.0);
     const introW = Math.round(W * scale);
     const introH = Math.round(H * scale);
@@ -573,8 +576,8 @@ export function buildTikTokExportArgs(
     const overlayY = Math.round((H - introH) * yFrac);
     const overlayDur = Math.max(0.5, opts.intro.durationSec ?? 3);
     filters.push(
-      `[${introInputIdx}:v]scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
-        `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black@0,fps=${fps},setsar=1[introV]`,
+      `[${introInputIdx}:v]scale=${introW}:${introH}:force_original_aspect_ratio=increase,` +
+        `crop=${introW}:${introH},fps=${fps},setsar=1[introV]`,
     );
     filters.push(
       `${videoComposed}[introV]overlay=${overlayX}:${overlayY}:` +

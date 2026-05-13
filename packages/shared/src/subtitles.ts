@@ -69,6 +69,10 @@ export interface SubtitleCue {
   text: string;
   startSec: number;
   endSec: number;
+  /** Phase Builder-4: word-level timestamps von Whisper (timestamp_granularities=word).
+   *  Wenn vorhanden, kann Mobile per-word chunking mit echtem Timing machen statt
+   *  proportional. Mobile-only — Server (transcribe.ts) füllt das wenn API liefert. */
+  words?: { text: string; startSec: number; endSec: number }[];
 }
 
 /**
