@@ -1441,11 +1441,18 @@ function TikTokTab({
     haptic.medium();
     const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
     if (picked) {
+      // Phase Builder-5: appStore.introDefaults beim Pick anwenden — damit
+      // User die overlay-Position nicht jedes Mal neu einstellen muss.
+      const defaults = useAppStore.getState().introDefaults;
       updateProject(project.id, {
         intro: {
           path: picked.uri,
           filename: picked.filename ?? 'video',
-          mode: introMode,
+          mode: defaults?.mode ?? introMode,
+          x: defaults?.x,
+          y: defaults?.y,
+          scale: defaults?.scale,
+          durationSec: defaults?.durationSec,
         },
       });
       haptic.success();
@@ -2236,6 +2243,7 @@ function LayoutPreview({
  */
 function FullModePreview({
   sourceUri,
+  sources,
   offsetX = 0.5,
   aspect = 9 / 16,
   seekToSec = 0,
@@ -2251,6 +2259,10 @@ function FullModePreview({
   introDurationSec = 3,
 }: {
   sourceUri?: string;
+  /** Phase Builder-5: Sequential-Playback-Liste. Wenn gesetzt + length>=1
+   *  spielt die Preview alle items hintereinander ab (mit per-item trim).
+   *  Für BuilderTab mit Highlights+Extras. */
+  sources?: { uri: string; startSec: number; endSec: number }[];
   offsetX?: number;
   aspect?: number;
   seekToSec?: number;
@@ -2273,6 +2285,8 @@ function FullModePreview({
   const [durationSec, setDurationSec] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [trackWidth, setTrackWidth] = useState(0);
+  // Phase Builder-5: sequential-playback state für Multi-Source-Builder.
+  const [currentIdx, setCurrentIdx] = useState(0);
   const videoRef = useRef<VideoRef>(null);
   const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
   const off = Math.min(1, Math.max(0, offsetX));
@@ -2280,6 +2294,12 @@ function FullModePreview({
   const isPortrait = aspect < 1;
   const ready = durationSec > 0;
   const progressPct = ready ? (currentSec / durationSec) * 100 : 0;
+  // Active sequence-item: bei sources[] der currentIdx, sonst single sourceUri.
+  const hasSequence = !!sources && sources.length > 0;
+  const activeItem = hasSequence ? sources![currentIdx] : null;
+  const activeUri = activeItem?.uri ?? sourceUri;
+  const activeStart = activeItem ? activeItem.startSec : seekToSec;
+  const activeEnd = activeItem && activeItem.endSec > 0 ? activeItem.endSec : -1;
 
   // Auto-hide für Center-Controls — wie StackedSplitPreview.
   useEffect(() => {
@@ -2343,13 +2363,21 @@ function FullModePreview({
 
   const restartFromStart = () => {
     haptic.selection();
-    videoRef.current?.seek(seekToSec);
+    // Bei Sequence: reset auf first item. Sonst nur seek auf seekToSec.
+    if (hasSequence) {
+      setCurrentIdx(0);
+      const firstStart = sources![0].startSec ?? 0;
+      videoRef.current?.seek(firstStart);
+      setCurrentSec(firstStart);
+    } else {
+      videoRef.current?.seek(seekToSec);
+      setCurrentSec(seekToSec);
+    }
     try {
       introRef.current?.seek(0);
     } catch {
       /* ignore */
     }
-    setCurrentSec(seekToSec);
     if (introUri) {
       setIntroPlaying(true);
       if (introMode === 'overlay') {
@@ -2358,6 +2386,25 @@ function FullModePreview({
     }
     setPaused(false);
     setControlsVisible(true);
+  };
+
+  // Auto-advance bei sequence + trim-end erreicht.
+  const handleProgress = (currentTime: number) => {
+    setCurrentSec(currentTime);
+    if (hasSequence && activeEnd > 0 && currentTime >= activeEnd) {
+      if (currentIdx < sources!.length - 1) {
+        setCurrentIdx((i) => i + 1);
+      } else {
+        setPaused(true);
+      }
+    }
+  };
+  const handleVideoEnd = () => {
+    if (hasSequence && currentIdx < sources!.length - 1) {
+      setCurrentIdx((i) => i + 1);
+    } else if (hasSequence) {
+      setPaused(true);
+    }
   };
 
   // Intro overlay-style: positioned + scaled bei mode=overlay; sonst full.
@@ -2387,8 +2434,9 @@ function FullModePreview({
         backgroundColor: '#000',
       }}
     >
-      {/* Video-Plane: bei 9:16 mit transform für horizontal-crop, bei 16:9 simple cover. */}
-      {sourceUri && videosActive ? (
+      {/* Video-Plane: bei 9:16 mit transform für horizontal-crop, bei 16:9 simple cover.
+          key={activeUri} → re-mount bei source-change (sequential playback). */}
+      {activeUri && videosActive ? (
         isPortrait ? (
           <View
             style={{
@@ -2400,20 +2448,23 @@ function FullModePreview({
             }}
           >
             <Video
+              key={activeUri}
               ref={videoRef}
-              source={{ uri: sourceUri }}
+              source={{ uri: activeUri }}
               paused={paused || (introPlaying && introMode === 'before')}
               muted={muted}
-              repeat
+              repeat={!hasSequence}
               resizeMode="cover"
               style={StyleSheet.absoluteFill}
               ignoreSilentSwitch="ignore"
               disableFocus
               onLoad={(d) => {
                 setDurationSec(d.duration);
-                if (seekToSec > 0 && videoRef.current) videoRef.current.seek(seekToSec);
+                const start = activeStart > 0 ? activeStart : 0;
+                if (start > 0 && videoRef.current) videoRef.current.seek(start);
               }}
-              onProgress={(d) => setCurrentSec(d.currentTime)}
+              onProgress={(d) => handleProgress(d.currentTime)}
+              onEnd={handleVideoEnd}
               bufferConfig={{
                 minBufferMs: 1500,
                 maxBufferMs: 3000,
@@ -2424,20 +2475,23 @@ function FullModePreview({
           </View>
         ) : (
           <Video
+            key={activeUri}
             ref={videoRef}
-            source={{ uri: sourceUri }}
+            source={{ uri: activeUri }}
             paused={paused || (introPlaying && introMode === 'before')}
             muted={muted}
-            repeat
+            repeat={!hasSequence}
             resizeMode="cover"
             style={StyleSheet.absoluteFill}
             ignoreSilentSwitch="ignore"
             disableFocus
             onLoad={(d) => {
               setDurationSec(d.duration);
-              if (seekToSec > 0 && videoRef.current) videoRef.current.seek(seekToSec);
+              const start = activeStart > 0 ? activeStart : 0;
+              if (start > 0 && videoRef.current) videoRef.current.seek(start);
             }}
-            onProgress={(d) => setCurrentSec(d.currentTime)}
+            onProgress={(d) => handleProgress(d.currentTime)}
+            onEnd={handleVideoEnd}
             bufferConfig={{
               minBufferMs: 1500,
               maxBufferMs: 3000,
@@ -2455,7 +2509,10 @@ function FullModePreview({
         <SubtitleOverlay settings={subtitles} />
       )}
 
-      {/* Intro-Video (Phase 9.6.6.1) — pre-mounted, opacity-Toggle für Visibility. */}
+      {/* Intro-Video (Phase 9.6.6.1) — display:'none'-Toggle statt opacity damit
+          das Element bei scale=100% (deckt main video komplett ab) zuverlässig
+          aus dem Layout verschwindet. opacity:0 reichte in einigen RN-Versionen
+          nicht (User-Report Phase Builder-5). */}
       {videosActive && introUri && (
         <Video
           key={`${introUri}-${introMode}`}
@@ -2468,7 +2525,10 @@ function FullModePreview({
           resizeMode="cover"
           onEnd={() => setIntroPlaying(false)}
           onError={() => setIntroPlaying(false)}
-          style={[introStyle as any, { opacity: introPlaying ? 1 : 0 }]}
+          style={[
+            introStyle as any,
+            introPlaying ? { opacity: 1 } : { opacity: 0, display: 'none' },
+          ]}
           bufferConfig={{
             minBufferMs: 3000,
             maxBufferMs: 6000,
@@ -2886,7 +2946,7 @@ function StackedSplitPreview({
             onError={() => setIntroPlaying(false)}
             style={[
               overlayStyle as any,
-              { opacity: introPlaying ? 1 : 0 },
+              introPlaying ? { opacity: 1 } : { opacity: 0, display: 'none' },
             ]}
             bufferConfig={{
               minBufferMs: 3000,
@@ -3443,6 +3503,8 @@ function IntroOverlayControls({
   t: (k: string, f?: string) => string;
 }) {
   const updateProject = useProjectsStore((s) => s.updateProject);
+  const setIntroDefaults = useAppStore((s) => s.setIntroDefaults);
+  const introDefaults = useAppStore((s) => s.introDefaults);
   // Local state nur als initial-seed beim Mount. Slider-Drags updaten local
   // (smooth UI); commit schreibt JEWEILS NUR die geänderte Achse zum project
   // — kein Cross-Talk mehr (vorheriger Bug: Y-Commit setzte X auf stale localX).
@@ -3571,6 +3633,67 @@ function IntroOverlayControls({
             commitOne('scale', v);
           }}
         />
+      </View>
+
+      {/* Phase Builder-5: Save-as-default. Speichert aktuelle Position (mode +
+          x/y/scale + durationSec) als appStore.introDefaults. Beim nächsten
+          Intro-Pick werden diese Werte als initial verwendet. */}
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+        <Pressable
+          onPress={() => {
+            haptic.selection();
+            const intro = project.intro;
+            if (!intro) return;
+            void setIntroDefaults({
+              mode: intro.mode ?? 'overlay',
+              x: intro.x ?? 0,
+              y: intro.y ?? 0,
+              scale: intro.scale ?? 1,
+              durationSec: intro.durationSec ?? 3,
+            });
+            haptic.success();
+          }}
+          style={({ pressed }) => ({
+            flex: 1,
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            borderRadius: 10,
+            backgroundColor: 'rgba(255,16,57,0.12)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,16,57,0.32)',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Ionicons name="bookmark-outline" size={12} color="#ff1039" />
+          <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700' }}>
+            {t('intro.saveDefault', 'Save as default')}
+          </Text>
+        </Pressable>
+        {introDefaults && (
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              void setIntroDefaults(null);
+            }}
+            style={({ pressed }) => ({
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 10,
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.10)',
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '600' }}>
+              {t('intro.clearDefault', 'Clear')}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -3893,11 +4016,17 @@ function BuilderTab({
     haptic.medium();
     const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
     if (picked) {
+      // Phase Builder-5: appStore.introDefaults anwenden.
+      const defaults = useAppStore.getState().introDefaults;
       updateProject(project.id, {
         intro: {
           path: picked.uri,
           filename: picked.filename ?? 'video',
-          mode: introMode,
+          mode: defaults?.mode ?? introMode,
+          x: defaults?.x,
+          y: defaults?.y,
+          scale: defaults?.scale,
+          durationSec: defaults?.durationSec,
         },
       });
       haptic.success();
@@ -3932,17 +4061,17 @@ function BuilderTab({
             paddingVertical: 10,
             paddingHorizontal: 16,
             borderRadius: 12,
-            backgroundColor: 'rgba(96,165,250,0.12)',
+            backgroundColor: 'rgba(255,16,57,0.12)',
             borderWidth: 1,
-            borderColor: 'rgba(96,165,250,0.40)',
+            borderColor: 'rgba(255,16,57,0.40)',
             opacity: pressed ? 0.7 : 1,
             flexDirection: 'row',
             alignItems: 'center',
             gap: 6,
           })}
         >
-          <Ionicons name="add" size={14} color="#60a5fa" />
-          <Text style={{ color: '#60a5fa', fontSize: 12, fontWeight: '700' }}>
+          <Ionicons name="add" size={14} color="#ff1039" />
+          <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '700' }}>
             {t('builder.addExtra', 'Add extra video')}
           </Text>
         </Pressable>
@@ -3955,28 +4084,44 @@ function BuilderTab({
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 14 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Phase Builder-3 Preview — 16:9 SimplePreview mit allen Add-Ons:
-          Subtitle/Music/TTS/Intro live, Tap-to-Play + Replay. Source ist
-          der erste orderedItem (Highlight oder Extra). Concat-Preview wäre
-          ein nachfolgender Phase. */}
+      {/* Phase Builder-5 Preview — 16:9 mit Sequential-Playback aller items.
+          Highlights + Extras spielen in clipOrder hintereinander mit ihrem
+          jeweiligen Trim-Range. Subtitle/Music/TTS/Intro liegen drüber. */}
       {(() => {
-        const firstItem = orderedItems[0];
-        const previewUri = firstItem?.kind === 'extra'
-          ? firstItem.extra.path
-          : project.sourceUri;
-        const previewSeek = firstItem?.kind === 'clip'
-          ? firstItem.clip.startSec
-          : firstItem?.kind === 'extra'
-            ? firstItem.extra.trimStart ?? 0
-            : 0;
-        if (!previewUri) return null;
+        const projectSourceUris = project.sourceUris ?? [];
+        const isMultiSrc = projectSourceUris.length >= 2;
+        const clipIdxById = new Map<string, number>();
+        (project.clips ?? []).forEach((c, i) => clipIdxById.set(c.id, i));
+        const previewSources = orderedItems
+          .map((item) => {
+            if (item.kind === 'clip') {
+              const idx = clipIdxById.get(item.clip.id);
+              const uri = isMultiSrc && idx !== undefined
+                ? projectSourceUris[idx]
+                : project.sourceUri;
+              if (!uri) return null;
+              const hasTrim = item.clip.endSec > item.clip.startSec;
+              return {
+                uri,
+                startSec: item.clip.startSec,
+                endSec: hasTrim ? item.clip.endSec : -1,
+              };
+            }
+            return {
+              uri: item.extra.path,
+              startSec: item.extra.trimStart ?? 0,
+              endSec: item.extra.trimEnd ?? item.extra.durationSec ?? -1,
+            };
+          })
+          .filter((s): s is { uri: string; startSec: number; endSec: number } => !!s);
+        if (previewSources.length === 0) return null;
         return (
           <FullModePreview
-            key={`${previewUri}-${previewSeek}`}
-            sourceUri={previewUri}
+            key={previewSources.map((s) => s.uri).join('|')}
+            sources={previewSources}
             aspect={16 / 9}
-            seekToSec={previewSeek}
-            thumbUri={firstItem?.kind === 'clip' ? firstItem.clip.thumbUri : project.thumbUri}
+            seekToSec={previewSources[0].startSec}
+            thumbUri={project.thumbUri}
             subtitles={subSettings}
             musicTracks={(project.musicTracks ?? []).map((m) => ({ path: m.path, volume: m.volume }))}
             voiceOvers={(project.voiceOvers ?? []).map((vo) => ({
@@ -4014,9 +4159,9 @@ function BuilderTab({
                 gap: 8,
                 padding: 12,
                 borderRadius: 14,
-                backgroundColor: isExtra ? 'rgba(96,165,250,0.06)' : 'rgba(255,255,255,0.04)',
+                backgroundColor: isExtra ? 'rgba(255,16,57,0.06)' : 'rgba(255,255,255,0.04)',
                 borderWidth: 1,
-                borderColor: isExtra ? 'rgba(96,165,250,0.25)' : 'rgba(255,255,255,0.08)',
+                borderColor: isExtra ? 'rgba(255,16,57,0.25)' : 'rgba(255,255,255,0.08)',
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -4037,7 +4182,7 @@ function BuilderTab({
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    backgroundColor: isExtra ? 'rgba(96,165,250,0.20)' : 'rgba(255,16,57,0.18)',
+                    backgroundColor: 'rgba(255,16,57,0.18)',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
@@ -4045,7 +4190,7 @@ function BuilderTab({
                   <Ionicons
                     name={isExtra ? 'film-outline' : 'sparkles-outline'}
                     size={14}
-                    color={isExtra ? '#60a5fa' : '#ff1039'}
+                    color="#ff1039"
                   />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
@@ -4080,10 +4225,10 @@ function BuilderTab({
           style={({ pressed }) => ({
             paddingVertical: 12,
             borderRadius: 14,
-            backgroundColor: 'rgba(96,165,250,0.10)',
+            backgroundColor: 'rgba(255,16,57,0.10)',
             borderWidth: 1,
             borderStyle: 'dashed',
-            borderColor: 'rgba(96,165,250,0.40)',
+            borderColor: 'rgba(255,16,57,0.40)',
             alignItems: 'center',
             justifyContent: 'center',
             flexDirection: 'row',
@@ -4091,8 +4236,8 @@ function BuilderTab({
             opacity: pressed ? 0.7 : 1,
           })}
         >
-          <Ionicons name="add" size={16} color="#60a5fa" />
-          <Text style={{ color: '#60a5fa', fontSize: 13, fontWeight: '700' }}>
+          <Ionicons name="add" size={16} color="#ff1039" />
+          <Text style={{ color: '#ff1039', fontSize: 13, fontWeight: '700' }}>
             {t('builder.addExtra', 'Add extra video')}
           </Text>
         </Pressable>
@@ -4351,10 +4496,14 @@ function BuilderTab({
                     ? projectSourceUris[idx]
                     : project.sourceUri;
                   if (!uri) return null;
+                  // Multi-Clip-Import legt clips mit endSec=0 an (DocumentPicker
+                  // liefert keine Duration). Wenn 0 oder <= startSec → -1 als
+                  // sentinel für "ganze File" (ExportScreen mapped auf big trim).
+                  const hasValidTrim = item.clip.endSec > item.clip.startSec;
                   return {
                     sourceUri: uri,
                     trimStart: item.clip.startSec,
-                    trimEnd: item.clip.endSec,
+                    trimEnd: hasValidTrim ? item.clip.endSec : -1,
                   };
                 }
                 // Extra: trim if set, sonst full (0..durationSec or undefined).

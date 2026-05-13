@@ -157,7 +157,7 @@ export function ExportScreen() {
         .map((item) => {
           const srcIdx = uniqueSrcMap.get(item.sourceUri);
           if (srcIdx === undefined) return null;
-          const end = item.trimEnd >= 0 ? item.trimEnd : BIG_TRIM_END;
+          const end = item.trimEnd > 0 ? item.trimEnd : BIG_TRIM_END;
           return {
             src: srcIdx,
             startSec: Math.max(0, item.trimStart),
@@ -197,9 +197,12 @@ export function ExportScreen() {
 
       // Builder cue-mapping: cues sind absolute Source-Times zum project.sourceUri
       // (Whisper-Output). Beim per-source-trim sind sie nur für clips relevant
-      // die aus dieser Source kommen. Bei Multi-Source-mit-Extras werden cues
-      // gefiltert auf clips deren src auf project.sourceUri zeigt.
-      const primarySourceUri = project?.sourceUri ?? '';
+      // die aus dieser Source kommen. Bei Multi-Clip-Import ist project.sourceUri
+      // = sourceUris[0] (first picked) — Whisper hat das analysiert.
+      const primarySourceUri =
+        project?.sourceUri ??
+        project?.sourceUris?.[0] ??
+        '';
       const primarySrcIdx = primarySourceUri ? uniqueSrcMap.get(primarySourceUri) : undefined;
 
       const mapCueToOutput = (

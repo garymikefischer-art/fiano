@@ -151,15 +151,18 @@ function buildDefaultStyle(settings: SubtitleSettings, w: number, h: number): St
   // skalieren. 26 → ~5% der Frame-Höhe ist tiktok-typisch.
   const fontsize = Math.round((baseFontSize / 26) * (h * 0.06));
 
-  // Primary-Color-Resolve (Phase Builder-4 metallic improvement):
+  // Primary-Color-Resolve (Phase Builder-5):
   // - useGradient: gradientFrom als single-color (libass kann keine Gradient-Fill)
-  // - metallic: blend zwischen gradientFrom+gradientTo (midpoint), dann nach
-  //   weiß lerpen für Sheen-Effekt — Approximation des SVG-Metallic in Preview.
+  // - metallic: blend zwischen gradientFrom+gradientTo. Wenn keine Gradient-
+  //   Farben gesetzt sind aber Metallic an, nutzen wir Silber-Fallback
+  //   (#b8b8b8 → #ffffff) statt textColor — sonst war primaryColor immer
+  //   weiß wenn User nur metallic-toggle ohne gradient-pick aktivierte.
   let primaryColor: string;
   if (settings.metallic) {
-    const a = settings.gradientFrom ?? settings.textColor ?? '#cccccc';
-    const b = settings.gradientTo ?? settings.textColor ?? '#ffffff';
-    primaryColor = blendHex(blendHex(a, b, 0.5), '#ffffff', 0.25);
+    const a = settings.gradientFrom ?? '#b8b8b8';
+    const b = settings.gradientTo ?? '#ffffff';
+    // Gewichtung 0.4 → leicht zur dunkleren Seite (Sheen hat dunkleren Mittelteil).
+    primaryColor = blendHex(a, b, 0.4);
   } else if (settings.useGradient) {
     primaryColor = settings.gradientFrom ?? settings.textColor ?? '#ffffff';
   } else {

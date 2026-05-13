@@ -61,9 +61,11 @@ export function MusicPreviewPlayer({ uri, volume, paused }: Props) {
     };
   }, [uri]);
 
-  // Volume-Sync.
+  // Volume-Sync. expo-av expects 0..1 — clamp damit RangeError ausbleibt
+  // wenn User-Setting (Music-Slider 0..1.5) > 1 ist.
   useEffect(() => {
-    void soundRef.current?.setVolumeAsync(volume).catch(() => {});
+    const v = Math.max(0, Math.min(1, volume));
+    void soundRef.current?.setVolumeAsync(v).catch(() => {});
   }, [volume]);
 
   // Play/Pause-Sync.
