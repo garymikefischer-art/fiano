@@ -243,6 +243,18 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 | A2 | **Phase 9.10 Thumbnail-on-demand** | ~1h | Alte Library-Cards ohne thumbUri beim Mount extrahieren |
 | A3 | **Multi-Clip-Import + Whisper** | 1-2h | Mehrere sources analysieren ODER warn-Hint |
 | A4 | **Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit** | 1.5-2h | `before` ignoriert heute scale + x/y. UI-Controls auch im `before` zeigen. |
+| A6 | **Security-Audit Findings (Phase A6, ~6-8d gesamt)** | siehe Sub | Audit 2026-05-16, 4 P0 / 8 P1 / 8 P2 / 14 P3 — **Volldoku: `SECURITY_AUDIT_2026-05-16.md`** |
+| ~~A6.1~~ | ~~**Rate Limiting Worker**~~ ✅ (P0-1) | ~~1h~~ | **Done 2026-05-16** — Worker rev `00018-bwh`. `express-rate-limit@7.5.1` per-userId nach authMiddleware. /upload-url 30/min, /render 5/min, /transcribe 5/min, /download 3/min. Cloud Run `trust proxy: 1`. 429 mit `retryAfterSec` + `[ratelimit:NAME]` log-warning. |
+| A6.2 | **`.ass` Content-Validation + Size-Limit** (P0-4) | 2h | Worker: max 64KB, reject `[Fonts]`/`[Graphics]`, cap `\bord`/`\blur`/`\fs`. Bessere Long-Term-Lösung in A6.4 |
+| A6.3 | **Plan-Check + Monthly-Counter im Worker** (P0-2, + Backend-Teil von A5) | 1d | `requirePaidPlan` middleware. Supabase RPC `check_render_quota(user_id)`. Free-Tier-Quota-Definition nötig. |
+| A6.4 | **Typed RenderSpec — args[] off-client** (P0-3, größte Bedrohung) | 2-3d | Mobile sendet typed JSON `{layout, regions, music, intro, …}`, Worker baut args via shared `ffmpegArgs.ts`. Backward-compat zu legacy `args` parallel mit Allow-List-Filter, dann deprecate. |
+| A6.5 | **Logs sanitisieren + `/health` env-dump weg + R2-Pfad-Regex** (P1-1, P1-2) | 30m | |
+| A6.6 | **Stripe-Webhook event-id dedupe + Edge-Function CORS-Whitelist** (P1-3, P1-4) | 1h | `stripe_events_processed` table, origin-whitelist statt `*`. |
+| A6.7 | **yt-dlp Härten** (P1-5) | 30m | drop `--no-check-certificates`, engere URL-regex, yt-dlp Version pinnen. |
+| A6.8 | **Electron CSP + sandbox + media:// path-validation** (P1-8, P2-7) | 1h | CSP-Meta-Tag, `sandbox:true`, `path.resolve` allow-list für media://. |
+| A6.9 | **R2 body-size-limit + YouTube-Cookies SecureStore + sourceKey-ext-check** (P2-1, P2-4, P2-6) | 1.5h | |
+| A6.10 | **`npm audit` + Updates auf moderate+ CVEs** (P3-12) | 1h | Root, packages/mobile, services/render-worker. |
+| A5 | **Mobile Feature-Lock-Parität (Schloss-Sperren wie Desktop)** | 4-6h | Port von `src/renderer/src/lib/features.ts` (23 FeatureIDs, Plan-Hierarchie creator/pro/lifetime, PROJECT_LIMIT) nach `packages/mobile/src/lib/features.ts`. RN-Variante von `FeatureLock`/`FeatureLockInline`/`LockBadge` mit SVG-Schloss. Lock-Stellen Mobile: TikTok subtitle_layered + advanced_effects + custom_subtitle_presets, Export export_4k + export_high_bitrate, Thumbnail-Tab thumbnail_generator, AddVideoProject project-limit (creator=25). Server-side enforcement via A6.3. i18n × 9 für `features.*`-Keys. |
 | B1 | **Phase 9.11 Multi-Clip Manual + Drag-Reorder** | 2-3h | `react-native-draggable-flatlist`. Native-Rebuild nötig. |
 | B2 | **Phase Builder-11 Drag-to-Seek + Item-Switch** | 1-2h | Scrubber wirkt heute nur in current item. Item-Switch via Drag. |
 
@@ -250,18 +262,18 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 
 | # | Task | Aufwand | Notes |
 |---|---|---|---|
-| 5 | **Phase 9.7 Light-Theme** | 4-6h | `lib/theme.ts` + Settings → Appearance Switch |
-| 6 | **Phase 9.14 Effects-System Mobile** | 3-4h | `clip.effects`, FFmpeg eq/colorbalance/unsharp |
-| 7 | **Phase 9.13 Cross-Device-Sync** | 6-8h | Supabase + RLS (!), Storage-Bucket, Pull-Sync |
-| 8 | **Phase 9.9 YouTube/Twitch URL-Import Mobile** | 2-3h | Worker `/v1/download` existiert, Mobile-UI fehlt |
+| C1 | **Phase 9.7 Light-Theme** | 4-6h | `lib/theme.ts` + Settings → Appearance Switch |
+| C2 | **Phase 9.14 Effects-System Mobile** | 3-4h | `clip.effects`, FFmpeg eq/colorbalance/unsharp |
+| C3 | **Phase 9.13 Cross-Device-Sync** | 6-8h | Supabase + RLS (!), Storage-Bucket, Pull-Sync |
+| C4 | **Phase 9.9 YouTube/Twitch URL-Import Mobile** | 2-3h | Worker `/v1/download` existiert, Mobile-UI fehlt |
 
 ### 🟢 PRE-LAUNCH
 
 | # | Task | Aufwand | Notes |
 |---|---|---|---|
-| 9 | **Phase 9.15 Push-Token-Registrierung** | ~2h | Expo-Push-Token bei Login in Supabase profiles |
-| 10 | **Phase 9.16 EAS Auto-Update** | ~3h | JS-only-OTA, kein Store-Review |
-| 11 | **Phase 9.17 RevenueCat IAP** | 6-8h | Subscription-Gateway |
+| D1 | **Phase 9.15 Push-Token-Registrierung** | ~2h | Expo-Push-Token bei Login in Supabase profiles |
+| D2 | **Phase 9.16 EAS Auto-Update** | ~3h | JS-only-OTA, kein Store-Review |
+| D3 | **Phase 9.17 RevenueCat IAP** | 6-8h | Subscription-Gateway |
 
 ### 📌 Desktop-Feature-Audit (Mobile-Lücken)
 
@@ -527,12 +539,12 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 ## 10. Quick-Reference
 
 - **Worker-URL**: `https://fiano-render-worker-491699066139.europe-west1.run.app`
-- **Worker-Rev**: `00017-9rh` (Phase Builder-5 deployed — word-timestamps aktiv)
+- **Worker-Rev**: `00018-bwh` (A6.1 Rate Limiting deployed 2026-05-16)
 - **GitHub-Repo**: `garymikefischer-art/fiano`
 - **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
-- **Letzter Commit**: (pending — A1 RLS-Baseline)
-- **Backup-Tag**: `pre-phase-rls-setup-20260516`
-- **Letzte Phase**: A1 RLS-Baseline (Migration `supabase/migrations/001_rls_baseline.sql`)
+- **Letzter Commit**: `d9c2c69` (A1 RLS-Baseline) + pending A6.1 Rate-Limit
+- **Backup-Tag**: `pre-phase-a2-thumbnail-20260516` (pivot zu A6.1 — A2 wartet)
+- **Letzte Phase**: A6.1 Rate Limiting (P0-1 audit-finding fix)
 
 ### Speicherorte
 

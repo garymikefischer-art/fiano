@@ -19,6 +19,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import express, { type Request, type Response, type NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'node:crypto';
 import { unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -48,6 +49,66 @@ const supabase = createClient(
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
+
+// Cloud Run sitzt hinter einem Google Load Balancer — `req.ip` muss
+// X-Forwarded-For lesen, sonst sehen alle requests die gleiche LB-IP.
+// `trust proxy: 1` = vertraue dem ersten Proxy-Hop.
+app.set('trust proxy', 1);
+
+// ─────────────────────────────────────────────────────────────────────────
+// A6.1 — Rate Limiting (Phase A6 Security-Audit Fix für P0-1)
+// ─────────────────────────────────────────────────────────────────────────
+// Per-User-Limit nach `authMiddleware`. Verhindert finanziellen DoS via
+// Cloud Run + R2 + OpenAI-Key-Burn. Limits sind defensiv konservativ —
+// echte Power-User mit gültigem Pro/Lifetime-Plan brauchen sie nicht
+// strecken (5 renders/min = 300/hour = mehr als jeder Mensch verbraucht).
+//
+// Falls Limit-Hit: 429 mit `retryAfterSec`. Logs `[ratelimit:NAME] blocked
+// user=...` zu Cloud Logging — Operations-Team kann anomalous user_ids
+// griefen aufspüren.
+//
+// keyGenerator: req.userId nach authMiddleware. Fallback req.ip nur falls
+// das aus irgendeinem Grund nicht gesetzt ist (sollte nicht passieren weil
+// Limiter NACH authMiddleware in der chain steht).
+//
+// Limits abgestimmt auf Mobile-UX-Patterns:
+//  /upload-url    30/min  — 1 render kann bis zu 10 files uploaden (intro,
+//                           music[3], voice-over[3], subtitle, source[3])
+//  /render         5/min  — render ist 5-300s, mehr als 5/min schluckt
+//                           Cloud-Run-instances auf, financial-DoS-Vektor
+//  /transcribe     5/min  — Whisper ist teuer (User-OpenAI-Key, aber Worker
+//                           muss audio extracten = CPU)
+//  /download       3/min  — yt-dlp = bis 480s, max-filesize 500M = R2-cost
+// ─────────────────────────────────────────────────────────────────────────
+function makeLimiter(windowMs: number, max: number, name: string) {
+  return rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,  // sendet `RateLimit-*` Response-Headers
+    legacyHeaders: false,    // kein X-RateLimit-* (legacy)
+    keyGenerator: (req) => {
+      const authReq = req as AuthedRequest;
+      return authReq.userId ?? req.ip ?? 'anon';
+    },
+    handler: (req, res) => {
+      const authReq = req as AuthedRequest;
+      console.warn(
+        `[ratelimit:${name}] blocked user=${authReq.userId ?? req.ip ?? 'anon'} max=${max}/${Math.round(windowMs / 1000)}s`,
+      );
+      res.status(429).json({
+        ok: false,
+        error: 'rate-limit-exceeded',
+        endpoint: name,
+        retryAfterSec: Math.ceil(windowMs / 1000),
+      });
+    },
+  });
+}
+
+const limitUploadUrl  = makeLimiter(60_000, 30, 'upload-url');
+const limitRender     = makeLimiter(60_000, 5, 'render');
+const limitTranscribe = makeLimiter(60_000, 5, 'transcribe');
+const limitDownload   = makeLimiter(60_000, 3, 'download');
 
 app.get('/health', (_req, res) => {
   const accountId = process.env.R2_ACCOUNT_ID ?? '';
@@ -86,7 +147,7 @@ const KIND_EXT: Record<UploadKind, string> = {
  *
  * Returns: { uploadUrl, key, expiresInSec }
  */
-app.post('/v1/upload-url', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
+app.post('/v1/upload-url', authMiddleware(supabase), limitUploadUrl, async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   const { projectId, kind, index } = req.body as {
     projectId?: string;
@@ -123,7 +184,7 @@ app.post('/v1/upload-url', authMiddleware(supabase), async (req: AuthedRequest, 
  *   outputName?
  * }
  */
-app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
+app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   const jobId = randomUUID();
   const userId = req.userId!;
@@ -297,7 +358,7 @@ app.post('/v1/render', authMiddleware(supabase), async (req: AuthedRequest, res:
  * Mobile zieht die Datei dann lokal nach documentDirectory/imports/ — Project
  * verhält sich danach wie ein normaler File-Picker-Import.
  */
-app.post('/v1/download', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
+app.post('/v1/download', authMiddleware(supabase), limitDownload, async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   const jobId = randomUUID();
   const { url, cookies } = req.body as { url?: string; cookies?: string };
@@ -355,7 +416,7 @@ app.post('/v1/download', authMiddleware(supabase), async (req: AuthedRequest, re
  * Server: download source → ffmpeg audio-extract (mp3 mono 16kHz 64kbps)
  *         → POST OpenAI Whisper → parse segments → return cues[].
  */
-app.post('/v1/transcribe', authMiddleware(supabase), async (req: AuthedRequest, res: Response) => {
+app.post('/v1/transcribe', authMiddleware(supabase), limitTranscribe, async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   const jobId = randomUUID();
   const { sourceKey, openaiApiKey, videoType } = req.body as {
