@@ -1,7 +1,7 @@
 # 📋 PROJECT SUMMARY — fiano (Mobile + Desktop Hybrid)
 
-> **Stand: 2026-05-13** — Builder-Tab Phase 1–10 abgeschlossen.
-> Worker rev `00017-9rh` live. Letzter Backup-Tag: `pre-phase-builder-completed-20260513`.
+> **Stand: 2026-05-16** — Builder Phase 1–10 + A1 RLS-Baseline abgeschlossen.
+> Worker rev `00017-9rh` live. Letzter Backup-Tag: `pre-phase-rls-setup-20260516`.
 
 ---
 
@@ -96,6 +96,26 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 - Supabase Email-Login, Geräte-Locale-Detection (9 Sprachen)
 - Settings: Sign-out, Language-Picker, Replay-Onboarding
 - 4-Slide Carousel beim Erststart, persistent
+
+### Supabase Database / Security (Phase A1 abgeschlossen 2026-05-16)
+- **Tabellen**: `profiles` (id, email, full_name, avatar_url) + `subscriptions`
+  (user_id, stripe_*, plan, status, current_period_end, lifetime, cancel_at_period_end)
+- **RLS aktiv** auf beiden Tabellen
+- **Policies**:
+  - `profiles` — SELECT/UPDATE: `auth.uid() = id` (own only)
+  - `subscriptions` — SELECT: `auth.uid() = user_id` (own only)
+- **GRANTs explizit gesetzt** (Vorbereitung auf 30.10.2026 Supabase-Default-Change):
+  - `anon` — nichts (REVOKE ALL)
+  - `authenticated` — `profiles`: SELECT+UPDATE / `subscriptions`: SELECT
+  - `service_role` — ALL (für Edge Functions/Stripe-Webhook)
+- **Trigger** `on_auth_user_created` → `handle_new_user()` legt Profile-Row beim Sign-up an
+- **Schreib-Operationen**:
+  - `profiles` INSERT via Trigger (SECURITY DEFINER)
+  - `profiles` UPDATE via Mobile/Desktop authStore (own row)
+  - `profiles` DELETE via `delete-account` Edge Function (service_role)
+  - `subscriptions` INSERT/UPDATE/DELETE ausschliesslich via `stripe-webhook` Edge Function (service_role)
+- Migration-File: `supabase/migrations/001_rls_baseline.sql` (idempotent + Rollback-SQL drin)
+- Cross-Account-Test verifiziert: anon kann nichts, authenticated nur eigene Rows
 
 ### Navigation
 - Liquid-Glass-BottomTab: Home / Projects / Clips / TikTok / Builder / Thumbs
@@ -219,10 +239,12 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 
 | # | Task | Aufwand | Notes |
 |---|---|---|---|
-| 1 | **Supabase RLS-Setup** | 1-2h | Vor Cross-Device-Sync Pflicht. `auth.uid() = user_id` Policies auf allen User-Tabellen |
-| 2 | **Phase 9.10 Thumbnail-on-demand** | ~1h | Alte Library-Cards ohne thumbUri beim Mount extrahieren |
-| 3 | **Phase 9.11 Multi-Clip Manual + Drag-Reorder** | 2-3h | `react-native-draggable-flatlist` |
-| 4 | **Multi-Clip-Import + Whisper** | 1-2h | Mehrere sources analysieren ODER warn-Hint |
+| ~~A1~~ | ~~**Supabase RLS-Setup**~~ ✅ | ~~1-2h~~ | **Done 2026-05-16** — `supabase/migrations/001_rls_baseline.sql`. Siehe §2 "Supabase Database / Security". |
+| A2 | **Phase 9.10 Thumbnail-on-demand** | ~1h | Alte Library-Cards ohne thumbUri beim Mount extrahieren |
+| A3 | **Multi-Clip-Import + Whisper** | 1-2h | Mehrere sources analysieren ODER warn-Hint |
+| A4 | **Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit** | 1.5-2h | `before` ignoriert heute scale + x/y. UI-Controls auch im `before` zeigen. |
+| B1 | **Phase 9.11 Multi-Clip Manual + Drag-Reorder** | 2-3h | `react-native-draggable-flatlist`. Native-Rebuild nötig. |
+| B2 | **Phase Builder-11 Drag-to-Seek + Item-Switch** | 1-2h | Scrubber wirkt heute nur in current item. Item-Switch via Drag. |
 
 ### 🟡 MITTEL
 
@@ -471,7 +493,8 @@ git reset --hard pre-phase-X.Y-backup
 ```
 
 **Aktuelle Backup-Tags (auf GitHub):**
-- `pre-phase-builder-completed-20260513` ← **aktuell**
+- `pre-phase-rls-setup-20260516` ← **aktuell**
+- `pre-phase-builder-completed-20260513`
 - `pre-phase-builder-v2-20260512`
 - `pre-phase-builder-20260512`
 - `pre-phase-9.8-completed-backup`
@@ -506,10 +529,10 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 - **Worker-URL**: `https://fiano-render-worker-491699066139.europe-west1.run.app`
 - **Worker-Rev**: `00017-9rh` (Phase Builder-5 deployed — word-timestamps aktiv)
 - **GitHub-Repo**: `garymikefischer-art/fiano`
-- **Aktueller Branch zum Mergen**: `claude/exciting-yalow-924ed7`
-- **Letzter Commit**: `ff098c7` (Thumbnail Custom-Game first)
-- **Backup-Tag**: `pre-phase-builder-completed-20260513`
-- **Letzte Phase**: Builder-10 (Intro scale 0..4 + Auto-Fit-Mode)
+- **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
+- **Letzter Commit**: (pending — A1 RLS-Baseline)
+- **Backup-Tag**: `pre-phase-rls-setup-20260516`
+- **Letzte Phase**: A1 RLS-Baseline (Migration `supabase/migrations/001_rls_baseline.sql`)
 
 ### Speicherorte
 
