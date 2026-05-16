@@ -38,6 +38,7 @@ import {
 } from '../lib/mediaPicker';
 import { extractVideoThumbnail } from '../lib/thumbnails';
 import {
+  useProjects,
   useProjectsStore,
   type ProjectMode,
   type VideoType,
@@ -46,6 +47,8 @@ import {
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
 import { downloadFromUrl, isYoutubeOrTwitchUrl } from '../lib/youtube';
+import { useProjectLimit } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'AddVideoProject'>;
@@ -63,11 +66,37 @@ export function AddVideoProjectScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
   const addProject = useProjectsStore((s) => s.addProject);
+  const projects = useProjects();
+  // Phase A5: Project-Limit (Creator=25, Pro/Lifetime=∞).
+  const { canCreate, limit } = useProjectLimit(projects.length);
+  const openUpgrade = useUpgradeModal((s) => s.open);
   const [videoType, setVideoType] = useState<VideoType>('gaming');
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [urlPhase, setUrlPhase] = useState<'requesting' | 'downloading' | null>(null);
   const [urlProgress, setUrlProgress] = useState(0);
+
+  // Phase A5: Project-Limit-Gate. Bei Creator über 25 Projects → Alert +
+  // Upgrade-Modal. Pro/Lifetime: canCreate immer true (limit=Infinity).
+  const ensureCanCreate = (): boolean => {
+    if (canCreate) return true;
+    const limitStr = Number.isFinite(limit) ? String(limit) : '∞';
+    Alert.alert(
+      t('projectLimit.reachedShort', 'Limit reached') + ` (${limitStr})`,
+      t(
+        'projectLimit.reachedHint',
+        'Limit reached — upgrade to Pro for unlimited projects',
+      ),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('upgradeModal.upgradeNow', 'Upgrade now'),
+          onPress: () => openUpgrade('unlimited_projects'),
+        },
+      ],
+    );
+    return false;
+  };
 
   const askSource = (): Promise<'gallery' | 'files' | null> => {
     return new Promise((resolve) => {
@@ -87,6 +116,7 @@ export function AddVideoProjectScreen() {
     mode: ProjectMode,
     options: { videoType?: VideoType } = {},
   ) => {
+    if (!ensureCanCreate()) return;
     const source = await askSource();
     if (!source) return;
     setBusy(mode);
@@ -149,6 +179,7 @@ export function AddVideoProjectScreen() {
       );
       return;
     }
+    if (!ensureCanCreate()) return;
     haptic.medium();
     setBusy('url');
     setUrlPhase('requesting');
@@ -200,6 +231,7 @@ export function AddVideoProjectScreen() {
 
   const onMultiClipImport = async () => {
     if (busy) return;
+    if (!ensureCanCreate()) return;
     const source = await askSource();
     if (!source) return;
     haptic.medium();

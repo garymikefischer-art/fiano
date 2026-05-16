@@ -20,6 +20,7 @@ import { useNotificationsStore } from './src/stores/notificationsStore';
 import { useProjectsStore } from './src/stores/projectsStore';
 import { initLanguage } from './src/lib/i18n';
 import { initSounds, appStart as playAppStart } from './src/lib/sounds';
+import { UpgradeModal } from './src/components/UpgradeModal';
 
 /**
  * Setzt die Android-Navigation-Bar-Farbe zur Laufzeit. Macht den schwarzen
@@ -73,6 +74,9 @@ export default function App() {
         <NavigationContainer theme={navTheme}>
           <StatusBar style="light" />
           <RootNavigator />
+          {/* Phase A5: globaler Upgrade-Modal für Feature-Locks. Liest
+              useUpgradeModal-Store, unmounts wenn featureId === null. */}
+          <UpgradeModal />
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>

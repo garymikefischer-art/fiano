@@ -254,7 +254,7 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 | A6.8 | **Electron CSP + sandbox + media:// path-validation** (P1-8, P2-7) | 1h | CSP-Meta-Tag, `sandbox:true`, `path.resolve` allow-list für media://. |
 | A6.9 | **R2 body-size-limit + YouTube-Cookies SecureStore + sourceKey-ext-check** (P2-1, P2-4, P2-6) | 1.5h | |
 | A6.10 | **`npm audit` + Updates auf moderate+ CVEs** (P3-12) | 1h | Root, packages/mobile, services/render-worker. |
-| A5 | **Mobile Feature-Lock-Parität (Schloss-Sperren wie Desktop)** | 4-6h | Port von `src/renderer/src/lib/features.ts` (23 FeatureIDs, Plan-Hierarchie creator/pro/lifetime, PROJECT_LIMIT) nach `packages/mobile/src/lib/features.ts`. RN-Variante von `FeatureLock`/`FeatureLockInline`/`LockBadge` mit SVG-Schloss. Lock-Stellen Mobile: TikTok subtitle_layered + advanced_effects + custom_subtitle_presets, Export export_4k + export_high_bitrate, Thumbnail-Tab thumbnail_generator, AddVideoProject project-limit (creator=25). Server-side enforcement via A6.3. i18n × 9 für `features.*`-Keys. |
+| ~~A5~~ | ~~**Mobile Feature-Lock-Parität (Schloss-Sperren wie Desktop)**~~ ✅ | ~~4-6h~~ | **Done 2026-05-16** — Port von Desktop `features.ts` + `FeatureLock`/`UpgradeModal` (RN-Variante mit react-native-svg). Lock-Stellen: SubtitleSettingsModal (layered style + glow + drop-shadow + save preset), ExportSettingsModal (4k + bitrate >5M), ThumbnailGeneratorScreen (full-lock-screen für free/creator), AddVideoProjectScreen (project-limit creator=25). i18n × 9 nutzt existing shared `features.*` + `upgradeModal.*` keys. ⚠️ **Client-only — Server-Enforcement noch in A6.3.** |
 | B1 | **Phase 9.11 Multi-Clip Manual + Drag-Reorder** | 2-3h | `react-native-draggable-flatlist`. Native-Rebuild nötig. |
 | B2 | **Phase Builder-11 Drag-to-Seek + Item-Switch** | 1-2h | Scrubber wirkt heute nur in current item. Item-Switch via Drag. |
 
@@ -542,9 +542,9 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 - **Worker-Rev**: `00018-bwh` (A6.1 Rate Limiting deployed 2026-05-16)
 - **GitHub-Repo**: `garymikefischer-art/fiano`
 - **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
-- **Letzter Commit**: `d9c2c69` (A1 RLS-Baseline) + pending A6.1 Rate-Limit
-- **Backup-Tag**: `pre-phase-a2-thumbnail-20260516` (pivot zu A6.1 — A2 wartet)
-- **Letzte Phase**: A6.1 Rate Limiting (P0-1 audit-finding fix)
+- **Letzter Commit**: A5 Mobile Feature-Lock (pending)
+- **Backup-Tag**: `pre-phase-a5-feature-lock-20260516`
+- **Letzte Phase**: A5 Mobile Feature-Lock-Parität (Client-side; Server-Enforcement folgt in A6.3)
 
 ### Speicherorte
 

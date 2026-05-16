@@ -20,12 +20,30 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { haptic } from '../lib/haptics';
+import { useFeature, type FeatureId } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 import type {
   ExportBitrate,
   ExportFps,
   ExportResolution,
   ExportSettings,
 } from '../stores/appStore';
+
+// Phase A5: pro Option ein optionaler Feature-Lock.
+// Resolution: 720p/1080p = creator, 4k = pro (export_4k).
+// Bitrate: 5M = creator, alles >5M = pro (export_high_bitrate).
+const RES_LOCK: Record<ExportResolution, FeatureId | null> = {
+  '720p': null,
+  '1080p': null,
+  '4k': 'export_4k',
+};
+const BR_LOCK: Record<ExportBitrate, FeatureId | null> = {
+  '5M': null,
+  '10M': 'export_high_bitrate',
+  '20M': 'export_high_bitrate',
+  '40M': 'export_high_bitrate',
+  '80M': 'export_high_bitrate',
+};
 
 interface Props {
   visible: boolean;
@@ -57,6 +75,14 @@ const BITRATE_OPTIONS: { id: ExportBitrate; label: string }[] = [
 export function ExportSettingsModal({ visible, initialSettings, onClose, onConfirm }: Props) {
   const [settings, setSettings] = useState<ExportSettings>(initialSettings);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
+  // Phase A5: Feature-Locks (4K + >5M Bitrate sind Pro).
+  const { unlocked: res4kUnlocked } = useFeature('export_4k');
+  const { unlocked: hiBitrateUnlocked } = useFeature('export_high_bitrate');
+  const openUpgrade = useUpgradeModal((s) => s.open);
+  const isResLocked = (id: ExportResolution): boolean =>
+    RES_LOCK[id] === 'export_4k' && !res4kUnlocked;
+  const isBitrateLocked = (id: ExportBitrate): boolean =>
+    BR_LOCK[id] === 'export_high_bitrate' && !hiBitrateUnlocked;
 
   return (
     <Modal
@@ -98,33 +124,49 @@ export function ExportSettingsModal({ visible, initialSettings, onClose, onConfi
               <View style={{ gap: 8 }}>
                 <Text style={styles.label}>AUFLÖSUNG</Text>
                 <View style={{ gap: 6 }}>
-                  {RESOLUTION_OPTIONS.map((o) => (
-                    <Pressable
-                      key={o.id}
-                      onPress={() => {
-                        haptic.selection();
-                        setSettings((s) => ({ ...s, resolution: o.id }));
-                      }}
-                      style={({ pressed }) => [
-                        styles.optionRow,
-                        settings.resolution === o.id && styles.optionRowActive,
-                        { opacity: pressed ? 0.7 : 1 },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.radio,
-                          settings.resolution === o.id && styles.radioActive,
+                  {RESOLUTION_OPTIONS.map((o) => {
+                    const locked = isResLocked(o.id);
+                    return (
+                      <Pressable
+                        key={o.id}
+                        onPress={() => {
+                          haptic.selection();
+                          if (locked) {
+                            openUpgrade('export_4k');
+                            return;
+                          }
+                          setSettings((s) => ({ ...s, resolution: o.id }));
+                        }}
+                        style={({ pressed }) => [
+                          styles.optionRow,
+                          settings.resolution === o.id && !locked && styles.optionRowActive,
+                          { opacity: pressed ? 0.7 : locked ? 0.55 : 1 },
                         ]}
                       >
-                        {settings.resolution === o.id && <View style={styles.radioDot} />}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.optionLabel}>{o.label}</Text>
-                        <Text style={styles.optionDesc}>{o.desc}</Text>
-                      </View>
-                    </Pressable>
-                  ))}
+                        <View
+                          style={[
+                            styles.radio,
+                            settings.resolution === o.id && !locked && styles.radioActive,
+                          ]}
+                        >
+                          {settings.resolution === o.id && !locked && <View style={styles.radioDot} />}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.optionLabel}>{o.label}</Text>
+                          <Text style={styles.optionDesc}>{o.desc}</Text>
+                        </View>
+                        {locked && (
+                          <View style={{
+                            width: 22, height: 22, borderRadius: 999,
+                            backgroundColor: 'rgba(255,16,57,0.85)',
+                            alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <Ionicons name="lock-closed" size={11} color="#fff" />
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -162,29 +204,45 @@ export function ExportSettingsModal({ visible, initialSettings, onClose, onConfi
               <View style={{ gap: 8 }}>
                 <Text style={styles.label}>BITRATE</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                  {BITRATE_OPTIONS.map((o) => (
-                    <Pressable
-                      key={o.id}
-                      onPress={() => {
-                        haptic.selection();
-                        setSettings((s) => ({ ...s, bitrate: o.id }));
-                      }}
-                      style={({ pressed }) => [
-                        styles.pill,
-                        settings.bitrate === o.id && styles.pillActive,
-                        { opacity: pressed ? 0.7 : 1 },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.pillText,
-                          settings.bitrate === o.id && styles.pillTextActive,
+                  {BITRATE_OPTIONS.map((o) => {
+                    const locked = isBitrateLocked(o.id);
+                    return (
+                      <Pressable
+                        key={o.id}
+                        onPress={() => {
+                          haptic.selection();
+                          if (locked) {
+                            openUpgrade('export_high_bitrate');
+                            return;
+                          }
+                          setSettings((s) => ({ ...s, bitrate: o.id }));
+                        }}
+                        style={({ pressed }) => [
+                          styles.pill,
+                          settings.bitrate === o.id && !locked && styles.pillActive,
+                          { opacity: pressed ? 0.7 : locked ? 0.55 : 1 },
+                          locked && { paddingRight: 26 },
                         ]}
                       >
-                        {o.label}
-                      </Text>
-                    </Pressable>
-                  ))}
+                        <Text
+                          style={[
+                            styles.pillText,
+                            settings.bitrate === o.id && !locked && styles.pillTextActive,
+                          ]}
+                        >
+                          {o.label}
+                        </Text>
+                        {locked && (
+                          <Ionicons
+                            name="lock-closed"
+                            size={10}
+                            color="#ff1039"
+                            style={{ position: 'absolute', right: 8, top: '50%', marginTop: -5 }}
+                          />
+                        )}
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
 
