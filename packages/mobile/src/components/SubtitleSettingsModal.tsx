@@ -44,6 +44,9 @@ import {
 } from '../data/demoProjects';
 import { useAppStore } from '../stores/appStore';
 import { haptic } from '../lib/haptics';
+// Phase A5: Feature-Locks
+import { useFeature } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 
 interface Props {
   visible: boolean;
@@ -104,6 +107,11 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
   const customPresets = useAppStore((s) => s.customSubtitlePresets);
   const saveSubtitlePreset = useAppStore((s) => s.saveSubtitlePreset);
   const removeSubtitlePreset = useAppStore((s) => s.removeSubtitlePreset);
+  // Phase A5: Feature-Locks für Pro-Features im Subtitle-Studio
+  const { unlocked: layeredUnlocked } = useFeature('subtitle_layered_style');
+  const { unlocked: advancedFxUnlocked } = useFeature('subtitle_advanced_effects');
+  const { unlocked: presetsUnlocked } = useFeature('custom_subtitle_presets');
+  const openUpgrade = useUpgradeModal((s) => s.open);
   // KEIN lokaler State — wir lesen direkt vom parent (single source of truth).
   // Vorheriger local-buffer hatte stale-closure-Probleme: Slider/ColorPicker
   // riefen patch() mit alten local-werten weil React 18 batching + setLocal-
@@ -237,6 +245,10 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                   <Pressable
                     onPress={() => {
                       haptic.medium();
+                      if (!presetsUnlocked) {
+                        openUpgrade('custom_subtitle_presets');
+                        return;
+                      }
                       setPresetNameInput('');
                       setSavePresetOpen(true);
                     }}
@@ -250,9 +262,10 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                       backgroundColor: pressed ? 'rgba(255,16,57,0.25)' : 'rgba(255,16,57,0.15)',
                       borderWidth: 1,
                       borderColor: 'rgba(255,16,57,0.4)',
+                      opacity: presetsUnlocked ? 1 : 0.6,
                     })}
                   >
-                    <Ionicons name="add" size={12} color="#ff1039" />
+                    <Ionicons name={presetsUnlocked ? 'add' : 'lock-closed'} size={12} color="#ff1039" />
                     <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700' }}>
                       Save Current
                     </Text>
@@ -329,23 +342,31 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                   Custom-Preset (eigene font/color/glow) das Built-in-Preset nicht. */}
               <Section title="STYLE">
                 <View style={styles.optionGrid}>
-                  {STYLE_OPTIONS.map((o) => (
-                    <OptionCard
-                      key={o.id}
-                      label={o.label}
-                      desc={o.desc}
-                      active={local.style === o.id}
-                      onPress={() => {
-                        haptic.selection();
-                        onChange({
-                          ...DEFAULT_SUBTITLES,
-                          style: o.id,
-                          enabled: local.enabled,
-                          cues: local.cues,
-                        });
-                      }}
-                    />
-                  ))}
+                  {STYLE_OPTIONS.map((o) => {
+                    const isLockedLayered = o.id === 'layered' && !layeredUnlocked;
+                    return (
+                      <OptionCard
+                        key={o.id}
+                        label={o.label}
+                        desc={o.desc}
+                        active={local.style === o.id && !isLockedLayered}
+                        locked={isLockedLayered}
+                        onPress={() => {
+                          haptic.selection();
+                          if (isLockedLayered) {
+                            openUpgrade('subtitle_layered_style');
+                            return;
+                          }
+                          onChange({
+                            ...DEFAULT_SUBTITLES,
+                            style: o.id,
+                            enabled: local.enabled,
+                            cues: local.cues,
+                          });
+                        }}
+                      />
+                    );
+                  })}
                 </View>
               </Section>
 
@@ -485,14 +506,20 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 )}
               </Section>
 
-              {/* 6. Glow */}
-              <Section title="GLOW">
+              {/* 6. Glow — Pro-Feature (subtitle_advanced_effects) */}
+              <Section title="GLOW" lockFeatureId={!advancedFxUnlocked ? 'subtitle_advanced_effects' : null} onLockedPress={openUpgrade}>
                 <ToggleRow
                   label="Enabled"
                   value={local.glowEnabled ?? false}
-                  onChange={(v) => patch({ glowEnabled: v })}
+                  onChange={(v) => {
+                    if (!advancedFxUnlocked) {
+                      openUpgrade('subtitle_advanced_effects');
+                      return;
+                    }
+                    patch({ glowEnabled: v });
+                  }}
                 />
-                {local.glowEnabled && (
+                {local.glowEnabled && advancedFxUnlocked && (
                   <>
                     <SliderRow
                       label="Blur"
@@ -521,14 +548,20 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 )}
               </Section>
 
-              {/* 7. Shadow */}
-              <Section title="DROP SHADOW">
+              {/* 7. Shadow — Pro-Feature (subtitle_advanced_effects) */}
+              <Section title="DROP SHADOW" lockFeatureId={!advancedFxUnlocked ? 'subtitle_advanced_effects' : null} onLockedPress={openUpgrade}>
                 <ToggleRow
                   label="Enabled"
                   value={local.shadowEnabled ?? false}
-                  onChange={(v) => patch({ shadowEnabled: v })}
+                  onChange={(v) => {
+                    if (!advancedFxUnlocked) {
+                      openUpgrade('subtitle_advanced_effects');
+                      return;
+                    }
+                    patch({ shadowEnabled: v });
+                  }}
                 />
-                {local.shadowEnabled && (
+                {local.shadowEnabled && advancedFxUnlocked && (
                   <>
                     <SliderRow
                       label="Offset X"
@@ -764,10 +797,41 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
 
 /* ─── Sub-Komponenten ─────────────────────────────────────────── */
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+  lockFeatureId,
+  onLockedPress,
+}: {
+  title: string;
+  children: React.ReactNode;
+  /** Phase A5: optional Feature-ID → zeigt Schloss-Badge im Title. */
+  lockFeatureId?: import('../lib/features').FeatureId | null;
+  onLockedPress?: (featureId: import('../lib/features').FeatureId) => void;
+}) {
   return (
     <View style={{ gap: 10 }}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {lockFeatureId && (
+          <Pressable
+            onPress={() => onLockedPress?.(lockFeatureId)}
+            hitSlop={8}
+            style={{
+              width: 16,
+              height: 16,
+              borderRadius: 999,
+              backgroundColor: 'rgba(255,16,57,0.15)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,16,57,0.4)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="lock-closed" size={9} color="#ff1039" />
+          </Pressable>
+        )}
+      </View>
       {children}
     </View>
   );
@@ -804,11 +868,14 @@ function OptionCard({
   desc,
   active,
   onPress,
+  locked,
 }: {
   label: string;
   desc: string;
   active: boolean;
   onPress: () => void;
+  /** Phase A5: locked Variante zeigt Schloss-Badge oben rechts + 55% opacity. */
+  locked?: boolean;
 }) {
   return (
     <Pressable
@@ -819,11 +886,28 @@ function OptionCard({
       style={({ pressed }) => [
         styles.optionCard,
         active && styles.optionCardActive,
-        { opacity: pressed ? 0.7 : 1 },
+        { opacity: pressed ? 0.7 : locked ? 0.55 : 1 },
       ]}
     >
       <Text style={[styles.optionLabel, active && { color: '#ff1039' }]}>{label}</Text>
       <Text style={styles.optionDesc}>{desc}</Text>
+      {locked && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 18,
+            height: 18,
+            borderRadius: 999,
+            backgroundColor: 'rgba(255,16,57,0.85)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="lock-closed" size={9} color="#fff" />
+        </View>
+      )}
     </Pressable>
   );
 }

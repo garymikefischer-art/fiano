@@ -40,6 +40,8 @@ import { useAppStore } from '../stores/appStore';
 import { generateThumbnail } from '../lib/gemini';
 import { haptic } from '../lib/haptics';
 import { useT } from '../lib/i18n';
+import { useFeature } from '../lib/features';
+import { useUpgradeModal } from '../stores/upgradeModalStore';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ThumbnailGenerator'>;
@@ -274,6 +276,9 @@ export function ThumbnailGeneratorScreen() {
   const project = useProject(route.params.projectId);
   const updateProject = useProjectsStore((s) => s.updateProject);
   const geminiKey = useAppStore((s) => s.geminiKey);
+  // Phase A5: Feature-Lock — Pro-only.
+  const { unlocked: thumbUnlocked } = useFeature('thumbnail_generator');
+  const openUpgrade = useUpgradeModal((s) => s.open);
 
   const [genre, setGenre] = useState<Genre>('battle_royale');
   const [customStyle, setCustomStyle] = useState<CustomStyle>('default');
@@ -391,6 +396,70 @@ export function ThumbnailGeneratorScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509', alignItems: 'center', justifyContent: 'center' }}>
         <Text style={{ color: '#a1a1aa' }}>Project not found.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Phase A5: Pro-Feature-Lock. Free/Creator-User sehen Lock-Screen.
+  if (!thumbUnlocked) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+        <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+        <BackgroundGlow />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 22,
+              backgroundColor: 'rgba(255,16,57,0.15)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,16,57,0.3)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 18,
+              shadowColor: '#ff1039',
+              shadowOpacity: 0.35,
+              shadowRadius: 24,
+              shadowOffset: { width: 0, height: 0 },
+              elevation: 8,
+            }}
+          >
+            <Ionicons name="lock-closed" size={32} color="#ff1039" />
+          </View>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#f1f2f2', textAlign: 'center', marginBottom: 8 }}>
+            {t('features.thumbnail_generator', 'Thumbnail Generator')}
+          </Text>
+          <Text style={{ fontSize: 13, color: '#a1a1aa', textAlign: 'center', lineHeight: 19, marginBottom: 28 }}>
+            {t('upgradeModal.body', 'This feature is part of {plan}. Upgrade now to unlock it.').replace(
+              '{plan}',
+              t('pricing.proName', 'Pro'),
+            )}
+          </Text>
+          <Pressable
+            onPress={() => openUpgrade('thumbnail_generator')}
+            style={({ pressed }) => ({
+              paddingHorizontal: 24,
+              paddingVertical: 13,
+              borderRadius: 12,
+              backgroundColor: '#ff1039',
+              opacity: pressed ? 0.85 : 1,
+              shadowColor: '#ff1039',
+              shadowOpacity: 0.45,
+              shadowRadius: 14,
+              shadowOffset: { width: 0, height: 0 },
+            })}
+          >
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+              {t('upgradeModal.upgradeNow', 'Upgrade now')} →
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => nav.goBack()} style={{ marginTop: 14, paddingVertical: 8 }}>
+            <Text style={{ color: '#71717a', fontSize: 12 }}>
+              {t('common.cancel', 'Cancel')}
+            </Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }
