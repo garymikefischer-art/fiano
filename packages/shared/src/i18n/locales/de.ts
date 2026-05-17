@@ -980,4 +980,16 @@ export const de: Record<string, string> = {
   'intro.preset.full':            'Voll',
   'export.notifBodyBuilder':      '16:9-Video in deiner Camera Roll gespeichert.',
   'export.phaseRendering16x9':    'Rendere 16:9 in der Cloud…',
+
+  // Phase A3 — Multi-Clip-Transcribe + Cue-Merging (2026-05-17)
+  'highlights.analyzeAllShort':         'Alle {n}',
+  'highlights.analyzeAllTitle':         'Alle Clips analysieren',
+  'highlights.analyzeAllBody':          'Alle {n} Clips transkribieren? Nutzt deinen OpenAI-API-Key — mehrere Aufrufe.',
+  'highlights.analyzeAllDoneTitle':     'Multi-Clip-Analyse fertig',
+  'highlights.analyzeAllDoneBody':      '{cues} Cues über {clips} Clips · {highlights} Highlights',
+  'highlights.analyzeAllProgress':      'Clip {n}/{total} · {phase}',
+  'highlights.analyzeAllFailedClip':    'Fehler bei Clip {n}/{total}',
+  'highlights.phaseUploading':          'Hochladen',
+  'highlights.phaseTranscribing':       'Transkribieren',
+  'common.continue':                    'Fortfahren',
 };

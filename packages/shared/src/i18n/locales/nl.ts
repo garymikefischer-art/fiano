@@ -962,4 +962,16 @@ export const nl: Record<string, string> = {
   'intro.preset.full':            'Volledig',
   'export.notifBodyBuilder':      '16:9-video opgeslagen in je gallerij.',
   'export.phaseRendering16x9':    '16:9 renderen in de cloud…',
+
+  // Phase A3 — Multi-Clip-Transcribe + Cue-Merging (2026-05-17)
+  'highlights.analyzeAllShort':         'Alle {n}',
+  'highlights.analyzeAllTitle':         'Alle clips analyseren',
+  'highlights.analyzeAllBody':          'Alle {n} clips transcriberen? Gebruikt je OpenAI-sleutel — meerdere oproepen.',
+  'highlights.analyzeAllDoneTitle':     'Multi-clip analyse klaar',
+  'highlights.analyzeAllDoneBody':      '{cues} ondertitels in {clips} clips · {highlights} momenten',
+  'highlights.analyzeAllProgress':      'Clip {n}/{total} · {phase}',
+  'highlights.analyzeAllFailedClip':    'Mislukt bij clip {n}/{total}',
+  'highlights.phaseUploading':          'Uploaden',
+  'highlights.phaseTranscribing':       'Transcriberen',
+  'common.continue':                    'Doorgaan',
 };

@@ -68,7 +68,7 @@ import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
 import { CueEditorModal } from '../components/CueEditorModal';
 import { extractVideoThumbnail } from '../lib/thumbnails';
-import { transcribeVideo } from '../lib/whisper';
+import { transcribeVideo, transcribeMultiSource } from '../lib/whisper';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { ExportSettingsModal } from '../components/ExportSettingsModal';
@@ -336,8 +336,95 @@ function HighlightsTab({
   const [analysisPhase, setAnalysisPhase] = useState<'uploading' | 'transcribing' | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [cueEditorOpen, setCueEditorOpen] = useState(false);
+  // Phase A3 — Multi-Clip-Transcribe-Progress
+  const [multiProgress, setMultiProgress] = useState<{
+    current: number;
+    total: number;
+    phase: 'uploading' | 'transcribing';
+  } | null>(null);
   const cues = project.subtitles?.cues ?? [];
   const hasCues = cues.length > 0;
+  const multiClipCount = project.sourceUris?.length ?? 0;
+  const isMultiClip = multiClipCount > 1;
+
+  // Phase A3: Multi-Clip-Transcribe — transcribed ALLE sourceUris, merged cues
+  // mit Time-Offsets. Opt-in via separater Button (sichtbar nur bei
+  // isMultiClip), weil Cost = N × Whisper-API-Use auf User's OpenAI-Key.
+  const onAnalyzeAllClips = () => {
+    const sourceUris = project.sourceUris ?? [];
+    if (sourceUris.length <= 1 || analysisBusy) return;
+    Alert.alert(
+      t('highlights.analyzeAllTitle', 'Analyze all clips'),
+      t(
+        'highlights.analyzeAllBody',
+        'Transcribe all {n} clips? Uses your OpenAI API key — multiple calls.',
+      ).replace('{n}', String(sourceUris.length)),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('common.continue', 'Continue'),
+          onPress: () => void runMultiAnalyze(sourceUris),
+        },
+      ],
+    );
+  };
+
+  const runMultiAnalyze = async (sourceUris: string[]) => {
+    haptic.medium();
+    setAnalysisBusy(true);
+    setMultiProgress({ current: 0, total: sourceUris.length, phase: 'uploading' });
+    try {
+      const result = await transcribeMultiSource({
+        sourceUris,
+        projectId: project.id,
+        videoType: project.videoType ?? 'auto',
+        onProgress: (current, total, phase) =>
+          setMultiProgress({ current, total, phase }),
+      });
+      const existing = project.subtitles ?? DEFAULT_SUBTITLES;
+      const newClips =
+        result.highlights.length > 0
+          ? result.highlights.map((h, i) => ({
+              id: `ai-${Date.now().toString(36)}-${i}`,
+              startSec: h.startSec,
+              endSec: h.endSec,
+              label: h.label,
+              score: h.score,
+            }))
+          : project.clips;
+      useProjectsStore.getState().updateProject(project.id, {
+        subtitles: { ...existing, enabled: true, cues: result.cues },
+        clips: newClips,
+        status: 'ready',
+      });
+      await flushProjectsNow();
+      haptic.success();
+      Alert.alert(
+        t('highlights.analyzeAllDoneTitle', 'Multi-clip analysis done'),
+        t(
+          'highlights.analyzeAllDoneBody',
+          '{cues} cues across {clips} clips · {highlights} highlights',
+        )
+          .replace('{cues}', String(result.cues.length))
+          .replace('{clips}', String(sourceUris.length))
+          .replace('{highlights}', String(result.highlights.length)),
+      );
+    } catch (err: any) {
+      haptic.error();
+      const failedAt = multiProgress
+        ? `${t('highlights.analyzeAllFailedClip', 'Failed at clip {n}/{total}')
+            .replace('{n}', String((multiProgress.current ?? 0) + 1))
+            .replace('{total}', String(multiProgress.total))}: `
+        : '';
+      Alert.alert(
+        t('highlights.analyzeFailed', 'Analysis failed'),
+        `${failedAt}${err?.message ?? String(err)}`,
+      );
+    } finally {
+      setAnalysisBusy(false);
+      setMultiProgress(null);
+    }
+  };
 
   const onAnalyze = async () => {
     if (!project.sourceUri || analysisBusy) return;
@@ -473,14 +560,29 @@ function HighlightsTab({
           </Text>
           {analysisBusy && (
             <View style={{ gap: 4 }}>
-              <Text style={{ color: '#71717a', fontSize: 10 }}>
-                {analysisPhase === 'uploading'
-                  ? t('highlights.uploading', `Uploading source… ${Math.round(uploadProgress * 100)}%`).replace(
-                      '${pct}',
-                      String(Math.round(uploadProgress * 100)),
-                    )
-                  : t('highlights.transcribing', 'Transcribing audio with Whisper…')}
-              </Text>
+              {/* Phase A3: Multi-Clip-Progress hat Vorrang — zeigt "Clip 2/5 · Uploading" */}
+              {multiProgress ? (
+                <Text style={{ color: '#71717a', fontSize: 10 }}>
+                  {t('highlights.analyzeAllProgress', 'Clip {n}/{total} · {phase}')
+                    .replace('{n}', String(multiProgress.current + 1))
+                    .replace('{total}', String(multiProgress.total))
+                    .replace(
+                      '{phase}',
+                      multiProgress.phase === 'uploading'
+                        ? t('highlights.phaseUploading', 'Uploading')
+                        : t('highlights.phaseTranscribing', 'Transcribing'),
+                    )}
+                </Text>
+              ) : (
+                <Text style={{ color: '#71717a', fontSize: 10 }}>
+                  {analysisPhase === 'uploading'
+                    ? t('highlights.uploading', `Uploading source… ${Math.round(uploadProgress * 100)}%`).replace(
+                        '${pct}',
+                        String(Math.round(uploadProgress * 100)),
+                      )
+                    : t('highlights.transcribing', 'Transcribing audio with Whisper…')}
+                </Text>
+              )}
               <View
                 style={{
                   height: 3,
@@ -526,6 +628,30 @@ function HighlightsTab({
                   : t('highlights.analyze', 'Analyze with AI')}
               </Text>
             </Pressable>
+            {/* Phase A3: Multi-Clip Analyze-Button — sichtbar nur bei >1 sourceUri. */}
+            {isMultiClip && !analysisBusy && (
+              <Pressable
+                onPress={onAnalyzeAllClips}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: 'rgba(255,16,57,0.15)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,16,57,0.4)',
+                  opacity: pressed ? 0.7 : 1,
+                })}
+                accessibilityLabel={t('highlights.analyzeAllTitle', 'Analyze all clips')}
+              >
+                <Ionicons name="layers-outline" size={13} color="#ff1039" />
+                <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '700' }}>
+                  {t('highlights.analyzeAllShort', 'All {n}').replace('{n}', String(multiClipCount))}
+                </Text>
+              </Pressable>
+            )}
             {hasCues && !analysisBusy && (
               <Pressable
                 onPress={() => {

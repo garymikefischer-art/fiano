@@ -143,3 +143,92 @@ export async function transcribeVideo(opts: TranscribeOpts): Promise<TranscribeR
     transcriptPath,
   };
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase A3 — Multi-Clip-Transcribe + Cue-Merging (2026-05-17)
+// ────────────────────────────────────────────────────────────────────────
+
+export interface TranscribeMultiOpts {
+  sourceUris: string[];
+  projectId: string;
+  videoType?: 'gaming' | 'podcast' | 'auto';
+  /** Per-clip Progress: clipIdx 0-based, totalClips = sourceUris.length, plus inner phase. */
+  onProgress?: (
+    clipIdx: number,
+    totalClips: number,
+    phase: 'uploading' | 'transcribing',
+  ) => void;
+  onUploadProgress?: (clipIdx: number, totalClips: number, frac: number) => void;
+}
+
+export interface TranscribeMultiResult {
+  cues: SubtitleCue[];
+  highlights: AIHighlight[];
+  totalDurationSec: number;
+  perClipDurations: number[];
+}
+
+/**
+ * Sequenzielles Transcribe für alle sourceUris, dann Cues + Highlights
+ * mit Time-Offset (clip-2-cues += clip-1-duration, etc) gemerged. Eine
+ * unified cue-list über das gesamte Multi-Clip-Render.
+ *
+ * Cost: N × `transcribeVideo` calls = N × Whisper-API-Use (User's OpenAI-Key)
+ * + N × R2-upload. Daher nur opt-in via expliziter User-Action.
+ *
+ * Bei Fehler in clip i: der Fehler wird sofort propagiert. Bisherige cues
+ * (clips 0..i-1) sind verloren — Caller kann sie via try/catch nicht retten.
+ * Future-Phase: per-clip-retry mit partial result preservation.
+ */
+export async function transcribeMultiSource(
+  opts: TranscribeMultiOpts,
+): Promise<TranscribeMultiResult> {
+  const mergedCues: SubtitleCue[] = [];
+  const mergedHighlights: AIHighlight[] = [];
+  const perClipDurations: number[] = [];
+  let offset = 0;
+
+  for (let i = 0; i < opts.sourceUris.length; i++) {
+    const result = await transcribeVideo({
+      sourceUri: opts.sourceUris[i],
+      projectId: opts.projectId,
+      videoType: opts.videoType,
+      onPhase: (phase) => opts.onProgress?.(i, opts.sourceUris.length, phase),
+      onUploadProgress: (frac) =>
+        opts.onUploadProgress?.(i, opts.sourceUris.length, frac),
+    });
+
+    // Cues mit Offset versehen
+    for (const cue of result.cues) {
+      mergedCues.push({
+        text: cue.text,
+        startSec: cue.startSec + offset,
+        endSec: cue.endSec + offset,
+        words: cue.words?.map((w) => ({
+          text: w.text,
+          startSec: w.startSec + offset,
+          endSec: w.endSec + offset,
+        })),
+      });
+    }
+
+    // Highlights mit Offset versehen
+    for (const h of result.highlights) {
+      mergedHighlights.push({
+        ...h,
+        startSec: h.startSec + offset,
+        endSec: h.endSec + offset,
+      });
+    }
+
+    perClipDurations.push(result.durationSec);
+    offset += result.durationSec;
+  }
+
+  return {
+    cues: mergedCues,
+    highlights: mergedHighlights,
+    totalDurationSec: offset,
+    perClipDurations,
+  };
+}
