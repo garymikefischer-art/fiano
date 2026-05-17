@@ -13,6 +13,13 @@ export interface DemoClip {
   score: number; // 0..1 — KI-Highlight-Score
   /** Optional Thumbnail-URI für 9:16-Selector (Phase 9.5.8.1). */
   thumbUri?: string;
+  /** Phase A3.10.3 (2026-05-17): Index in `project.sourceUris[]`.
+   *  Wenn unset: legacy-Verhalten (single-source = sourceUri, multi-source =
+   *  sourceUris[i] mit clipIdx==sourceIdx implizit). Wenn gesetzt: dieser
+   *  clip referenziert eine spezifische source — wird genutzt bei AI-Highlight-
+   *  "Add to 9:16" auf Multi-Clip-Projects, wo der Highlight aus Source 2
+   *  kommt aber als zusätzlicher TikTok-Clip selektierbar sein soll. */
+  sourceIdx?: number;
 }
 
 export type ProjectMode = 'highlights' | 'manual' | 'tiktok' | 'builder';

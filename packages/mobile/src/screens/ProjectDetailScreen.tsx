@@ -364,6 +364,12 @@ function HighlightsTab({
     h: AIHighlight;
     idx: number;
   } | null>(null);
+  // Phase A3.10.2: SeekTo für Hero-Player. Wird bei AI-Highlight-Play-Tap
+  // gesetzt → VideoPlayer scrubt zur Range-Start und spielt ab.
+  const [heroSeekTo, setHeroSeekTo] = useState<number | undefined>(undefined);
+  // Phase A3.10.2: index des AI-Highlights der gerade "in preview" ist
+  // (für visuellen Indikator auf der Card).
+  const [previewingHighlightIdx, setPreviewingHighlightIdx] = useState<number | null>(null);
 
   // Phase A3: Multi-Clip-Transcribe — transcribed ALLE sourceUris, merged cues
   // mit Time-Offsets. Opt-in via separater Button (sichtbar nur bei
@@ -456,21 +462,14 @@ function HighlightsTab({
         onUploadProgress: setUploadProgress,
       });
       const existing = project.subtitles ?? DEFAULT_SUBTITLES;
-      // Phase 9.6.7b: AI-Highlights als project.clips persistieren.
-      // Fallback wenn 0 highlights: behalte existing clips (z.B. Multi-Clip-Sources).
-      const newClips =
-        result.highlights.length > 0
-          ? result.highlights.map((h, i) => ({
-              id: `ai-${Date.now().toString(36)}-${i}`,
-              startSec: h.startSec,
-              endSec: h.endSec,
-              label: h.label,
-              score: h.score,
-            }))
-          : project.clips;
+      // Phase A3.10.1 (2026-05-17): Bug-Fix — source-clip(s) bleiben erhalten.
+      // AI-Highlights gehen in project.aiHighlights (analog Multi-Clip-Mode
+      // A3.1). Vorher hat dieser Code project.clips mit highlights über-
+      // schrieben, was den "Imported clip" Source-Eintrag gelöscht hat. User-
+      // Report 2026-05-17.
       useProjectsStore.getState().updateProject(project.id, {
         subtitles: { ...existing, enabled: true, cues: result.cues },
-        clips: newClips,
+        aiHighlights: result.highlights,
         status: 'ready',
       });
       // Explicit force-flush — sonst kann pending AsyncStorage-Write beim
@@ -512,12 +511,16 @@ function HighlightsTab({
       contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140, paddingTop: 16, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero — Phase A3.6: bei Multi-Source wird der aktive Clip gezeigt.
-          `key={activeSourceUri}` zwingt Re-Mount damit der Player das neue
-          Video lädt (statt einfach die uri zu wechseln — manche player-libs
-          haben dabei state-corruption). */}
+      {/* Hero — Phase A3.6/A3.10.2: bei Multi-Source wird der aktive Clip
+          gezeigt. `key={activeSourceUri}` zwingt Re-Mount damit der Player
+          das neue Video lädt. `seekTo` wird bei AI-Highlight-Play-Tap gesetzt
+          (A3.10.2) → Player scrubt zur Range. */}
       {activeSourceUri ? (
-        <VideoPlayer uri={activeSourceUri} key={activeSourceUri} />
+        <VideoPlayer
+          uri={activeSourceUri}
+          key={activeSourceUri}
+          seekTo={heroSeekTo}
+        />
       ) : (
         <PlaceholderHero project={project} />
       )}
@@ -822,41 +825,101 @@ function HighlightsTab({
             </Text>
             <Text style={{ color: '#71717a', fontSize: 10 }}>· {t('highlights.aiTapHint', 'tap for actions')}</Text>
           </View>
-          {project.aiHighlights!.map((h, idx) => (
-            <Pressable
-              key={`ai-${idx}`}
-              onPress={() => {
-                haptic.medium();
-                setAiActionSheet({ h, idx });
-              }}
-              style={({ pressed }) => ({
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderRadius: 10,
-                backgroundColor: pressed ? 'rgba(255,16,57,0.14)' : 'rgba(255,16,57,0.06)',
-                borderWidth: 1,
-                borderColor: 'rgba(255,16,57,0.2)',
-                gap: 4,
-              })}
-            >
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                  <Ionicons name="chevron-forward" size={11} color="#ff1039" />
-                  <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
-                    {h.label || `Highlight ${idx + 1}`}
-                  </Text>
-                </View>
-                <Text style={{ color: '#71717a', fontSize: 10 }}>
-                  {formatTime(h.startSec)} – {formatTime(h.endSec)} · {Math.round((h.endSec - h.startSec))}s · {Math.round(h.score * 100)}%
-                </Text>
+          {project.aiHighlights!.map((h, idx) => {
+            const isPreviewActive = previewingHighlightIdx === idx;
+            return (
+              <View
+                key={`ai-${idx}`}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: isPreviewActive ? 'rgba(255,16,57,0.18)' : 'rgba(255,16,57,0.06)',
+                  borderWidth: isPreviewActive ? 2 : 1,
+                  borderColor: isPreviewActive ? '#ff1039' : 'rgba(255,16,57,0.2)',
+                  gap: 4,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                }}
+              >
+                {/* Phase A3.10.2: Separater Play-Button für Player-Preview */}
+                <Pressable
+                  onPress={() => {
+                    haptic.light();
+                    const resolved = resolveHighlightSource(h, project);
+                    if (!resolved) {
+                      Alert.alert(
+                        t('highlights.aiCrossClipTitle', 'Cross-clip highlight'),
+                        t(
+                          'highlights.aiCrossClipBody',
+                          'Multi-clip highlight preview is coming in a future phase.',
+                        ),
+                      );
+                      return;
+                    }
+                    // Bei Multi-Source: zur richtigen Source switchen
+                    if (isMultiSource && resolved.clipIndex !== activeSourceIdx) {
+                      setActiveSourceIdx(resolved.clipIndex);
+                    }
+                    // Player-Seek mit kleinem random epsilon damit gleicher
+                    // seekTo nochmal triggert (siehe ManualTab pattern).
+                    setHeroSeekTo(resolved.trimStart + Math.random() * 1e-9);
+                    setPreviewingHighlightIdx(idx);
+                  }}
+                  hitSlop={6}
+                  style={({ pressed }) => ({
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: isPreviewActive
+                      ? '#ff1039'
+                      : pressed
+                        ? 'rgba(255,16,57,0.35)'
+                        : 'rgba(255,16,57,0.2)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 1,
+                    borderColor: '#ff1039',
+                  })}
+                  accessibilityLabel={t('highlights.aiPlayPreview', 'Play preview')}
+                >
+                  <Ionicons
+                    name={isPreviewActive ? 'pause' : 'play'}
+                    size={12}
+                    color={isPreviewActive ? '#fff' : '#ff1039'}
+                  />
+                </Pressable>
+                {/* Main-Card-Area: Tap öffnet ActionSheet (Export/Add to ...) */}
+                <Pressable
+                  onPress={() => {
+                    haptic.medium();
+                    setAiActionSheet({ h, idx });
+                  }}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    gap: 4,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                      <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                        {h.label || `Highlight ${idx + 1}`}
+                      </Text>
+                    </View>
+                    <Text style={{ color: '#71717a', fontSize: 10 }}>
+                      {formatTime(h.startSec)} – {formatTime(h.endSec)} · {Math.round((h.endSec - h.startSec))}s · {Math.round(h.score * 100)}%
+                    </Text>
+                  </View>
+                  {h.reason && (
+                    <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }} numberOfLines={2}>
+                      {h.reason}
+                    </Text>
+                  )}
+                </Pressable>
               </View>
-              {h.reason && (
-                <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }} numberOfLines={2}>
-                  {h.reason}
-                </Text>
-              )}
-            </Pressable>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -992,37 +1055,30 @@ function buildAIHighlightActions(
         });
       },
     },
-    isMultiSource
-      ? {
-          label: t('highlights.aiAddTo916', 'Add to 9:16'),
-          icon: 'phone-portrait-outline',
-          variant: 'disabled',
-          hint: t(
-            'highlights.aiAddTo916MultiHint',
-            'Not available in multi-clip projects. Use "Add to Builder" instead.',
-          ),
-          onPress: () => {},
-        }
-      : {
-          label: t('highlights.aiAddTo916', 'Add to 9:16'),
-          icon: 'phone-portrait-outline',
-          variant: 'secondary',
-          onPress: () => {
-            // Phase A3.9.b2: bei Single-Source append clip mit highlight-range
-            // zu project.clips. TikTok-Tab Clip-Selector zeigt es dann an.
-            const newClip: DemoClip = {
-              id: `ai-${Date.now().toString(36)}-${idx}`,
-              startSec: resolved.trimStart,
-              endSec: resolved.trimEnd,
-              label: `AI · ${title.slice(0, 50)}`,
-              score: h.score,
-            };
-            useProjectsStore.getState().updateProject(project.id, {
-              clips: [...project.clips, newClip],
-            });
-            haptic.success();
-          },
-        },
+    {
+      // Phase A3.10.3 (2026-05-17): Multi-Source jetzt auch unterstützt via
+      // DemoClip.sourceIdx. Bei Single-Source bleibt sourceIdx undefined
+      // (legacy-Verhalten, mappt auf project.sourceUri).
+      label: t('highlights.aiAddTo916', 'Add to 9:16'),
+      icon: 'phone-portrait-outline',
+      variant: 'secondary',
+      onPress: () => {
+        const newClip: DemoClip = {
+          id: `ai-${Date.now().toString(36)}-${idx}`,
+          startSec: resolved.trimStart,
+          endSec: resolved.trimEnd,
+          label: `AI · ${title.slice(0, 50)}`,
+          score: h.score,
+          // Bei Multi-Source clipIndex setzen damit TikTok-Tab + Export
+          // wissen welche source-uri zu nehmen ist. Single-Source: undefined.
+          sourceIdx: isMultiSource ? resolved.clipIndex : undefined,
+        };
+        useProjectsStore.getState().updateProject(project.id, {
+          clips: [...project.clips, newClip],
+        });
+        haptic.success();
+      },
+    },
     {
       label: t('highlights.aiAddToBuilder', 'Add to Builder'),
       icon: 'apps-outline',
@@ -1907,16 +1963,32 @@ function TikTokTab({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.id]);
-  const effectiveSourceUri = isMultiSource
-    ? projectSourceUris[Math.min(safeIdx, projectSourceUris.length - 1)]
-    : project.sourceUri;
+  // Phase A3.10.3 (2026-05-17): AI-Highlight-Clips in Multi-Clip-Projects
+  // haben einen expliziten `sourceIdx` der NICHT auf den one-to-one source
+  // mapping passt. Resolve hier — falls clip.sourceIdx gesetzt + valid:
+  // nimm diese source + clip's eigene trim-Range. Sonst legacy-Verhalten.
+  const clipSourceIdx = selectedClip?.sourceIdx;
+  const hasExplicitSourceIdx =
+    clipSourceIdx !== undefined && projectSourceUris[clipSourceIdx] !== undefined;
+  const effectiveSourceUri = hasExplicitSourceIdx
+    ? projectSourceUris[clipSourceIdx!]
+    : isMultiSource
+      ? projectSourceUris[Math.min(safeIdx, projectSourceUris.length - 1)]
+      : project.sourceUri;
   // Trim-Werte:
-  //   Multi-Source (clip-per-file): kein Trim — volle file-Länge.
+  //   Explicit sourceIdx (A3.10.3 AI-Highlight in Multi-Clip): Trim = clip.start/end.
+  //   Multi-Source legacy (clip-per-file): kein Trim — volle file-Länge.
   //   Single-Source-with-clips (Highlights): Trim = clip start/end.
-  const effectiveTrimStart = isMultiSource ? 0 : (selectedClip?.startSec ?? project.trimStart ?? 0);
-  const effectiveTrimEnd = isMultiSource
-    ? (selectedClip?.endSec ?? project.durationSec)
-    : (selectedClip?.endSec ?? project.trimEnd ?? (project.durationSec > 60 ? 60 : project.durationSec));
+  const effectiveTrimStart = hasExplicitSourceIdx
+    ? (selectedClip?.startSec ?? 0)
+    : isMultiSource
+      ? 0
+      : (selectedClip?.startSec ?? project.trimStart ?? 0);
+  const effectiveTrimEnd = hasExplicitSourceIdx
+    ? (selectedClip?.endSec ?? 0)
+    : isMultiSource
+      ? (selectedClip?.endSec ?? project.durationSec)
+      : (selectedClip?.endSec ?? project.trimEnd ?? (project.durationSec > 60 ? 60 : project.durationSec));
 
   const pickIntro = async () => {
     haptic.medium();
