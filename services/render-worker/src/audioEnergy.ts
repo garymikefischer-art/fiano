@@ -27,7 +27,27 @@ export async function extractAudioEnergy(
   jobId: string,
   maxDurationSec: number = 120,
 ): Promise<AudioEnergyBucket[]> {
-  return new Promise((resolve, reject) => {
+  // Phase A3.8.b (2026-05-17): erst ebur128 versuchen, bei 0 buckets
+  // automatisch auf astats-Filter fallen (robuster across ffmpeg-Versionen).
+  const ebur128Buckets = await tryEbur128(audioPath, jobId, maxDurationSec);
+  if (ebur128Buckets.length > 0) {
+    console.log(`[${jobId}] audio-energy buckets=${ebur128Buckets.length} (via ebur128)`);
+    return ebur128Buckets;
+  }
+  console.warn(`[${jobId}] audio-energy ebur128 returned 0 buckets — falling back to astats`);
+  const astatsBuckets = await tryAstats(audioPath, jobId, maxDurationSec);
+  console.log(`[${jobId}] audio-energy buckets=${astatsBuckets.length} (via astats fallback)`);
+  return astatsBuckets;
+}
+
+/** Primary: ffmpeg ebur128 filter. Robust für long-form, manche ffmpeg-Versionen
+ *  haben aber unterschiedliche Output-Formate. Bei Empty-Result → astats-Fallback. */
+function tryEbur128(
+  audioPath: string,
+  jobId: string,
+  maxDurationSec: number,
+): Promise<AudioEnergyBucket[]> {
+  return new Promise((resolve) => {
     const proc = spawn(
       'ffmpeg',
       ['-nostats', '-i', audioPath, '-af', 'ebur128=metadata=1', '-f', 'null', '-'],
@@ -36,6 +56,7 @@ export async function extractAudioEnergy(
 
     const samplesPerSec = new Map<number, number[]>();
     let stderrBuf = '';
+    let firstLines: string[] = []; // für Debug bei 0 buckets
     let killed = false;
     const timeout = setTimeout(() => {
       killed = true;
@@ -47,6 +68,10 @@ export async function extractAudioEnergy(
       const lines = stderrBuf.split('\n');
       stderrBuf = lines.pop() ?? '';
       for (const line of lines) {
+        // Debug: erste 3 Zeilen mit `t:` (oder Parsed_ebur128) zwischenspeichern
+        if (firstLines.length < 3 && (line.includes('t:') || line.includes('Parsed_ebur128'))) {
+          firstLines.push(line.slice(0, 200));
+        }
         // Parse "t:    X.XXX" und "M:    -YY.Y" auf gleicher Zeile.
         const tMatch = /t:\s*([\d.]+)/.exec(line);
         const mMatch = /M:\s*(-?[\d.]+)/.exec(line);
@@ -54,7 +79,6 @@ export async function extractAudioEnergy(
           const sec = Math.floor(parseFloat(tMatch[1]));
           const lufs = parseFloat(mMatch[1]);
           if (!Number.isFinite(lufs)) continue;
-          // -inf, -120 etc → clamp auf SILENCE_LUFS.
           const clamped = lufs < SILENCE_LUFS ? SILENCE_LUFS : lufs;
           const arr = samplesPerSec.get(sec) ?? [];
           arr.push(clamped);
@@ -66,10 +90,10 @@ export async function extractAudioEnergy(
     proc.on('close', (code) => {
       clearTimeout(timeout);
       if (killed) {
-        reject(new Error(`audio-energy extract timeout after ${maxDurationSec}s`));
+        console.warn(`[${jobId}] ebur128 timeout — returning empty`);
+        resolve([]);
         return;
       }
-      // ebur128 exit-code ist meistens 0 selbst bei warnings — wir tolerieren <0.
       if (code !== 0 && code !== null) {
         console.warn(`[${jobId}] ebur128 exit=${code} (continuing with parsed data)`);
       }
@@ -80,13 +104,107 @@ export async function extractAudioEnergy(
         const avg = samples.reduce((s, v) => s + v, 0) / samples.length;
         buckets.push({ sec, lufs: avg });
       }
-      console.log(`[${jobId}] audio-energy buckets=${buckets.length}`);
+      if (buckets.length === 0 && firstLines.length > 0) {
+        console.log(`[${jobId}] ebur128 debug-stderr sample (no buckets):`);
+        for (const l of firstLines) console.log(`  ${l}`);
+      }
       resolve(buckets);
     });
 
     proc.on('error', (err) => {
       clearTimeout(timeout);
-      reject(new Error(`ffmpeg ebur128 spawn failed: ${err.message}`));
+      console.warn(`[${jobId}] ebur128 spawn failed: ${err.message}`);
+      resolve([]);
+    });
+  });
+}
+
+/** Fallback: ffmpeg astats filter per-second. Outputs `Peak_level` und
+ *  `RMS_level` in dB pro Sekunde via metadata. Format ist stabiler als
+ *  ebur128, plus einfacher zu parsen. */
+function tryAstats(
+  audioPath: string,
+  jobId: string,
+  maxDurationSec: number,
+): Promise<AudioEnergyBucket[]> {
+  return new Promise((resolve) => {
+    // astats=metadata=1:reset=1:length=1 → reset stats every 1 sec
+    // Output via -af metadata=print
+    const proc = spawn(
+      'ffmpeg',
+      [
+        '-nostats',
+        '-i',
+        audioPath,
+        '-af',
+        'astats=metadata=1:reset=1:length=1,ametadata=print:key=lavfi.astats.Overall.RMS_level',
+        '-f',
+        'null',
+        '-',
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+
+    const samplesPerSec = new Map<number, number[]>();
+    let stderrBuf = '';
+    let currentPts = 0;
+    let killed = false;
+    const timeout = setTimeout(() => {
+      killed = true;
+      proc.kill('SIGKILL');
+    }, maxDurationSec * 1000);
+
+    proc.stderr.on('data', (chunk: Buffer) => {
+      stderrBuf += chunk.toString();
+      const lines = stderrBuf.split('\n');
+      stderrBuf = lines.pop() ?? '';
+      for (const line of lines) {
+        // `frame:0    pts:0        pts_time:0` Marker
+        const ptsMatch = /pts_time:\s*([\d.]+)/.exec(line);
+        if (ptsMatch) {
+          currentPts = parseFloat(ptsMatch[1]);
+          continue;
+        }
+        // `lavfi.astats.Overall.RMS_level=-23.123456`
+        const rmsMatch = /astats\.Overall\.RMS_level=(-?[\d.]+|-?inf)/.exec(line);
+        if (rmsMatch) {
+          const valStr = rmsMatch[1];
+          // -inf bei silence → clamp auf SILENCE_LUFS-equivalent
+          const rms = valStr === '-inf' ? SILENCE_LUFS : parseFloat(valStr);
+          if (!Number.isFinite(rms)) continue;
+          const clamped = rms < SILENCE_LUFS ? SILENCE_LUFS : rms;
+          const sec = Math.floor(currentPts);
+          const arr = samplesPerSec.get(sec) ?? [];
+          arr.push(clamped);
+          samplesPerSec.set(sec, arr);
+        }
+      }
+    });
+
+    proc.on('close', (code) => {
+      clearTimeout(timeout);
+      if (killed) {
+        console.warn(`[${jobId}] astats timeout — returning empty`);
+        resolve([]);
+        return;
+      }
+      if (code !== 0 && code !== null) {
+        console.warn(`[${jobId}] astats exit=${code}`);
+      }
+      const buckets: AudioEnergyBucket[] = [];
+      const seconds = Array.from(samplesPerSec.keys()).sort((a, b) => a - b);
+      for (const sec of seconds) {
+        const samples = samplesPerSec.get(sec)!;
+        const avg = samples.reduce((s, v) => s + v, 0) / samples.length;
+        buckets.push({ sec, lufs: avg });
+      }
+      resolve(buckets);
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timeout);
+      console.warn(`[${jobId}] astats spawn failed: ${err.message}`);
+      resolve([]);
     });
   });
 }
