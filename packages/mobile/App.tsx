@@ -21,6 +21,7 @@ import { useProjectsStore } from './src/stores/projectsStore';
 import { initLanguage } from './src/lib/i18n';
 import { initSounds, appStart as playAppStart } from './src/lib/sounds';
 import { UpgradeModal } from './src/components/UpgradeModal';
+import { initThumbnailBackfill } from './src/lib/thumbnails';
 
 /**
  * Setzt die Android-Navigation-Bar-Farbe zur Laufzeit. Macht den schwarzen
@@ -66,6 +67,12 @@ export default function App() {
     void initProjects();
     initAuth();
     void initSounds().then(() => playAppStart());
+    // Phase A2: Thumbnail-Backfill für alte Library-Cards ohne thumbUri.
+    // Sequentielle Queue (Vivo HEVC 1-Decoder), self-deduping, läuft im
+    // Hintergrund. Return-Callback wird beim App-Root-Unmount aufgerufen
+    // (normalerweise nie, aber sauberer code).
+    const unsubBackfill = initThumbnailBackfill();
+    return () => unsubBackfill();
   }, [initAuth, initApp, initNotifications, initProjects]);
 
   return (

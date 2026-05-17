@@ -240,7 +240,7 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 | # | Task | Aufwand | Notes |
 |---|---|---|---|
 | ~~A1~~ | ~~**Supabase RLS-Setup**~~ ✅ | ~~1-2h~~ | **Done 2026-05-16** — `supabase/migrations/001_rls_baseline.sql`. Siehe §2 "Supabase Database / Security". |
-| A2 | **Phase 9.10 Thumbnail-on-demand** | ~1h | Alte Library-Cards ohne thumbUri beim Mount extrahieren |
+| ~~A2~~ | ~~**Phase 9.10 Thumbnail-on-demand**~~ ✅ | ~~~1h~~ | **Done 2026-05-17** — `lib/thumbnails.ts` mit sequentieller Queue (Vivo HEVC 1-Decoder Constraint, 150ms pause). `initThumbnailBackfill()` in App.tsx useEffect. Self-dedup via `inProgress`/`failed`/`queue.includes` Sets. Subscribed an projectsStore → neue Projects auto-enqueue. |
 | A3 | **Multi-Clip-Import + Whisper** | 1-2h | Mehrere sources analysieren ODER warn-Hint |
 | A4 | **Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit** | 1.5-2h | `before` ignoriert heute scale + x/y. UI-Controls auch im `before` zeigen. |
 | A6 | **Security-Audit Findings (Phase A6, ~6-8d gesamt)** | siehe Sub | Audit 2026-05-16, 4 P0 / 8 P1 / 8 P2 / 14 P3 — **Volldoku: `SECURITY_AUDIT_2026-05-16.md`** |
@@ -542,9 +542,9 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 - **Worker-Rev**: `00018-bwh` (A6.1 Rate Limiting deployed 2026-05-16)
 - **GitHub-Repo**: `garymikefischer-art/fiano`
 - **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
-- **Letzter Commit**: A5 Mobile Feature-Lock (pending)
-- **Backup-Tag**: `pre-phase-a5-feature-lock-20260516`
-- **Letzte Phase**: A5 Mobile Feature-Lock-Parität (Client-side; Server-Enforcement folgt in A6.3)
+- **Letzter Commit**: A2 Thumbnail-on-demand (pending)
+- **Backup-Tag**: `pre-phase-a2-thumbnail-20260517`
+- **Letzte Phase**: A2 Phase 9.10 Thumbnail-on-demand (sequentielle Queue, JS-only)
 
 ### Speicherorte
 
