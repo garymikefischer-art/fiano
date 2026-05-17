@@ -100,6 +100,10 @@ export interface SubtitleCue {
   /** Sekunde im Source-Video. */
   endSec: number;
   text: string;
+  /** Phase Builder-4: word-level timestamps von Whisper (timestamp_granularities=word).
+   *  Wenn vorhanden, kann Mobile per-word chunking mit echtem Timing machen.
+   *  Phase A3 (2026-05-17): wird auch bei Multi-Clip-Transcribe mit Offsets gemerged. */
+  words?: { text: string; startSec: number; endSec: number }[];
 }
 
 /**

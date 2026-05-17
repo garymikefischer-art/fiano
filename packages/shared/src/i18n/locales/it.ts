@@ -962,4 +962,16 @@ export const it: Record<string, string> = {
   'intro.preset.full':            'Pieno',
   'export.notifBodyBuilder':      'Video 16:9 salvato nella galleria.',
   'export.phaseRendering16x9':    'Rendering 16:9 nel cloud…',
+
+  // Phase A3 — Multi-Clip-Transcribe + Cue-Merging (2026-05-17)
+  'highlights.analyzeAllShort':         'Tutti {n}',
+  'highlights.analyzeAllTitle':         'Analizza tutti i clip',
+  'highlights.analyzeAllBody':          'Trascrivere tutti i {n} clip? Usa la tua chiave OpenAI — chiamate multiple.',
+  'highlights.analyzeAllDoneTitle':     'Analisi multi-clip completata',
+  'highlights.analyzeAllDoneBody':      '{cues} sottotitoli su {clips} clip · {highlights} momenti',
+  'highlights.analyzeAllProgress':      'Clip {n}/{total} · {phase}',
+  'highlights.analyzeAllFailedClip':    'Errore al clip {n}/{total}',
+  'highlights.phaseUploading':          'Caricamento',
+  'highlights.phaseTranscribing':       'Trascrizione',
+  'common.continue':                    'Continua',
 };

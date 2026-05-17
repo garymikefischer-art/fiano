@@ -241,7 +241,7 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 |---|---|---|---|
 | ~~A1~~ | ~~**Supabase RLS-Setup**~~ ✅ | ~~1-2h~~ | **Done 2026-05-16** — `supabase/migrations/001_rls_baseline.sql`. Siehe §2 "Supabase Database / Security". |
 | ~~A2~~ | ~~**Phase 9.10 Thumbnail-on-demand**~~ ✅ | ~~~1h~~ | **Done 2026-05-17** — `lib/thumbnails.ts` mit sequentieller Queue (Vivo HEVC 1-Decoder Constraint, 150ms pause). `initThumbnailBackfill()` in App.tsx useEffect. Self-dedup via `inProgress`/`failed`/`queue.includes` Sets. Subscribed an projectsStore → neue Projects auto-enqueue. |
-| A3 | **Multi-Clip-Import + Whisper** | 1-2h | Mehrere sources analysieren ODER warn-Hint |
+| ~~A3~~ | ~~**Multi-Clip-Import + Whisper**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — `transcribeMultiSource()` in `whisper.ts` (sequenziell, cues + highlights mit time-offsets gemerged). Neuer "All N"-Button im ProjectDetail Action-Row (sichtbar nur bei `sourceUris.length > 1`). Confirm-Alert vor Start (Cost-Hinweis), Multi-Progress-State "Clip {n}/{total} · {phase}". Opt-in (User triggert manuell). SubtitleCue Mobile-Type erweitert um `words?`. i18n × 9. |
 | A4 | **Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit** | 1.5-2h | `before` ignoriert heute scale + x/y. UI-Controls auch im `before` zeigen. |
 | A6 | **Security-Audit Findings (Phase A6, ~6-8d gesamt)** | siehe Sub | Audit 2026-05-16, 4 P0 / 8 P1 / 8 P2 / 14 P3 — **Volldoku: `SECURITY_AUDIT_2026-05-16.md`** |
 | ~~A6.1~~ | ~~**Rate Limiting Worker**~~ ✅ (P0-1) | ~~1h~~ | **Done 2026-05-16** — Worker rev `00018-bwh`. `express-rate-limit@7.5.1` per-userId nach authMiddleware. /upload-url 30/min, /render 5/min, /transcribe 5/min, /download 3/min. Cloud Run `trust proxy: 1`. 429 mit `retryAfterSec` + `[ratelimit:NAME]` log-warning. |
@@ -542,9 +542,9 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 - **Worker-Rev**: `00018-bwh` (A6.1 Rate Limiting deployed 2026-05-16)
 - **GitHub-Repo**: `garymikefischer-art/fiano`
 - **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
-- **Letzter Commit**: A2 Thumbnail-on-demand (pending)
-- **Backup-Tag**: `pre-phase-a2-thumbnail-20260517`
-- **Letzte Phase**: A2 Phase 9.10 Thumbnail-on-demand (sequentielle Queue, JS-only)
+- **Letzter Commit**: A3 Multi-Clip-Whisper (pending)
+- **Backup-Tag**: `pre-phase-a3-multiwhisper-20260517`
+- **Letzte Phase**: A3 Multi-Clip-Import + Whisper-Pipeline (opt-in via "All N"-Button)
 
 ### Speicherorte
 

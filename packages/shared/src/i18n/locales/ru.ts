@@ -963,4 +963,16 @@ export const ru: Record<string, string> = {
   'intro.preset.full':            'Полный',
   'export.notifBodyBuilder':      'Видео 16:9 сохранено в галерее.',
   'export.phaseRendering16x9':    'Рендеринг 16:9 в облаке…',
+
+  // Phase A3 — Multi-Clip-Transcribe + Cue-Merging (2026-05-17)
+  'highlights.analyzeAllShort':         'Все {n}',
+  'highlights.analyzeAllTitle':         'Анализировать все клипы',
+  'highlights.analyzeAllBody':          'Транскрибировать все {n} клипов? Использует ваш OpenAI API ключ — несколько вызовов.',
+  'highlights.analyzeAllDoneTitle':     'Анализ нескольких клипов готов',
+  'highlights.analyzeAllDoneBody':      '{cues} реплик по {clips} клипам · {highlights} моментов',
+  'highlights.analyzeAllProgress':      'Клип {n}/{total} · {phase}',
+  'highlights.analyzeAllFailedClip':    'Ошибка на клипе {n}/{total}',
+  'highlights.phaseUploading':          'Загрузка',
+  'highlights.phaseTranscribing':       'Транскрибация',
+  'common.continue':                    'Продолжить',
 };
