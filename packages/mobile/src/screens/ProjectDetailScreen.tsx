@@ -68,6 +68,7 @@ import { VoiceOverPreviewPlayer } from '../components/VoiceOverPreviewPlayer';
 import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
 import { CueEditorModal } from '../components/CueEditorModal';
+import { ActionSheet, type ActionSheetItem } from '../components/ActionSheet';
 import { extractVideoThumbnail } from '../lib/thumbnails';
 import { transcribeVideo, transcribeMultiSource } from '../lib/whisper';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
@@ -358,6 +359,11 @@ function HighlightsTab({
   const activeSourceUri = isMultiSource
     ? projectSourceUris[Math.min(activeSourceIdx, projectSourceUris.length - 1)]
     : project.sourceUri;
+  // Phase A3.9.b1: state für ActionSheet auf AI-Highlight-Tap.
+  const [aiActionSheet, setAiActionSheet] = useState<{
+    h: AIHighlight;
+    idx: number;
+  } | null>(null);
 
   // Phase A3: Multi-Clip-Transcribe — transcribed ALLE sourceUris, merged cues
   // mit Time-Offsets. Opt-in via separater Button (sichtbar nur bei
@@ -819,7 +825,10 @@ function HighlightsTab({
           {project.aiHighlights!.map((h, idx) => (
             <Pressable
               key={`ai-${idx}`}
-              onPress={() => onAIHighlightPress(h, idx, project, nav, exportSettings, t)}
+              onPress={() => {
+                haptic.medium();
+                setAiActionSheet({ h, idx });
+              }}
               style={({ pressed }) => ({
                 paddingHorizontal: 12,
                 paddingVertical: 10,
@@ -849,6 +858,28 @@ function HighlightsTab({
             </Pressable>
           ))}
         </View>
+      )}
+
+      {/* Phase A3.9.b1: App-Style ActionSheet für AI-Highlight-Tap.
+          Statt RN Alert.alert — custom Modal mit BlurView, Glass-Style,
+          drei Action-Buttons (Export 9:16 / Add to 9:16 / Add to Builder). */}
+      {aiActionSheet && (
+        <ActionSheet
+          visible={!!aiActionSheet}
+          title={aiActionSheet.h.label || `Highlight ${aiActionSheet.idx + 1}`}
+          subtitle={`${formatTime(aiActionSheet.h.startSec)} – ${formatTime(aiActionSheet.h.endSec)} · ${Math.round(aiActionSheet.h.endSec - aiActionSheet.h.startSec)}s · ${Math.round(aiActionSheet.h.score * 100)}%`}
+          body={aiActionSheet.h.reason}
+          icon="sparkles"
+          items={buildAIHighlightActions(
+            aiActionSheet.h,
+            aiActionSheet.idx,
+            project,
+            nav,
+            exportSettings,
+            t,
+          )}
+          onClose={() => setAiActionSheet(null)}
+        />
       )}
     </ScrollView>
   );
@@ -906,59 +937,49 @@ function resolveHighlightSource(
 }
 
 /**
- * Phase A3.9: Action-Handler bei Tap auf AI-Highlight-Card.
- * Zeigt Alert mit drei Optionen:
- *   1. Export 9:16 (direkt navigate, default export-settings)
- *   2. Add to Builder (als builderExtras-Eintrag)
- *   3. Cancel
+ * Phase A3.9.b1 (2026-05-17): baut die Action-Items für den AI-Highlight-
+ * ActionSheet. Liefert 3 Buttons:
+ *   1. Export 9:16 (primary, filled red)
+ *   2. Add to 9:16 (secondary, outlined) — appended zu project.clips.
+ *      Bei Multi-Source: disabled mit Hinweis (Datenmodell unterstützt das
+ *      heute nicht ohne clip.sourceIdx-Feld — Future Phase).
+ *   3. Add to Builder (secondary, outlined) — extra zu builderExtras.
+ *
+ * Cross-Boundary-Highlights (resolveHighlightSource returns null) →
+ * alle Items disabled mit Hinweis.
  */
-function onAIHighlightPress(
+function buildAIHighlightActions(
   h: AIHighlight,
   idx: number,
   project: DemoProject,
   nav: NativeStackNavigationProp<RootStackParamList>,
   exportSettings: ReturnType<typeof useAppStore.getState>['exportSettings'],
   t: (k: string, f?: string) => string,
-): void {
-  haptic.medium();
+): ActionSheetItem[] {
   const resolved = resolveHighlightSource(h, project);
   if (!resolved) {
-    Alert.alert(
-      t('highlights.aiCrossClipTitle', 'Highlight spans multiple clips'),
-      t(
-        'highlights.aiCrossClipBody',
-        'This highlight covers more than one source clip. Multi-clip highlight export is coming in a future phase. For now, narrow the highlight via Cue Editor or use Builder manually.',
-      ),
-    );
-    return;
+    return [
+      {
+        label: t('highlights.aiCrossClipTitle', 'Highlight spans multiple clips'),
+        icon: 'warning-outline',
+        variant: 'disabled',
+        hint: t(
+          'highlights.aiCrossClipBody',
+          'Multi-clip highlight export is coming in a future phase.',
+        ),
+        onPress: () => {},
+      },
+    ];
   }
   const title = h.label || `Highlight ${idx + 1}`;
-  const subtitle = `${formatTime(h.startSec)} – ${formatTime(h.endSec)} · ${Math.round((h.endSec - h.startSec))}s · ${Math.round(h.score * 100)}%`;
-  Alert.alert(title, subtitle, [
-    { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+  const projectSourceUris = project.sourceUris ?? [];
+  const isMultiSource = projectSourceUris.length >= 2;
+
+  return [
     {
-      text: t('highlights.aiAddToBuilder', 'Add to Builder'),
-      onPress: () => {
-        const newExtra: ProjectExtraVideo = {
-          id: `extra-ai-${Date.now().toString(36)}-${idx}`,
-          path: resolved.uri,
-          filename: `AI · ${title.slice(0, 50)}`,
-          durationSec: Math.max(0, resolved.trimEnd - resolved.trimStart),
-          trimStart: resolved.trimStart,
-          trimEnd: resolved.trimEnd,
-        };
-        useProjectsStore.getState().updateProject(project.id, {
-          builderExtras: [...(project.builderExtras ?? []), newExtra],
-        });
-        haptic.success();
-        Alert.alert(
-          t('highlights.aiAddedTitle', 'Added to Builder'),
-          t('highlights.aiAddedBody', 'Switch to the Builder tab to see and arrange the new clip.'),
-        );
-      },
-    },
-    {
-      text: t('highlights.aiExport916', 'Export 9:16'),
+      label: t('highlights.aiExport916', 'Export as 9:16'),
+      icon: 'share-outline',
+      variant: 'primary',
       onPress: () => {
         nav.navigate('Export', {
           sourceUri: resolved.uri,
@@ -971,7 +992,58 @@ function onAIHighlightPress(
         });
       },
     },
-  ]);
+    isMultiSource
+      ? {
+          label: t('highlights.aiAddTo916', 'Add to 9:16'),
+          icon: 'phone-portrait-outline',
+          variant: 'disabled',
+          hint: t(
+            'highlights.aiAddTo916MultiHint',
+            'Not available in multi-clip projects. Use "Add to Builder" instead.',
+          ),
+          onPress: () => {},
+        }
+      : {
+          label: t('highlights.aiAddTo916', 'Add to 9:16'),
+          icon: 'phone-portrait-outline',
+          variant: 'secondary',
+          onPress: () => {
+            // Phase A3.9.b2: bei Single-Source append clip mit highlight-range
+            // zu project.clips. TikTok-Tab Clip-Selector zeigt es dann an.
+            const newClip: DemoClip = {
+              id: `ai-${Date.now().toString(36)}-${idx}`,
+              startSec: resolved.trimStart,
+              endSec: resolved.trimEnd,
+              label: `AI · ${title.slice(0, 50)}`,
+              score: h.score,
+            };
+            useProjectsStore.getState().updateProject(project.id, {
+              clips: [...project.clips, newClip],
+            });
+            haptic.success();
+          },
+        },
+    {
+      label: t('highlights.aiAddToBuilder', 'Add to Builder'),
+      icon: 'apps-outline',
+      variant: 'secondary',
+      onPress: () => {
+        const newExtra: ProjectExtraVideo = {
+          id: `extra-ai-${Date.now().toString(36)}-${idx}`,
+          path: resolved.uri,
+          filename: `AI · ${title.slice(0, 50)}`,
+          durationSec: Math.max(0, resolved.trimEnd - resolved.trimStart),
+          trimStart: resolved.trimStart,
+          trimEnd: resolved.trimEnd,
+        };
+        useProjectsStore.getState().updateProject(project.id, {
+          builderExtras: [...(project.builderExtras ?? []), newExtra],
+          clipOrder: [...(project.clipOrder ?? []), newExtra.id],
+        });
+        haptic.success();
+      },
+    },
+  ];
 }
 
 function SelectableClipRow({
