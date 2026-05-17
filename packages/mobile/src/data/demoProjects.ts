@@ -77,6 +77,23 @@ export interface DemoProject {
   /** Generated Thumbnail-URIs aus Phase 9.8 Gemini-Thumbs. Persistent in
    *  documentDirectory/thumbnails/{projectId}/. */
   thumbnailHistory?: string[];
+  /** Phase A3.2 (2026-05-17): Per-Clip-Dauern aus Multi-Clip-Whisper-Analyse.
+   *  Index entspricht sourceUris[i]. Wird für Cue-Zuordnung im Editor genutzt. */
+  perClipDurations?: number[];
+  /** Phase A3.5 (2026-05-17): AI-detected Highlights aus Multi-Clip-Whisper.
+   *  Separates Feld neben project.clips (= source-clips bei Multi-Clip-Mode).
+   *  Bei Single-Clip wird projects.clips selbst überschrieben (legacy). */
+  aiHighlights?: AIHighlight[];
+}
+
+/** Phase A3.5: AI-Highlight-Marker aus Whisper-Detection (heuristik:
+ *  keyword + audio-energy + segment-density). */
+export interface AIHighlight {
+  startSec: number;
+  endSec: number;
+  score: number;
+  label: string;
+  reason?: string;
 }
 
 /** Subtitle-Stil (default/bold/gaming/fiano/layered). Layered = Big-Word + Small-Word überlappend. */
@@ -104,6 +121,10 @@ export interface SubtitleCue {
    *  Wenn vorhanden, kann Mobile per-word chunking mit echtem Timing machen.
    *  Phase A3 (2026-05-17): wird auch bei Multi-Clip-Transcribe mit Offsets gemerged. */
   words?: { text: string; startSec: number; endSec: number }[];
+  /** Phase A3.2 (2026-05-17): Index in sourceUris[] zu welchem Clip dieser
+   *  Cue gehört. Wird beim Multi-Clip-Transcribe gesetzt. UI gruppiert Cues
+   *  per Clip-Section im CueEditor. */
+  clipIndex?: number;
 }
 
 /**

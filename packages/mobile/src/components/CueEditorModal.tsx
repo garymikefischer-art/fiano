@@ -27,6 +27,10 @@ import { haptic } from '../lib/haptics';
 interface Props {
   visible: boolean;
   cues: SubtitleCue[];
+  /** Phase A3.2 (2026-05-17): optional, für Multi-Clip-Cue-Zuordnung.
+   *  Wenn gesetzt + cues haben clipIndex → Cues werden pro Source-Clip
+   *  gruppiert mit Section-Header (filename). */
+  sourceUris?: string[];
   onClose: () => void;
   onSave: (cues: SubtitleCue[]) => void;
 }
@@ -38,7 +42,14 @@ function formatTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}.${d}`;
 }
 
-export function CueEditorModal({ visible, cues, onClose, onSave }: Props) {
+/** Phase A3.2: extract Source-File basename aus file://-URI für Section-Header. */
+function basenameOfUri(uri: string | undefined, fallback: string): string {
+  if (!uri) return fallback;
+  const seg = uri.split('/').pop() ?? '';
+  return seg || fallback;
+}
+
+export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: Props) {
   const t = useT();
   const [localCues, setLocalCues] = useState<SubtitleCue[]>(cues);
 
@@ -60,6 +71,29 @@ export function CueEditorModal({ visible, cues, onClose, onSave }: Props) {
     onSave(localCues);
     onClose();
   };
+
+  // Phase A3.2: Cues nach clipIndex gruppieren wenn vorhanden.
+  // Wenn KEINE cues clipIndex haben (= Single-Clip-Mode) → 1 Gruppe ohne Header.
+  // Wenn alle cues clipIndex haben → gruppiert mit per-clip-Header.
+  const hasClipIndex = localCues.some((c) => typeof c.clipIndex === 'number');
+  const groups: { clipIndex: number | null; rows: { cue: SubtitleCue; absIdx: number }[] }[] = [];
+  if (hasClipIndex) {
+    const byClip = new Map<number, { cue: SubtitleCue; absIdx: number }[]>();
+    localCues.forEach((cue, absIdx) => {
+      const ci = cue.clipIndex ?? -1;
+      if (!byClip.has(ci)) byClip.set(ci, []);
+      byClip.get(ci)!.push({ cue, absIdx });
+    });
+    const sortedKeys = Array.from(byClip.keys()).sort((a, b) => a - b);
+    for (const k of sortedKeys) {
+      groups.push({ clipIndex: k, rows: byClip.get(k)! });
+    }
+  } else {
+    groups.push({
+      clipIndex: null,
+      rows: localCues.map((cue, absIdx) => ({ cue, absIdx })),
+    });
+  }
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -119,57 +153,81 @@ export function CueEditorModal({ visible, cues, onClose, onSave }: Props) {
               </Text>
             </View>
           ) : (
-            localCues.map((cue, idx) => (
-              <View
-                key={`cue-${idx}`}
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.04)',
-                  borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.08)',
-                  borderRadius: 12,
-                  padding: 12,
-                  gap: 8,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <Text
+            groups.map((g, gi) => (
+              <View key={`group-${g.clipIndex ?? 'flat'}-${gi}`} style={{ gap: 8 }}>
+                {/* Phase A3.2: Section-Header pro Clip (nur Multi-Clip-Mode) */}
+                {g.clipIndex !== null && (
+                  <View
                     style={{
-                      color: '#71717a',
-                      fontSize: 10,
-                      fontVariant: ['tabular-nums'],
-                      fontWeight: '600',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      paddingHorizontal: 4,
+                      paddingTop: gi === 0 ? 0 : 12,
                     }}
                   >
-                    {formatTime(cue.startSec)} → {formatTime(cue.endSec)}
-                  </Text>
-                  <Pressable onPress={() => deleteCue(idx)} hitSlop={6} style={{ padding: 4 }}>
-                    <Ionicons name="trash-outline" size={14} color="#ef4444" />
-                  </Pressable>
-                </View>
-                <TextInput
-                  value={cue.text}
-                  onChangeText={(text) => updateText(idx, text)}
-                  multiline
-                  placeholder={t('cueEditor.placeholder', 'Cue text…')}
-                  placeholderTextColor="#52525b"
-                  style={{
-                    color: '#f1f2f2',
-                    fontSize: 13,
-                    lineHeight: 18,
-                    backgroundColor: 'rgba(0,0,0,0.25)',
-                    borderRadius: 8,
-                    paddingHorizontal: 10,
-                    paddingVertical: 8,
-                    minHeight: 50,
-                    textAlignVertical: 'top',
-                  }}
-                />
+                    <Ionicons name="film-outline" size={11} color="#ff1039" />
+                    <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
+                      {t('cueEditor.clipHeading', 'CLIP {n}').replace('{n}', String(g.clipIndex + 1))}
+                    </Text>
+                    <Text style={{ color: '#71717a', fontSize: 10 }} numberOfLines={1}>
+                      · {basenameOfUri(sourceUris?.[g.clipIndex], `Clip ${g.clipIndex + 1}`)}
+                    </Text>
+                  </View>
+                )}
+                {g.rows.map(({ cue, absIdx }) => (
+                  <View
+                    key={`cue-${absIdx}`}
+                    style={{
+                      backgroundColor: 'rgba(255,255,255,0.04)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.08)',
+                      borderRadius: 12,
+                      padding: 12,
+                      gap: 8,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: '#71717a',
+                          fontSize: 10,
+                          fontVariant: ['tabular-nums'],
+                          fontWeight: '600',
+                        }}
+                      >
+                        {formatTime(cue.startSec)} → {formatTime(cue.endSec)}
+                      </Text>
+                      <Pressable onPress={() => deleteCue(absIdx)} hitSlop={6} style={{ padding: 4 }}>
+                        <Ionicons name="trash-outline" size={14} color="#ef4444" />
+                      </Pressable>
+                    </View>
+                    <TextInput
+                      value={cue.text}
+                      onChangeText={(text) => updateText(absIdx, text)}
+                      multiline
+                      placeholder={t('cueEditor.placeholder', 'Cue text…')}
+                      placeholderTextColor="#52525b"
+                      style={{
+                        color: '#f1f2f2',
+                        fontSize: 13,
+                        lineHeight: 18,
+                        backgroundColor: 'rgba(0,0,0,0.25)',
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 8,
+                        minHeight: 50,
+                        textAlignVertical: 'top',
+                      }}
+                    />
+                  </View>
+                ))}
               </View>
             ))
           )}

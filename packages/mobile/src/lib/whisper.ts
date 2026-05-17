@@ -198,7 +198,7 @@ export async function transcribeMultiSource(
         opts.onUploadProgress?.(i, opts.sourceUris.length, frac),
     });
 
-    // Cues mit Offset versehen
+    // Cues mit Offset versehen + clipIndex taggen (A3.2)
     for (const cue of result.cues) {
       mergedCues.push({
         text: cue.text,
@@ -209,6 +209,7 @@ export async function transcribeMultiSource(
           startSec: w.startSec + offset,
           endSec: w.endSec + offset,
         })),
+        clipIndex: i,
       });
     }
 
