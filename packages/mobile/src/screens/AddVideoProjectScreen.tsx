@@ -71,12 +71,30 @@ export function AddVideoProjectScreen() {
   const { canCreate, limit } = useProjectLimit(projects.length);
   const openUpgrade = useUpgradeModal((s) => s.open);
   const [videoType, setVideoType] = useState<VideoType>('gaming');
-  const [url, setUrl] = useState('');
+  // Phase A3.7 (2026-05-17): URLs als Array statt single-line. Dynamische
+  // Reihen mit +-Button für neue URL und ⊖-Button zum Entfernen pro Reihe.
+  const [urls, setUrls] = useState<string[]>(['']);
   const [busy, setBusy] = useState<string | null>(null);
   const [urlPhase, setUrlPhase] = useState<'requesting' | 'downloading' | null>(null);
   const [urlProgress, setUrlProgress] = useState(0);
   // Phase A3.3: Multi-URL-Import — Progress über mehrere URLs.
   const [multiUrlProgress, setMultiUrlProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Phase A3.7: Helper für URL-Array-Manipulation.
+  const updateUrlAt = (i: number, v: string) => {
+    setUrls((prev) => prev.map((u, j) => (j === i ? v : u)));
+  };
+  const addUrlRow = () => {
+    haptic.light();
+    setUrls((prev) => [...prev, '']);
+  };
+  const removeUrlRow = (i: number) => {
+    if (urls.length <= 1) return; // mindestens 1 Reihe muss bleiben
+    haptic.light();
+    setUrls((prev) => prev.filter((_, j) => j !== i));
+  };
+  const trimmedUrls = urls.map((u) => u.trim()).filter((u) => u.length > 0);
+  const canImportUrls = trimmedUrls.length > 0 && busy !== 'url';
 
   // Phase A5: Project-Limit-Gate. Bei Creator über 25 Projects → Alert +
   // Upgrade-Modal. Pro/Lifetime: canCreate immer true (limit=Infinity).
@@ -171,12 +189,10 @@ export function AddVideoProjectScreen() {
   };
 
   const onUrlImport = async () => {
-    // Phase A3.3 (2026-05-17): Multi-URL-Import. Eine URL pro Zeile.
+    // Phase A3.3 (2026-05-17) + A3.7 (UI-Erweiterung): Multi-URL-Import.
+    // urls[] kommt vom dynamischen Input-Array (siehe addUrlRow/removeUrlRow).
     // Bei 1 URL → Single-Project (legacy). Bei N>1 → Multi-Clip-Project.
-    const lines = url
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+    const lines = trimmedUrls;
     if (lines.length === 0 || busy) return;
     // Pre-validate alle URLs
     for (const u of lines) {
@@ -237,7 +253,7 @@ export function AddVideoProjectScreen() {
           }
         });
         haptic.success();
-        setUrl('');
+        setUrls(['']);
         nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
       } else {
         // Multi-URL — wie Multi-Clip-Import strukturiert
@@ -278,7 +294,7 @@ export function AddVideoProjectScreen() {
           }
         })();
         haptic.success();
-        setUrl('');
+        setUrls(['']);
         nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
       }
     } catch (err: any) {
@@ -477,61 +493,100 @@ export function AddVideoProjectScreen() {
             onPress={() => createFromFile('highlights', { videoType })}
           />
 
-          {/* URL Row */}
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: 'rgba(255,255,255,0.04)',
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.08)',
-                paddingHorizontal: 14,
-                justifyContent: 'center',
-              }}
-            >
-              <TextInput
-                value={url}
-                onChangeText={setUrl}
-                placeholder={t(
-                  'addProject.urlPlaceholderMulti',
-                  'YouTube / Twitch URLs — one per line for multi-clip',
+          {/* URL Rows — Phase A3.7: dynamische Input-Liste mit +/⊖ Buttons */}
+          <View style={{ gap: 6 }}>
+            {urls.map((u, i) => (
+              <View key={`url-row-${i}`} style={{ flexDirection: 'row', gap: 6 }}>
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.08)',
+                    paddingHorizontal: 14,
+                    justifyContent: 'center',
+                  }}
+                >
+                  <TextInput
+                    value={u}
+                    onChangeText={(v) => updateUrlAt(i, v)}
+                    placeholder={t('addProject.urlPlaceholder', 'YouTube / Twitch URL…')}
+                    placeholderTextColor="#52525b"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={busy !== 'url'}
+                    style={{ color: '#f1f2f2', fontSize: 13, paddingVertical: 12 }}
+                  />
+                </View>
+                {urls.length > 1 && (
+                  <Pressable
+                    onPress={() => removeUrlRow(i)}
+                    disabled={busy === 'url'}
+                    style={({ pressed }) => ({
+                      width: 44,
+                      borderRadius: 12,
+                      backgroundColor: pressed ? 'rgba(239,68,68,0.25)' : 'rgba(239,68,68,0.12)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(239,68,68,0.4)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: busy === 'url' ? 0.4 : 1,
+                    })}
+                    accessibilityLabel={t('addProject.urlRemove', 'Remove URL')}
+                  >
+                    <Ionicons name="remove" size={18} color="#ef4444" />
+                  </Pressable>
                 )}
-                placeholderTextColor="#52525b"
-                autoCapitalize="none"
-                autoCorrect={false}
-                multiline
-                editable={busy !== 'url'}
-                style={{
-                  color: '#f1f2f2',
-                  fontSize: 13,
-                  paddingVertical: 10,
-                  minHeight: 60,
-                  textAlignVertical: 'top',
-                }}
-              />
-            </View>
-            <Pressable
-              onPress={onUrlImport}
-              disabled={!url.trim() || busy === 'url'}
-              style={({ pressed }) => ({
-                paddingHorizontal: 18,
-                borderRadius: 12,
-                backgroundColor: !url.trim() || busy === 'url'
-                  ? 'rgba(255,255,255,0.06)'
-                  : pressed
-                    ? '#cc0d2e'
-                    : '#ff1039',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: !url.trim() || busy === 'url' ? 0.5 : 1,
-              })}
-            >
-              <Text
-                style={{
-                  color: !url.trim() || busy === 'url' ? '#a1a1aa' : '#fff',
-                  fontSize: 13,
-                  fontWeight: '700',
+              </View>
+            ))}
+
+            {/* Add-URL + Import Buttons */}
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
+              <Pressable
+                onPress={addUrlRow}
+                disabled={busy === 'url'}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  paddingVertical: 11,
+                  borderRadius: 12,
+                  backgroundColor: pressed ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)',
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.10)',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  opacity: busy === 'url' ? 0.4 : 1,
+                })}
+              >
+                <Ionicons name="add" size={15} color="#a1a1aa" />
+                <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '700' }}>
+                  {t('addProject.urlAddRow', 'Add URL')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onUrlImport}
+                disabled={!canImportUrls}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 18,
+                  borderRadius: 12,
+                  backgroundColor: !canImportUrls
+                    ? 'rgba(255,255,255,0.06)'
+                    : pressed
+                      ? '#cc0d2e'
+                      : '#ff1039',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: !canImportUrls ? 0.5 : 1,
+                  minWidth: 100,
+                })}
+              >
+                <Text
+                  style={{
+                    color: !canImportUrls ? '#a1a1aa' : '#fff',
+                    fontSize: 13,
+                    fontWeight: '700',
                 }}
               >
                 {busy === 'url'
@@ -539,6 +594,7 @@ export function AddVideoProjectScreen() {
                   : t('addProject.importButton', 'Import')}
               </Text>
             </Pressable>
+            </View>
           </View>
           {busy === 'url' && (
             <View style={{ gap: 4 }}>

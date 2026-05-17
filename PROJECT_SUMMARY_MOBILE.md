@@ -244,7 +244,9 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 | ~~A3~~ | ~~**Multi-Clip-Import + Whisper**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — `transcribeMultiSource()` in `whisper.ts` mit cue-merging. "All N"-Button. + A3.1 Bug-Fix (clips nicht überschreiben). |
 | ~~A3.2~~ | ~~**Cue-Zuordnung zu Clips im Editor**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — `SubtitleCue.clipIndex?` Feld, `project.perClipDurations[]`. CueEditorModal gruppiert cues per Clip mit "CLIP N · filename"-Header. Single-Clip-Mode unverändert (kein Gruppieren). |
 | ~~A3.3~~ | ~~**Multi-URL-Import**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — AddVideoProjectScreen TextInput jetzt multiline. URLs eine pro Zeile. Bei 1 URL → Single-Project (legacy). Bei N>1 → Multi-Clip-Project mit `sourceUris[]`. Sequenziell pro URL `/v1/download`. Per-Clip-Thumbnails parallel via existing sequential queue. |
-| A3.4 | **9:16 Multi-Clip-Export** | 2-3h | TikTok-Tab Multi-Select-UI + ExportScreen-Erweiterung für `mode='tiktok' + builderItemPlan`. Größer als initial geschätzt — TikTok-Tab und ExportScreen-Pipeline beide anpassen. **Noch offen — kommt als nächstes.** |
+| ~~A3.4~~ | ~~**9:16 Multi-Clip-Export**~~ ✅ | ~~2-3h~~ | **Done 2026-05-17** — Bei isMultiSource zeigt TikTok-Tab zwei Export-Buttons: "Export current clip" (single, legacy) + "Export all N clips hintereinander" (Multi). Multi-Path baut `builderItemPlan` aus allen source-clips und routet mit `mode='tiktok' + builderItemPlan`. ExportScreen erkennt `isMultiTiktok` und nutzt den gleichen Multi-Source-Pfad wie Builder, aber mit `project.tiktokLayout` statt 'full' und 9:16-Resolution. Multi-Select (nur 2 von 3) ist noch nicht UI-seitig — kommt als A3.4b später. |
+| ~~A3.6~~ | ~~**Clip-Switcher in Highlights + Manual**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — Beide Tabs haben jetzt einen active-source-Switcher. HighlightsTab: tap auf SelectableClipRow markiert source als "active for preview" (roter Border + Play-Badge) und VideoPlayer wechselt. ManualTab: zusätzliche Pills-Row über dem Player für Source-Switch. Mark-In/Out reset bei Source-Wechsel. `key` auf Player für sauberen Re-Mount. |
+| ~~A3.7~~ | ~~**Multi-URL UX: +-Button**~~ ✅ | ~~1h~~ | **Done 2026-05-17** — Statt multi-line TextInput jetzt ein Array von single-line Inputs. Pro Reihe ⊖-Button (entfernen, ab >1 Reihe). Separater "+ Add URL"-Button unterhalb. Import-Button neben Add-Button. |
 | ~~A3.5~~ | ~~**AI-Highlights zusätzlich sichtbar**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — `project.aiHighlights?: AIHighlight[]` als separates Feld. HighlightsTab zeigt zweite Section "AI HIGHLIGHTS" unterhalb der source-clips. Read-only Liste mit time + score + reason. Source-clips bleiben unverändert. |
 | A4 | **Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit** | 1.5-2h | `before` ignoriert heute scale + x/y. UI-Controls auch im `before` zeigen. |
 | A6 | **Security-Audit Findings (Phase A6, ~6-8d gesamt)** | siehe Sub | Audit 2026-05-16, 4 P0 / 8 P1 / 8 P2 / 14 P3 — **Volldoku: `SECURITY_AUDIT_2026-05-16.md`** |
@@ -546,9 +548,9 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 - **Worker-Rev**: `00018-bwh` (A6.1 Rate Limiting deployed 2026-05-16)
 - **GitHub-Repo**: `garymikefischer-art/fiano`
 - **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
-- **Letzter Commit**: A3.2 + A3.3 + A3.5 Multi-Clip-Sprint (pending)
-- **Backup-Tag**: `pre-phase-a3-multiclip-sprint-20260517`
-- **Letzte Phase**: A3.2 Cue-Zuordnung + A3.3 Multi-URL-Import + A3.5 AI-Highlights (A3.4 9:16-Multi-Export folgt separat)
+- **Letzter Commit**: A3.4 + A3.6 + A3.7 Multi-Clip Sprint Teil 2 (pending)
+- **Backup-Tag**: `pre-phase-a3.6-bugfixes-20260517`
+- **Letzte Phase**: A3.4 9:16 Multi-Clip-Export + A3.6 Clip-Switcher + A3.7 Multi-URL +-Button
 
 ### Speicherorte
 

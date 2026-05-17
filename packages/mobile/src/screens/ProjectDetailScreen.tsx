@@ -346,6 +346,14 @@ function HighlightsTab({
   const hasCues = cues.length > 0;
   const multiClipCount = project.sourceUris?.length ?? 0;
   const isMultiClip = multiClipCount > 1;
+  // Phase A3.6: Active-Source-Selector für Multi-Clip-Preview.
+  // Tap auf SelectableClipRow → wechselt Player zur ausgewählten Source.
+  const [activeSourceIdx, setActiveSourceIdx] = useState(0);
+  const projectSourceUris = project.sourceUris ?? [];
+  const isMultiSource = projectSourceUris.length >= 2;
+  const activeSourceUri = isMultiSource
+    ? projectSourceUris[Math.min(activeSourceIdx, projectSourceUris.length - 1)]
+    : project.sourceUri;
 
   // Phase A3: Multi-Clip-Transcribe — transcribed ALLE sourceUris, merged cues
   // mit Time-Offsets. Opt-in via separater Button (sichtbar nur bei
@@ -494,11 +502,22 @@ function HighlightsTab({
       contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140, paddingTop: 16, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero */}
-      {project.sourceUri ? (
-        <VideoPlayer uri={project.sourceUri} />
+      {/* Hero — Phase A3.6: bei Multi-Source wird der aktive Clip gezeigt.
+          `key={activeSourceUri}` zwingt Re-Mount damit der Player das neue
+          Video lädt (statt einfach die uri zu wechseln — manche player-libs
+          haben dabei state-corruption). */}
+      {activeSourceUri ? (
+        <VideoPlayer uri={activeSourceUri} key={activeSourceUri} />
       ) : (
         <PlaceholderHero project={project} />
+      )}
+      {/* Phase A3.6: Multi-Source-Tab — zeigt welcher Clip gerade abgespielt wird. */}
+      {isMultiSource && (
+        <Text style={{ color: '#71717a', fontSize: 11, marginTop: -8 }}>
+          {t('multiClip.playingClip', 'Playing clip {n}/{total}')
+            .replace('{n}', String(activeSourceIdx + 1))
+            .replace('{total}', String(projectSourceUris.length))}
+        </Text>
       )}
 
       {/* Stats */}
@@ -769,7 +788,12 @@ function HighlightsTab({
               clip={clip}
               hue={project.thumbHue}
               selected={selectedClipIds.has(clip.id)}
-              onToggle={() => toggleClip(clip.id)}
+              /* Phase A3.6: bei Multi-Source markiert + switched zum source-clip. */
+              activeForPreview={isMultiSource && idx === activeSourceIdx}
+              onToggle={() => {
+                if (isMultiSource) setActiveSourceIdx(idx);
+                toggleClip(clip.id);
+              }}
             />
           ))}
         </View>
@@ -834,16 +858,25 @@ function SelectableClipRow({
   clip,
   hue,
   selected,
+  activeForPreview,
   onToggle,
 }: {
   index: number;
   clip: DemoClip;
   hue: number;
   selected: boolean;
+  /** Phase A3.6: Multi-Source-Mode markiert die aktuell im Player abgespielte Source. */
+  activeForPreview?: boolean;
   onToggle: () => void;
 }) {
   const scorePct = Math.round(clip.score * 100);
   const len = clip.endSec - clip.startSec;
+  // A3.6: aktive Source bekommt einen extra fiano-roten Border-Glow.
+  const borderColor = activeForPreview
+    ? '#ff1039'
+    : selected
+      ? 'rgba(255,16,57,0.32)'
+      : 'rgba(255,255,255,0.08)';
   return (
     <Pressable
       onPress={onToggle}
@@ -853,12 +886,35 @@ function SelectableClipRow({
         gap: 12,
         backgroundColor: selected ? 'rgba(255,16,57,0.08)' : 'rgba(255,255,255,0.04)',
         borderRadius: 14,
-        borderWidth: 1,
-        borderColor: selected ? 'rgba(255,16,57,0.32)' : 'rgba(255,255,255,0.08)',
+        borderWidth: activeForPreview ? 2 : 1,
+        borderColor,
         padding: 10,
         opacity: pressed ? 0.7 : 1,
       })}
     >
+      {/* A3.6: kleines Play-Icon zeigt aktive Preview-Source */}
+      {activeForPreview && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -6,
+            right: -6,
+            width: 18,
+            height: 18,
+            borderRadius: 9,
+            backgroundColor: '#ff1039',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#ff1039',
+            shadowOpacity: 0.6,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 4,
+          }}
+        >
+          <Ionicons name="play" size={10} color="#fff" />
+        </View>
+      )}
       <View
         style={{
           width: 22,
@@ -1123,8 +1179,26 @@ function ManualTab({
   const [markIn, setMarkIn] = useState<number | null>(null);
   const [markOut, setMarkOut] = useState<number | null>(null);
   const [seekTo, setSeekTo] = useState<number | undefined>(undefined);
+  // Phase A3.6: Active-Source-Index für Multi-Clip-Projekte (3 Clips switchen).
+  const [activeSourceIdx, setActiveSourceIdx] = useState(0);
+  const sourceUris = project.sourceUris ?? [];
+  const isMultiSource = sourceUris.length >= 2;
+  const effectiveSourceUri = isMultiSource
+    ? sourceUris[Math.min(activeSourceIdx, sourceUris.length - 1)]
+    : project.sourceUri;
 
   const seek = (sec: number) => setSeekTo(sec + Math.random() * 1e-9);
+
+  // A3.6: bei Source-Switch markIn/markOut reset (nicht-übertragbare timestamps)
+  const switchSource = (idx: number) => {
+    if (idx === activeSourceIdx) return;
+    haptic.light();
+    setActiveSourceIdx(idx);
+    setMarkIn(null);
+    setMarkOut(null);
+    setSeekTo(0 + Math.random() * 1e-9);
+    setCurrentSec(0);
+  };
 
   const onAddClip = () => {
     if (markIn == null || markOut == null) {
@@ -1159,7 +1233,7 @@ function ManualTab({
 
   const canAddClip = markIn != null && markOut != null && markOut > markIn;
 
-  if (!project.sourceUri) {
+  if (!effectiveSourceUri) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }}>
         <Ionicons name="warning-outline" size={32} color="#fbbf24" />
@@ -1192,11 +1266,46 @@ function ManualTab({
       {/* Allgemeine Video-Infos analog Desktop Manual-Tab */}
       <ProjectInfoCard project={project} t={t} />
 
+      {/* Phase A3.6: VideoPlayer mit key auf effectiveSourceUri für Re-Mount
+          beim Source-Switch (sonst behält Player das alte Video). */}
       <VideoPlayer
-        uri={project.sourceUri}
+        key={effectiveSourceUri}
+        uri={effectiveSourceUri}
         seekTo={seekTo}
         onProgress={(sec) => setCurrentSec(sec)}
       />
+
+      {/* Phase A3.6: Multi-Source-Switcher — eine Reihe Pills pro Source. */}
+      {isMultiSource && (
+        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+          {sourceUris.map((uri, idx) => {
+            const isActive = idx === activeSourceIdx;
+            return (
+              <Pressable
+                key={`src-${idx}`}
+                onPress={() => switchSource(idx)}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  backgroundColor: isActive ? '#ff1039' : 'rgba(255,255,255,0.06)',
+                  borderWidth: 1,
+                  borderColor: isActive ? '#ff1039' : 'rgba(255,255,255,0.10)',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                {isActive && <Ionicons name="play" size={11} color="#fff" />}
+                <Text style={{ color: isActive ? '#fff' : '#a1a1aa', fontSize: 11, fontWeight: '700' }}>
+                  {t('multiClip.clipShort', 'Clip {n}').replace('{n}', String(idx + 1))}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       {/* Mark-In/Out Card */}
       <View
@@ -1505,6 +1614,10 @@ function TikTokTab({
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [tiktokCueEditorOpen, setTiktokCueEditorOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  // Phase A3.4 (2026-05-17): pending Multi-Clip-9:16-Export flag.
+  // Bei `true` baut der onConfirm-Handler einen builderItemPlan aus allen
+  // source-clips und navigiert mit `mode='tiktok' + builderItemPlan`.
+  const [pendingMultiExport, setPendingMultiExport] = useState(false);
   const exportSettings = useAppStore((s) => s.exportSettings);
   const setExportSettingsStore = useAppStore((s) => s.setExportSettings);
   const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
@@ -2223,6 +2336,7 @@ function TikTokTab({
           haptic.medium();
           // ExportSettingsModal öffnet zuerst — User pickt Resolution/FPS/Bitrate,
           // confirmt → ExportScreen-Navigation startet mit den gewählten Settings.
+          setPendingMultiExport(false);
           setExportModalOpen(true);
         }}
         style={({ pressed }) => ({
@@ -2238,9 +2352,47 @@ function TikTokTab({
       >
         <Ionicons name="logo-tiktok" size={16} color="#fff" />
         <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
-          {t('tiktok.exportButton', 'Export 9:16 reel')}
+          {isMultiSource
+            ? t('tiktok.exportButtonSingle', 'Export current clip').replace(
+                '{n}',
+                String(safeIdx + 1),
+              )
+            : t('tiktok.exportButton', 'Export 9:16 reel')}
         </Text>
       </Pressable>
+
+      {/* Phase A3.4 (2026-05-17): Multi-Clip-9:16-Export.
+          Sichtbar nur bei isMultiSource. Exportiert ALLE source-clips hinter-
+          einander im aktuellen 9:16 Layout (project.tiktokLayout). */}
+      {isMultiSource && (
+        <Pressable
+          onPress={() => {
+            haptic.medium();
+            setPendingMultiExport(true);
+            setExportModalOpen(true);
+          }}
+          style={({ pressed }) => ({
+            backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'rgba(255,16,57,0.10)',
+            borderRadius: 14,
+            paddingVertical: 13,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            marginTop: 6,
+            borderWidth: 1.5,
+            borderColor: '#ff1039',
+          })}
+        >
+          <Ionicons name="layers" size={16} color="#ff1039" />
+          <Text style={{ color: '#ff1039', fontSize: 14, fontWeight: '700' }}>
+            {t('tiktok.exportButtonAll', 'Export all {n} clips hintereinander').replace(
+              '{n}',
+              String(projectSourceUris.length),
+            )}
+          </Text>
+        </Pressable>
+      )}
 
       {/* Subtitle-Settings-Modal — lazy mount. */}
       {subModalOpen && (
@@ -2274,6 +2426,35 @@ function TikTokTab({
               void setExportSettingsStore(next);
             }
             setExportModalOpen(false);
+            // Phase A3.4 (2026-05-17): Multi-Clip-9:16-Export.
+            // pendingMultiExport=true → build builderItemPlan über alle source-
+            // clips (jedem clip seine source-uri zuordnen) und route mit
+            // mode='tiktok' + builderItemPlan. ExportScreen erkennt das und
+            // nutzt den Multi-Source-Pfad mit project.tiktokLayout (statt
+            // Builder's 'full' 16:9-Layout).
+            if (pendingMultiExport && isMultiSource) {
+              const itemPlan = clips.map((c, i) => {
+                const srcIdx = Math.min(i, projectSourceUris.length - 1);
+                return {
+                  sourceUri: projectSourceUris[srcIdx],
+                  trimStart: c.startSec,
+                  trimEnd: c.endSec,
+                };
+              });
+              setPendingMultiExport(false);
+              nav.navigate('Export', {
+                sourceUri: projectSourceUris[0],
+                projectId: project.id,
+                trimStart: 0,
+                trimEnd: project.durationSec,
+                sourceDuration: project.durationSec,
+                mode: 'tiktok',
+                exportSettings: next,
+                builderItemPlan: itemPlan,
+              });
+              return;
+            }
+            // Single-Clip-9:16-Export (legacy).
             nav.navigate('Export', {
               sourceUri: effectiveSourceUri,
               projectId: project.id,

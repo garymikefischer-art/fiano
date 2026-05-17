@@ -1007,4 +1007,12 @@ export const en: Record<string, string> = {
   'highlights.phaseUploading':          'Uploading',
   'highlights.phaseTranscribing':       'Transcribing',
   'common.continue':                    'Continue',
+
+  // Phase A3.6 / A3.7 (2026-05-17): Multi-Clip switching + URL UX
+  'multiClip.playingClip':              'Playing clip {n}/{total}',
+  'multiClip.clipShort':                'Clip {n}',
+  'addProject.urlAddRow':               'Add URL',
+  'addProject.urlRemove':               'Remove URL',
+  'highlights.aiHighlightsHeading':     'AI HIGHLIGHTS',
+  'cueEditor.clipHeading':              'CLIP {n}',
 };

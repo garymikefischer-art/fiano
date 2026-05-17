@@ -992,4 +992,12 @@ export const de: Record<string, string> = {
   'highlights.phaseUploading':          'Hochladen',
   'highlights.phaseTranscribing':       'Transkribieren',
   'common.continue':                    'Fortfahren',
+
+  // Phase A3.6 / A3.7 (2026-05-17): Multi-Clip switching + URL UX
+  'multiClip.playingClip':              'Clip {n}/{total} läuft',
+  'multiClip.clipShort':                'Clip {n}',
+  'addProject.urlAddRow':               'URL hinzufügen',
+  'addProject.urlRemove':               'URL entfernen',
+  'highlights.aiHighlightsHeading':     'AI-HIGHLIGHTS',
+  'cueEditor.clipHeading':              'CLIP {n}',
 };
