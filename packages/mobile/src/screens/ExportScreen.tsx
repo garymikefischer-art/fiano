@@ -117,7 +117,15 @@ export function ExportScreen() {
     setError(null);
     setPercent(0);
     const isBuilder = params.mode === 'builder';
-    const outputName = `fiano-${isBuilder ? '16x9' : Date.now()}-${Date.now()}.mp4`;
+    // Phase A3.4 (2026-05-17): Multi-Clip-9:16-Export — `mode='tiktok'` mit
+    // einem builderItemPlan. Nutzt denselben Multi-Source-Pfad wie Builder,
+    // aber behält den 9:16-Layout (project.tiktokLayout statt 'full').
+    const isMultiTiktok =
+      !isBuilder &&
+      params.mode === 'tiktok' &&
+      (params.builderItemPlan?.length ?? 0) > 0;
+    const hasItemPlan = isBuilder || isMultiTiktok;
+    const outputName = `fiano-${isBuilder ? '16x9' : isMultiTiktok ? '9x16-multi' : Date.now()}-${Date.now()}.mp4`;
     setCurrent({ id: outputName, step: 'export', percent: 0, outputPath: outputName });
 
     try {
@@ -126,7 +134,8 @@ export function ExportScreen() {
       // dedupliziere sourceUris[] und baue clips[] mit src-indices. Ein clip
       // pro item-plan-entry. Funktioniert für single-source, multi-source und
       // gemischte (highlights + extras).
-      const itemPlan = (isBuilder ? params.builderItemPlan : undefined) ?? [];
+      // A3.4: Multi-Tiktok nutzt gleichen Pfad.
+      const itemPlan = (hasItemPlan ? params.builderItemPlan : undefined) ?? [];
       const localSrc = await ensureLocalCopy(params.sourceUri);
       // Dedupe URIs in order of first occurrence.
       const uniqueSrcMap = new Map<string, number>();
@@ -140,9 +149,14 @@ export function ExportScreen() {
         ? await Promise.all(builderUniqueSourceUris.map((u) => ensureLocalCopy(u)))
         : [];
       const isMultiSourceBuilder = builderUniqueSourceUris.length >= 2;
+      // A3.4: Multi-Tiktok zählt auch als "Multi-Source"-Pipeline. Variable-
+      // Name behalten für minimal-diff, aber Semantik = "hat itemPlan mit
+      // ≥ 1 unique source", was bei Multi-Tiktok zutrifft.
+      const hasMultiSourcePipeline = hasItemPlan && itemPlan.length > 0;
 
       // 2. Layout + Regions + Subtitle vom Project ableiten.
       //    Builder-Mode: layout=full (16:9 Cover-Crop) ohne facecam/gameplay-split.
+      //    Multi-Tiktok: behält project.tiktokLayout (stacked/full/split), 9:16.
       const layout = isBuilder ? 'full' : (project?.tiktokLayout ?? 'stacked');
       const facecamRegion = project?.facecamRegion ?? defaultFacecam ?? { x: 0.06, y: 0.06, w: 0.28, h: 0.32 };
       const gameplayRegion = project?.gameplayRegion ?? defaultGameplay;
@@ -208,7 +222,7 @@ export function ExportScreen() {
       const mapCueToOutput = (
         c: { startSec: number; endSec: number; text: string },
       ): { startSec: number; endSec: number; text: string } | null => {
-        if (isBuilder && builderClips.length > 0) {
+        if (hasItemPlan && builderClips.length > 0) {
           let outOffset = 0;
           for (const clip of builderClips) {
             const dur = Math.max(0, clip.endSec - clip.startSec);
@@ -365,8 +379,9 @@ export function ExportScreen() {
       // 9:16-Mode: single sourceUri.
       const result = await runRenderJob({
         inputs: {
-          sourceUri: isBuilder && localSrcUris.length > 0 ? undefined : localSrc,
-          sourceUris: isBuilder && localSrcUris.length > 0 ? localSrcUris : undefined,
+          // A3.4: bei Multi-Tiktok auch sourceUris[] schicken (wie Builder).
+          sourceUri: hasMultiSourcePipeline && localSrcUris.length > 0 ? undefined : localSrc,
+          sourceUris: hasMultiSourcePipeline && localSrcUris.length > 0 ? localSrcUris : undefined,
           introUri: intro?.path,
           musicUris: musicTracks.map((m) => m.path),
           voiceOverUris: voiceOvers.map((vo) => vo.path),
