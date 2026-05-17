@@ -382,19 +382,13 @@ function HighlightsTab({
           setMultiProgress({ current, total, phase }),
       });
       const existing = project.subtitles ?? DEFAULT_SUBTITLES;
-      const newClips =
-        result.highlights.length > 0
-          ? result.highlights.map((h, i) => ({
-              id: `ai-${Date.now().toString(36)}-${i}`,
-              startSec: h.startSec,
-              endSec: h.endSec,
-              label: h.label,
-              score: h.score,
-            }))
-          : project.clips;
+      // Phase A3.1 Bug-Fix (2026-05-17): clips werden NICHT mehr überschrieben.
+      // Multi-Clip-Mode behält die source-clips (3 imports = 3 clips). Whisper-
+      // Highlights kommen im result.highlights an, werden aber nicht in
+      // project.clips geschrieben — sonst gehen die imports verloren. Cues
+      // über alle clips sind der eigentliche Wert dieser Phase.
       useProjectsStore.getState().updateProject(project.id, {
         subtitles: { ...existing, enabled: true, cues: result.cues },
-        clips: newClips,
         status: 'ready',
       });
       await flushProjectsNow();
