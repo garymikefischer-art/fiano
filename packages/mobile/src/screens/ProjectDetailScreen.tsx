@@ -406,16 +406,39 @@ function HighlightsTab({
           setMultiProgress({ current, total, phase }),
       });
       const existing = project.subtitles ?? DEFAULT_SUBTITLES;
-      // Phase A3.1 + A3.2 + A3.5 (2026-05-17):
-      //  - clips bleiben source-clips (NICHT überschreiben)
+      // Phase A3.1 + A3.2 + A3.5 + A3.11 (2026-05-17):
+      //  - clips bleiben source-clips, AI-Highlights werden zusätzlich als
+      //    kind='highlight' clips angehängt (A3.11 — User-Wunsch direkt im
+      //    TikTok+Builder Selector nutzbar).
       //  - subtitles.cues bekommen aggregierte Cues mit clipIndex (A3.2)
       //  - perClipDurations gespeichert für Cue-Zuordnung im Editor (A3.2)
-      //  - aiHighlights als separates Feld (A3.5) — wird im HighlightsTab
-      //    in einer eigenen Section unter den source-clips angezeigt
+      //  - aiHighlights als separates Feld (A3.5) — für HighlightsTab.
+      const sourceClips = project.clips.filter((c) => c.kind !== 'highlight');
+      const highlightClips: DemoClip[] = result.highlights.map((h, i) => {
+        // Multi-Clip: Highlight startSec/endSec ist absolute time across
+        // sources. Resolve auf source-relative + sourceIdx.
+        const fakeProject = {
+          ...project,
+          aiHighlights: result.highlights,
+          perClipDurations: result.perClipDurations,
+        };
+        const resolved = resolveHighlightSource(h, fakeProject);
+        return {
+          id: `ai-${Date.now().toString(36)}-${i}`,
+          startSec: resolved?.trimStart ?? h.startSec,
+          endSec: resolved?.trimEnd ?? h.endSec,
+          label: h.label || `AI ${i + 1}`,
+          score: h.score,
+          kind: 'highlight',
+          reason: h.reason,
+          sourceIdx: resolved?.clipIndex,
+        };
+      });
       useProjectsStore.getState().updateProject(project.id, {
         subtitles: { ...existing, enabled: true, cues: result.cues },
         perClipDurations: result.perClipDurations,
         aiHighlights: result.highlights,
+        clips: [...sourceClips, ...highlightClips],
         status: 'ready',
       });
       await flushProjectsNow();
@@ -462,14 +485,28 @@ function HighlightsTab({
         onUploadProgress: setUploadProgress,
       });
       const existing = project.subtitles ?? DEFAULT_SUBTITLES;
-      // Phase A3.10.1 (2026-05-17): Bug-Fix — source-clip(s) bleiben erhalten.
-      // AI-Highlights gehen in project.aiHighlights (analog Multi-Clip-Mode
-      // A3.1). Vorher hat dieser Code project.clips mit highlights über-
-      // schrieben, was den "Imported clip" Source-Eintrag gelöscht hat. User-
-      // Report 2026-05-17.
+      // Phase A3.10.1 + A3.11 (2026-05-17): source-clip(s) bleiben erhalten.
+      // AI-Highlights werden in BEIDE Felder geschrieben:
+      //  - project.aiHighlights: für HighlightsTab-Sektion + back-compat
+      //  - project.clips als zusätzliche items mit kind='highlight':
+      //    erscheinen automatisch in TikTok+Builder Clip-Selektoren
+      //    (User-Wunsch A3.11: AI-Highlights direkt nutzbar ohne extra
+      //    "Add to ..."-Klick).
+      // Source-clips (kind='source' oder undefined) bleiben unverändert.
+      const sourceClips = project.clips.filter((c) => c.kind !== 'highlight');
+      const highlightClips: DemoClip[] = result.highlights.map((h, i) => ({
+        id: `ai-${Date.now().toString(36)}-${i}`,
+        startSec: h.startSec,
+        endSec: h.endSec,
+        label: h.label || `AI ${i + 1}`,
+        score: h.score,
+        kind: 'highlight',
+        reason: h.reason,
+      }));
       useProjectsStore.getState().updateProject(project.id, {
         subtitles: { ...existing, enabled: true, cues: result.cues },
         aiHighlights: result.highlights,
+        clips: [...sourceClips, ...highlightClips],
         status: 'ready',
       });
       // Explicit force-flush — sonst kann pending AsyncStorage-Write beim
@@ -2531,7 +2568,10 @@ function TikTokTab({
             />
           </View>
         )}
-        {introUri && introMode === 'overlay' && (
+        {/* Phase A4 (2026-05-17): scale/x/y/auto-fit jetzt auch im before-
+            Mode aktiv (vorher hardcoded cover-W:H). Daher die Position-
+            Controls in beiden Modi anzeigen. */}
+        {introUri && (
           <IntroOverlayControls project={project} t={t} />
         )}
       </View>
@@ -5163,7 +5203,10 @@ function BuilderTab({
             />
           </View>
         )}
-        {introUri && introMode === 'overlay' && (
+        {/* Phase A4 (2026-05-17): scale/x/y/auto-fit jetzt auch im before-
+            Mode aktiv (vorher hardcoded cover-W:H). Daher die Position-
+            Controls in beiden Modi anzeigen. */}
+        {introUri && (
           <IntroOverlayControls project={project} t={t} />
         )}
       </View>

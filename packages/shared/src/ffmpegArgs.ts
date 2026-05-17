@@ -594,10 +594,46 @@ export function buildTikTokExportArgs(
     finalAudio = '[aMain]'; // overlay-Mode behält source-audio (kein intro-audio).
   } else if (opts.intro && introInputIdx >= 0) {
     // 'before' = Intro spielt komplett, dann Main-Composition. Beide auf 9:16/16:9.
-    filters.push(
-      `[${introInputIdx}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,` +
-        `crop=${W}:${H},fps=${fps},setsar=1[introV]`,
-    );
+    //
+    // Phase A4 (2026-05-17): scale + x + y + auto-fit werden jetzt auch im
+    // before-Mode angewendet. Vorher (Doku §6 known bug): hardcoded
+    // scale=W:H increase+crop = immer cover-full, scale/x/y ignoriert →
+    // bei Letterbox-Intros keine Workaround-Möglichkeit ohne overlay-Mode.
+    //
+    // Neue Pipeline pro Intro-Frame:
+    //   1. Intro-Source auf (W*scale) × (H*scale) skalieren via auto-fit:
+    //      - scale ≤ 1.0 → contain (decrease+pad mit black) — Intro voll,
+    //        ggf. mit schwarzem Padding bei aspect-mismatch
+    //      - scale > 1.0  → cover (increase+crop) — Intro überlappt Bounds,
+    //        kein Letterbox mehr
+    //   2. In W × H Canvas einbetten mit x/y-Offset (overlay mit black Hintergrund).
+    //   3. fps + setsar + concat zur main-Composition.
+    const introScale = clamp(opts.intro.scale ?? 1.0, 0.2, 4.0);
+    const introW = Math.round(W * introScale);
+    const introH = Math.round(H * introScale);
+    const introXFrac = clamp(opts.intro.x ?? 0, 0, 1);
+    const introYFrac = clamp(opts.intro.y ?? 0, 0, 1);
+    // Position innerhalb der Canvas. Bei scale>1 ist Offset negativ (Intro
+    // ragt raus → wird gecroppt). Bei scale≤1 ist Offset positiv (Pad-Margins).
+    const introOverlayX = Math.round((W - introW) * introXFrac);
+    const introOverlayY = Math.round((H - introH) * introYFrac);
+    let introFinalize: string;
+    if (introScale > 1.0) {
+      // Intro größer als Master-Canvas → cover-Scale dann Crop auf Canvas-
+      // Size am Position-Offset (kein Letterbox).
+      introFinalize =
+        `scale=${introW}:${introH}:force_original_aspect_ratio=increase,` +
+        `crop=${introW}:${introH},` +
+        `crop=${W}:${H}:${-introOverlayX}:${-introOverlayY}`;
+    } else {
+      // Intro kleiner als Master-Canvas → contain-Scale (mit Aspect-Pad in
+      // den intro-eigenen Bounds), dann Pad auf Canvas-Size mit Offset.
+      introFinalize =
+        `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
+        `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black,` +
+        `pad=${W}:${H}:${introOverlayX}:${introOverlayY}:color=black`;
+    }
+    filters.push(`[${introInputIdx}:v]${introFinalize},fps=${fps},setsar=1[introV]`);
     filters.push(`[${introInputIdx}:a]aresample=async=1[introA]`);
     // concat n=2 erwartet alternating video+audio pro segment: [v0][a0][v1][a1].
     filters.push(

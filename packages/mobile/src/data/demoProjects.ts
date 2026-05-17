@@ -20,6 +20,13 @@ export interface DemoClip {
    *  "Add to 9:16" auf Multi-Clip-Projects, wo der Highlight aus Source 2
    *  kommt aber als zusätzlicher TikTok-Clip selektierbar sein soll. */
   sourceIdx?: number;
+  /** Phase A3.11 (2026-05-17): Type-Marker. Default 'source' (= importiertes
+   *  Video, eine pro Source-Datei). 'highlight' = AI-detected interest range
+   *  innerhalb einer Source. UI zeigt unterschiedliche Badges, aber clip-Pipeline
+   *  (Player + Export) behandelt beide gleich. */
+  kind?: 'source' | 'highlight';
+  /** Phase A3.11: AI-Highlight-Reason ("short: 2 kill-phrase, 3 audio-peak"). */
+  reason?: string;
 }
 
 export type ProjectMode = 'highlights' | 'manual' | 'tiktok' | 'builder';
