@@ -75,6 +75,8 @@ export function AddVideoProjectScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [urlPhase, setUrlPhase] = useState<'requesting' | 'downloading' | null>(null);
   const [urlProgress, setUrlProgress] = useState(0);
+  // Phase A3.3: Multi-URL-Import — Progress über mehrere URLs.
+  const [multiUrlProgress, setMultiUrlProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Phase A5: Project-Limit-Gate. Bei Creator über 25 Projects → Alert +
   // Upgrade-Modal. Pro/Lifetime: canCreate immer true (limit=Infinity).
@@ -169,56 +171,116 @@ export function AddVideoProjectScreen() {
   };
 
   const onUrlImport = async () => {
-    const u = url.trim();
-    if (!u || busy) return;
-    if (!isYoutubeOrTwitchUrl(u)) {
-      haptic.error();
-      Alert.alert(
-        t('addProject.urlInvalidTitle', 'Invalid URL'),
-        t('addProject.urlInvalidBody', 'Please enter a YouTube or Twitch URL.'),
-      );
-      return;
+    // Phase A3.3 (2026-05-17): Multi-URL-Import. Eine URL pro Zeile.
+    // Bei 1 URL → Single-Project (legacy). Bei N>1 → Multi-Clip-Project.
+    const lines = url
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    if (lines.length === 0 || busy) return;
+    // Pre-validate alle URLs
+    for (const u of lines) {
+      if (!isYoutubeOrTwitchUrl(u)) {
+        haptic.error();
+        Alert.alert(
+          t('addProject.urlInvalidTitle', 'Invalid URL'),
+          `${u.slice(0, 80)}\n\n${t('addProject.urlInvalidBody', 'Please enter a YouTube or Twitch URL.')}`,
+        );
+        return;
+      }
     }
     if (!ensureCanCreate()) return;
     haptic.medium();
     setBusy('url');
-    setUrlPhase('requesting');
-    setUrlProgress(0);
+    const results: Array<{ uri: string; durationSec: number; title: string }> = [];
     try {
-      const result = await downloadFromUrl({
-        url: u,
-        onPhase: setUrlPhase,
-        onProgress: setUrlProgress,
-      });
-      const title = (result.title || u).slice(0, 80);
-      const project = addProject({
-        title,
-        durationSec: result.durationSec,
-        sourceUri: result.uri,
-        sourceType: 'url',
-        mode: 'highlights',
-        videoType,
-      });
-      useProjectsStore.getState().updateProject(project.id, {
-        status: 'ready',
-        clips: [
-          {
-            id: `c-${Date.now().toString(36)}`,
+      // Sequenziell pro URL downloaden
+      for (let i = 0; i < lines.length; i++) {
+        if (lines.length > 1) setMultiUrlProgress({ current: i, total: lines.length });
+        setUrlPhase('requesting');
+        setUrlProgress(0);
+        const result = await downloadFromUrl({
+          url: lines[i],
+          onPhase: setUrlPhase,
+          onProgress: setUrlProgress,
+        });
+        results.push(result);
+      }
+
+      if (results.length === 1) {
+        // Single-URL — legacy single-clip-project
+        const single = results[0];
+        const title = (single.title || lines[0]).slice(0, 80);
+        const project = addProject({
+          title,
+          durationSec: single.durationSec,
+          sourceUri: single.uri,
+          sourceType: 'url',
+          mode: 'highlights',
+          videoType,
+        });
+        useProjectsStore.getState().updateProject(project.id, {
+          status: 'ready',
+          clips: [
+            {
+              id: `c-${Date.now().toString(36)}`,
+              startSec: 0,
+              endSec: single.durationSec,
+              label: 'Imported clip',
+              score: 1,
+            },
+          ],
+        });
+        void extractVideoThumbnail(single.uri, 1000).then((thumbUri) => {
+          if (thumbUri) {
+            useProjectsStore.getState().updateProject(project.id, { thumbUri });
+          }
+        });
+        haptic.success();
+        setUrl('');
+        nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
+      } else {
+        // Multi-URL — wie Multi-Clip-Import strukturiert
+        const totalDur = results.reduce((s, r) => s + r.durationSec, 0);
+        const project = addProject({
+          title: `Multi-URL (${results.length})`,
+          durationSec: totalDur,
+          sourceUri: results[0].uri,
+          sourceUris: results.map((r) => r.uri),
+          sourceType: 'multi-clip',
+          mode: 'highlights',
+          videoType,
+        });
+        useProjectsStore.getState().updateProject(project.id, {
+          status: 'ready',
+          clips: results.map((r, i) => ({
+            id: `c${i}-${Date.now().toString(36)}`,
             startSec: 0,
-            endSec: result.durationSec,
-            label: 'Imported clip',
+            endSec: r.durationSec,
+            label: r.title?.slice(0, 60) || `Clip ${i + 1}`,
             score: 1,
-          },
-        ],
-      });
-      void extractVideoThumbnail(result.uri, 1000).then((thumbUri) => {
-        if (thumbUri) {
-          useProjectsStore.getState().updateProject(project.id, { thumbUri });
-        }
-      });
-      haptic.success();
-      setUrl('');
-      nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
+          })),
+        });
+        // Sequential thumbs (HEVC 1-Decoder Constraint analog onMultiClipImport)
+        void (async () => {
+          for (let i = 0; i < results.length; i++) {
+            const tUri = await extractVideoThumbnail(results[i].uri, 1000).catch(() => null);
+            if (!tUri) continue;
+            const cur = useProjectsStore.getState().projects.find((pr) => pr.id === project.id);
+            if (!cur) return;
+            const nextClips = (cur.clips ?? []).map((c, idx) =>
+              idx === i ? { ...c, thumbUri: tUri } : c,
+            );
+            useProjectsStore.getState().updateProject(project.id, {
+              clips: nextClips,
+              thumbUri: i === 0 ? tUri : (cur.thumbUri ?? undefined),
+            });
+          }
+        })();
+        haptic.success();
+        setUrl('');
+        nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
+      }
     } catch (err: any) {
       haptic.error();
       Alert.alert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
@@ -226,6 +288,7 @@ export function AddVideoProjectScreen() {
       setBusy(null);
       setUrlPhase(null);
       setUrlProgress(0);
+      setMultiUrlProgress(null);
     }
   };
 
@@ -430,12 +493,22 @@ export function AddVideoProjectScreen() {
               <TextInput
                 value={url}
                 onChangeText={setUrl}
-                placeholder={t('addProject.urlPlaceholder', 'YouTube / Twitch URL…')}
+                placeholder={t(
+                  'addProject.urlPlaceholderMulti',
+                  'YouTube / Twitch URLs — one per line for multi-clip',
+                )}
                 placeholderTextColor="#52525b"
                 autoCapitalize="none"
                 autoCorrect={false}
+                multiline
                 editable={busy !== 'url'}
-                style={{ color: '#f1f2f2', fontSize: 13, paddingVertical: 12 }}
+                style={{
+                  color: '#f1f2f2',
+                  fontSize: 13,
+                  paddingVertical: 10,
+                  minHeight: 60,
+                  textAlignVertical: 'top',
+                }}
               />
             </View>
             <Pressable

@@ -382,13 +382,16 @@ function HighlightsTab({
           setMultiProgress({ current, total, phase }),
       });
       const existing = project.subtitles ?? DEFAULT_SUBTITLES;
-      // Phase A3.1 Bug-Fix (2026-05-17): clips werden NICHT mehr überschrieben.
-      // Multi-Clip-Mode behält die source-clips (3 imports = 3 clips). Whisper-
-      // Highlights kommen im result.highlights an, werden aber nicht in
-      // project.clips geschrieben — sonst gehen die imports verloren. Cues
-      // über alle clips sind der eigentliche Wert dieser Phase.
+      // Phase A3.1 + A3.2 + A3.5 (2026-05-17):
+      //  - clips bleiben source-clips (NICHT überschreiben)
+      //  - subtitles.cues bekommen aggregierte Cues mit clipIndex (A3.2)
+      //  - perClipDurations gespeichert für Cue-Zuordnung im Editor (A3.2)
+      //  - aiHighlights als separates Feld (A3.5) — wird im HighlightsTab
+      //    in einer eigenen Section unter den source-clips angezeigt
       useProjectsStore.getState().updateProject(project.id, {
         subtitles: { ...existing, enabled: true, cues: result.cues },
+        perClipDurations: result.perClipDurations,
+        aiHighlights: result.highlights,
         status: 'ready',
       });
       await flushProjectsNow();
@@ -678,6 +681,7 @@ function HighlightsTab({
       <CueEditorModal
         visible={cueEditorOpen}
         cues={cues}
+        sourceUris={project.sourceUris}
         onClose={() => setCueEditorOpen(false)}
         onSave={(nextCues) => {
           const existing = project.subtitles ?? DEFAULT_SUBTITLES;
@@ -770,8 +774,59 @@ function HighlightsTab({
           ))}
         </View>
       )}
+
+      {/* Phase A3.5 (2026-05-17): AI-Highlights-Section.
+          Sichtbar nur wenn Multi-Clip-Analyze AI-Highlights gefunden hat.
+          Read-only Liste — zukünftig könnte ein "Build from highlight"-Action
+          dazukommen, der die Range als Builder-Clip übernimmt. */}
+      {(project.aiHighlights?.length ?? 0) > 0 && (
+        <View style={{ gap: 8, marginTop: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="sparkles" size={13} color="#ff1039" />
+            <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
+              {t('highlights.aiHighlightsHeading', 'AI HIGHLIGHTS')} · {project.aiHighlights!.length}
+            </Text>
+          </View>
+          {project.aiHighlights!.map((h, idx) => (
+            <View
+              key={`ai-${idx}`}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderRadius: 10,
+                backgroundColor: 'rgba(255,16,57,0.06)',
+                borderWidth: 1,
+                borderColor: 'rgba(255,16,57,0.2)',
+                gap: 4,
+              }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }}>
+                  {h.label || `Highlight ${idx + 1}`}
+                </Text>
+                <Text style={{ color: '#71717a', fontSize: 10 }}>
+                  {formatTime(h.startSec)} – {formatTime(h.endSec)} · {Math.round((h.endSec - h.startSec))}s · {Math.round(h.score * 100)}%
+                </Text>
+              </View>
+              {h.reason && (
+                <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }} numberOfLines={2}>
+                  {h.reason}
+                </Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
+}
+
+/** Helper: Sekunden → "mm:ss" für AI-Highlights-Display. */
+function formatTime(sec: number): string {
+  const total = Math.max(0, Math.floor(sec));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function SelectableClipRow({
@@ -2201,6 +2256,7 @@ function TikTokTab({
       <CueEditorModal
         visible={tiktokCueEditorOpen}
         cues={subSettings.cues ?? []}
+        sourceUris={project.sourceUris}
         onClose={() => setTiktokCueEditorOpen(false)}
         onSave={(nextCues) =>
           updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
@@ -4697,6 +4753,7 @@ function BuilderTab({
       <CueEditorModal
         visible={builderCueEditorOpen}
         cues={subSettings.cues ?? []}
+        sourceUris={project.sourceUris}
         onClose={() => setBuilderCueEditorOpen(false)}
         onSave={(nextCues) =>
           updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
