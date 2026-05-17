@@ -1968,7 +1968,15 @@ function TikTokTab({
   useEffect(() => {
     const needsThumb = (clips ?? []).some((c, i) => {
       if (c.thumbUri) return false;
-      const src = isMultiSource ? projectSourceUris[i] : project.sourceUri;
+      // Phase A3.11 (2026-05-17): bei kind='highlight' nimm clip.sourceIdx
+      // als source-Mapping (statt one-to-one i==sourceIdx).
+      const explicitSrcIdx = c.sourceIdx;
+      const src =
+        explicitSrcIdx !== undefined
+          ? projectSourceUris[explicitSrcIdx]
+          : isMultiSource
+            ? projectSourceUris[i]
+            : project.sourceUri;
       return !!src;
     });
     if (!needsThumb) return;
@@ -1978,7 +1986,13 @@ function TikTokTab({
         if (cancelled) return;
         const c = clips[i];
         if (c.thumbUri) continue;
-        const sourceForClip = isMultiSource ? projectSourceUris[i] : project.sourceUri;
+        const explicitSrcIdx = c.sourceIdx;
+        const sourceForClip =
+          explicitSrcIdx !== undefined
+            ? projectSourceUris[explicitSrcIdx]
+            : isMultiSource
+              ? projectSourceUris[i]
+              : project.sourceUri;
         if (!sourceForClip) continue;
         // Frame-Zeit: 500ms ab Clip-Start (vermeidet schwarzen Intro-Frame).
         const timeMs = Math.max(0, Math.round((c.startSec || 0) * 1000 + 500));
@@ -1999,7 +2013,7 @@ function TikTokTab({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project.id]);
+  }, [project.id, clips.length]);
   // Phase A3.10.3 (2026-05-17): AI-Highlight-Clips in Multi-Clip-Projects
   // haben einen expliziten `sourceIdx` der NICHT auf den one-to-one source
   // mapping passt. Resolve hier — falls clip.sourceIdx gesetzt + valid:
@@ -3127,20 +3141,20 @@ function FullModePreview({
     }
   };
 
-  // Intro overlay-style: positioned + scaled bei mode=overlay; sonst full.
-  const introIsOverlay = introMode === 'overlay';
-  const introWidthPct = introIsOverlay ? Math.max(0.2, Math.min(4, introScale)) : 1;
-  const introLeftPct = introIsOverlay ? introX * (1 - introWidthPct) : 0;
-  const introTopPct = introIsOverlay ? introY * (1 - introWidthPct) : 0;
-  const introStyle = introIsOverlay
-    ? {
-        position: 'absolute' as const,
-        left: `${introLeftPct * 100}%`,
-        top: `${introTopPct * 100}%`,
-        width: `${introWidthPct * 100}%`,
-        height: `${introWidthPct * 100}%`,
-      }
-    : StyleSheet.absoluteFill;
+  // Phase A4 (2026-05-17): scale/x/y/auto-fit jetzt in BEIDEN Modi
+  // (before+overlay) — preview muss Worker FFmpeg-Math 1:1 spiegeln.
+  // Formel: introW = W*scale, introH = H*scale, overlay at (W-introW)*x,
+  // (H-introH)*y. Mobile-RN nutzt percentages relative zu Container-Dim.
+  const introWidthPct = Math.max(0.2, Math.min(4, introScale));
+  const introLeftPct = introX * (1 - introWidthPct);
+  const introTopPct = introY * (1 - introWidthPct);
+  const introStyle = {
+    position: 'absolute' as const,
+    left: `${introLeftPct * 100}%`,
+    top: `${introTopPct * 100}%`,
+    width: `${introWidthPct * 100}%`,
+    height: `${introWidthPct * 100}%`,
+  };
 
   return (
     <View
@@ -3242,14 +3256,10 @@ function FullModePreview({
           source={{ uri: introUri }}
           paused={paused || !introPlaying}
           repeat={false}
-          // Phase Builder-10: bei overlay-mode + scale>1 cover (intro überlappt
-          // Box, kein Letterbox), sonst contain (volles intro mit black bars).
-          // Bei before-mode immer cover (full-screen).
-          resizeMode={
-            introMode === 'overlay'
-              ? introScale > 1 ? 'cover' : 'contain'
-              : 'cover'
-          }
+          // Phase A4 (2026-05-17): beide Modi nutzen jetzt scale/x/y/auto-fit.
+          // scale > 1 → cover (intro überlappt Bounds, kein Letterbox).
+          // scale ≤ 1 → contain (volles intro, ggf. mit black bars).
+          resizeMode={introScale > 1 ? 'cover' : 'contain'}
           onEnd={() => setIntroPlaying(false)}
           onError={() => setIntroPlaying(false)}
           style={[
@@ -4874,10 +4884,15 @@ function BuilderTab({
         const previewSources = orderedItems
           .map((item) => {
             if (item.kind === 'clip') {
-              const idx = clipIdxById.get(item.clip.id);
-              const uri = isMultiSrc && idx !== undefined
-                ? projectSourceUris[idx]
-                : project.sourceUri;
+              // Phase A3.11 (2026-05-17): bei kind='highlight' nutze
+              // clip.sourceIdx (explicit). Sonst legacy one-to-one i==srcIdx.
+              const explicitSrcIdx = item.clip.sourceIdx;
+              const clipIdx = clipIdxById.get(item.clip.id);
+              const srcIdx = explicitSrcIdx ?? clipIdx;
+              const uri =
+                isMultiSrc && srcIdx !== undefined && projectSourceUris[srcIdx]
+                  ? projectSourceUris[srcIdx]
+                  : project.sourceUri;
               if (!uri) return null;
               const hasTrim = item.clip.endSec > item.clip.startSec;
               return {
@@ -5342,10 +5357,15 @@ function BuilderTab({
             const builderItemPlan = orderedItems
               .map((item) => {
                 if (item.kind === 'clip') {
+                  // Phase A3.11: AI-Highlight clips haben sourceIdx; legacy
+                  // clips nutzen clip-index als source-index.
+                  const explicitSrcIdx = item.clip.sourceIdx;
                   const idx = clipIndexById.get(item.clip.id);
-                  const uri = isMultiSource && idx !== undefined
-                    ? projectSourceUris[idx]
-                    : project.sourceUri;
+                  const srcIdx = explicitSrcIdx ?? idx;
+                  const uri =
+                    isMultiSource && srcIdx !== undefined && projectSourceUris[srcIdx]
+                      ? projectSourceUris[srcIdx]
+                      : project.sourceUri;
                   if (!uri) return null;
                   // Multi-Clip-Import legt clips mit endSec=0 an (DocumentPicker
                   // liefert keine Duration). Wenn 0 oder <= startSec → -1 als
