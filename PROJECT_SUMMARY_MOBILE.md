@@ -248,7 +248,9 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 | ~~A3.6~~ | ~~**Clip-Switcher in Highlights + Manual**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — Beide Tabs haben jetzt einen active-source-Switcher. HighlightsTab: tap auf SelectableClipRow markiert source als "active for preview" (roter Border + Play-Badge) und VideoPlayer wechselt. ManualTab: zusätzliche Pills-Row über dem Player für Source-Switch. Mark-In/Out reset bei Source-Wechsel. `key` auf Player für sauberen Re-Mount. |
 | ~~A3.7~~ | ~~**Multi-URL UX: +-Button**~~ ✅ | ~~1h~~ | **Done 2026-05-17** — Statt multi-line TextInput jetzt ein Array von single-line Inputs. Pro Reihe ⊖-Button (entfernen, ab >1 Reihe). Separater "+ Add URL"-Button unterhalb. Import-Button neben Add-Button. |
 | ~~A3.8~~ | ~~**Highlight-Detection upgrade (Server, kills für Fortnite/Warzone)**~~ ✅ | ~~2-3h~~ | **Done 2026-05-17** — Worker rev `00019-bnx`. (1) `audioEnergy.ts` neue `detectTransients()` Function (sudden energy jumps via 3s-sliding-window — Kills sind Spikes ÜBER lautes Game-Background). (2) `detectPeaksOrTransients()` kombiniert beide für gaming-mode. (3) `transcribe.ts` nutzt gaming/auto-mode mit threshold 0.6 (statt 1.0) + transient-detection. (4) `highlights.ts` SHORT_PROFILE: minDur 6→4, gapThreshold 2.5→3.5, wAudioPeak 1.6→2.0, maxCount 15→20. (5) +50 Warzone/Modern-Combat-Phrasen (plates, gulag, third-party, domed, lasered, mag-dump, etc.). |
-| ~~A3.9~~ | ~~**AI-Highlights klickbar + auswählbar**~~ ✅ | ~~3-4h~~ | **Done 2026-05-17** — (1) HighlightsTab AI-Highlight-Card klickbar → Alert mit "Export 9:16" + "Add to Builder". `resolveHighlightSource()` helper bestimmt source-clip+trim auch im Multi-Clip-Mode (via perClipDurations). Cross-boundary highlights zeigen Warning. (2) BuilderTab: neue Section "AI HIGHLIGHTS — TAP TO ADD" mit Quick-Add-Cards. Pro Tap wird ein `extra-ai-*`-Item zu builderExtras + clipOrder dazugefügt. (3) TikTok-Tab redundant zu (1) → übersprungen. |
+| ~~A3.9~~ | ~~**AI-Highlights klickbar + auswählbar**~~ ✅ | ~~3-4h~~ | **Done 2026-05-17** — HighlightsTab + BuilderTab; Action-Sheet mit "Export 9:16" + "Add to 9:16" + "Add to Builder". |
+| ~~A3.9.b~~ | ~~**App-Style ActionSheet + Add-to-9:16 + audio-energy astats fallback**~~ ✅ | ~~2-3h~~ | **Done 2026-05-17** — Custom `ActionSheet.tsx` Component (BlurView+glass-style analog UpgradeModal). Worker `audioEnergy.ts` fallback zu `astats`-filter bei 0 ebur128-buckets. Worker rev `00020-tqs`. |
+| ~~A3.10~~ | ~~**Multi-Improvements**~~ ✅ | ~~3-4h~~ | **Done 2026-05-17** — (1) Bug-Fix single-clip onAnalyze überschreibt nicht mehr project.clips (analog A3.1 für Multi-Clip). AI-Highlights gehen in `aiHighlights` Feld. (2) AI-Highlight-Card hat separaten Play-Button → Player im HighlightsTab seekt zur Range, switched bei Multi-Source auch zur richtigen source. (3) `DemoClip.sourceIdx?: number` Datenmodell — AI-Highlights können jetzt auch bei Multi-Clip via "Add to 9:16" als regulärer Clip in TikTok-Tab landen, mit korrekter Source+Trim-Resolution. (4) Direkte AI-Highlight-Anzeige in TikTok/Builder via existing "Add to ..."-Workflow. |
 | ~~A3.5~~ | ~~**AI-Highlights zusätzlich sichtbar**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — `project.aiHighlights?: AIHighlight[]` als separates Feld. HighlightsTab zeigt zweite Section "AI HIGHLIGHTS" unterhalb der source-clips. Read-only Liste mit time + score + reason. Source-clips bleiben unverändert. |
 | A4 | **Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit** | 1.5-2h | `before` ignoriert heute scale + x/y. UI-Controls auch im `before` zeigen. |
 | A6 | **Security-Audit Findings (Phase A6, ~6-8d gesamt)** | siehe Sub | Audit 2026-05-16, 4 P0 / 8 P1 / 8 P2 / 14 P3 — **Volldoku: `SECURITY_AUDIT_2026-05-16.md`** |
@@ -550,10 +552,10 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 - **Worker-Rev**: `00018-bwh` (A6.1 Rate Limiting deployed 2026-05-16)
 - **GitHub-Repo**: `garymikefischer-art/fiano`
 - **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
-- **Worker-Rev**: `00019-bnx` (A3.8 transient-detection + Warzone-phrases deployed 2026-05-17)
-- **Letzter Commit**: A3.8 + A3.9 AI-Highlight upgrade (pending)
-- **Backup-Tag**: `pre-phase-a3.8-highlights-20260517`
-- **Letzte Phase**: A3.8 Highlight-Detection upgrade (Server) + A3.9 AI-Highlights klickbar/auswählbar
+- **Worker-Rev**: `00020-tqs` (A3.8.b astats fallback deployed 2026-05-17)
+- **Letzter Commit**: A3.10 multi-clip-final (pending)
+- **Backup-Tag**: `pre-phase-a3.10-multiclip-final-20260517`
+- **Letzte Phase**: A3.10 Multi-Improvements (sourceIdx, AI-Highlight player preview, single-clip-onAnalyze bug-fix)
 
 ### Speicherorte
 
