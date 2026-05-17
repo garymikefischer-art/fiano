@@ -21,7 +21,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { detectHighlights, type Highlight, type HighlightMode } from './highlights.js';
-import { extractAudioEnergy, normalizeEnergy, detectPeaks } from './audioEnergy.js';
+import {
+  extractAudioEnergy,
+  normalizeEnergy,
+  detectPeaks,
+  detectPeaksOrTransients,
+} from './audioEnergy.js';
 
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB Whisper-API-Limit
@@ -82,7 +87,13 @@ export async function transcribeAudio(opts: TranscribeOpts): Promise<TranscribeR
     try {
       const buckets = await extractAudioEnergy(audioPath, jobId);
       const energy = normalizeEnergy(buckets);
-      audioPeaks = detectPeaks(energy, 1.0);
+      // Phase A3.8 (2026-05-17): für gaming-mode lockerer threshold +
+      // transient-detection (Kills sind oft Spikes über lautes Constant-
+      // Game-Audio).
+      audioPeaks =
+        opts.highlightMode === 'gaming' || opts.highlightMode === 'auto'
+          ? detectPeaksOrTransients(energy, 0.6, 0.12)
+          : detectPeaks(energy, 1.0);
       const peakCount = audioPeaks.reduce((s, v) => s + v, 0);
       console.log(`[${jobId}] audio-peaks=${peakCount}/${audioPeaks.length}`);
     } catch (e) {

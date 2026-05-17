@@ -91,6 +91,38 @@ const KILL_PHRASES: string[] = [
   'prefire', 'prefired', 'prefire him',
   'broke him', 'broken him', 'break him',
   'shielded him', 'shield broke',
+  // Phase A3.8 (2026-05-17): mehr Warzone/Modern-Combat-Slang
+  'gulag', 'won the gulag', 'lost the gulag',
+  'plates', 'no plates', 'broke his plates', 'plate broken', 'cracked plates',
+  'popped plates', 'plated up', 'one plate', 'no plate',
+  'rotate', 'rotation', 'rotating', 'rotated',
+  'third party', 'third partied', 'thirded',
+  'domed', 'domed him', 'one tapped', 'one-tapped', 'tapped him',
+  'one shot kill', 'oneshot', 'osg',
+  'cookin', 'cookin him', 'cookin them',
+  'mag dump', 'mag dumped', 'dumped him',
+  'wallbang', 'wallbanged', 'shot through',
+  'beamed', 'beamed him', 'beam him', 'beam them',
+  'lasered', 'lasered him', 'lasering',
+  'dinked', 'dinks',
+  'rezzed', 'res him', 'rez him', 'reviving',
+  'finisher', 'finishin',
+  'bot', 'free kill bot', 'absolute bot',
+  'hes done', 'hes cooked', 'cooked',
+  'free elim', 'free elimination', 'easy elim',
+  'wiped out', 'wiped the squad', 'squad wiped',
+  'rk1', 'rk-1', 'kill streak', 'killstreak',
+  'shot him out', 'shot her out', 'shot them out',
+  // Apex-Slang (oft mit Warzone-Verwendet)
+  'beaming', 'beam', 'beamed me', 'crackedhim',
+  'fully cracked', 'no shield broken', 'health broken',
+  // Fortnite-Building/Combat-Specifics
+  'edited him', 'edit kill', 'cone him', 'cone kill',
+  'pumped him', 'spray down', 'spray downed',
+  'ramp ride', 'ramped over',
+  // Generic emotion that flag kills/clutches
+  'thats him', 'thats them', 'gotham', 'gott em',
+  'and the kill', 'with the kill', 'and another',
 ];
 
 const REACTION_PHRASES: string[] = [
@@ -129,15 +161,20 @@ interface ProfileParams {
 }
 
 // SHORT-Profile: Gaming-Style — Spike-driven, kurze Clips.
+// Phase A3.8 (2026-05-17): aggressiver für Fortnite/Warzone:
+//   minDur 6→4 (kürzere kill-bursts erkennen)
+//   gapThreshold 2.5→3.5 (Whisper-Cues bei Gaming oft mit gap)
+//   wAudioPeak 1.6→2.0 (Audio-Peaks gewichtiger für Gaming-Kills)
+//   maxCount 15→20 (mehr candidates für Auto-Mode-Dedupe)
 const SHORT_PROFILE: ProfileParams = {
-  minDur: 6,
+  minDur: 4,
   maxDur: 20,
-  targetDur: 12,
-  gapThreshold: 2.5,
-  wKill: 1.3,
-  wReaction: 1.2,
-  wAudioPeak: 1.6,
-  maxCount: 15,
+  targetDur: 10,
+  gapThreshold: 3.5,
+  wKill: 1.4,
+  wReaction: 1.25,
+  wAudioPeak: 2.0,
+  maxCount: 20,
 };
 
 // LONG-Profile: Podcast-Style — sustained, längere Clips, weniger Spike-Bonus.
