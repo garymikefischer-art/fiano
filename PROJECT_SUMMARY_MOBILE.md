@@ -250,9 +250,11 @@ GET signed-URL         ←   signed-DL-URL                 outputs/...
 | ~~A3.8~~ | ~~**Highlight-Detection upgrade (Server, kills für Fortnite/Warzone)**~~ ✅ | ~~2-3h~~ | **Done 2026-05-17** — Worker rev `00019-bnx`. (1) `audioEnergy.ts` neue `detectTransients()` Function (sudden energy jumps via 3s-sliding-window — Kills sind Spikes ÜBER lautes Game-Background). (2) `detectPeaksOrTransients()` kombiniert beide für gaming-mode. (3) `transcribe.ts` nutzt gaming/auto-mode mit threshold 0.6 (statt 1.0) + transient-detection. (4) `highlights.ts` SHORT_PROFILE: minDur 6→4, gapThreshold 2.5→3.5, wAudioPeak 1.6→2.0, maxCount 15→20. (5) +50 Warzone/Modern-Combat-Phrasen (plates, gulag, third-party, domed, lasered, mag-dump, etc.). |
 | ~~A3.9~~ | ~~**AI-Highlights klickbar + auswählbar**~~ ✅ | ~~3-4h~~ | **Done 2026-05-17** — HighlightsTab + BuilderTab; Action-Sheet mit "Export 9:16" + "Add to 9:16" + "Add to Builder". |
 | ~~A3.9.b~~ | ~~**App-Style ActionSheet + Add-to-9:16 + audio-energy astats fallback**~~ ✅ | ~~2-3h~~ | **Done 2026-05-17** — Custom `ActionSheet.tsx` Component (BlurView+glass-style analog UpgradeModal). Worker `audioEnergy.ts` fallback zu `astats`-filter bei 0 ebur128-buckets. Worker rev `00020-tqs`. |
-| ~~A3.10~~ | ~~**Multi-Improvements**~~ ✅ | ~~3-4h~~ | **Done 2026-05-17** — (1) Bug-Fix single-clip onAnalyze überschreibt nicht mehr project.clips (analog A3.1 für Multi-Clip). AI-Highlights gehen in `aiHighlights` Feld. (2) AI-Highlight-Card hat separaten Play-Button → Player im HighlightsTab seekt zur Range, switched bei Multi-Source auch zur richtigen source. (3) `DemoClip.sourceIdx?: number` Datenmodell — AI-Highlights können jetzt auch bei Multi-Clip via "Add to 9:16" als regulärer Clip in TikTok-Tab landen, mit korrekter Source+Trim-Resolution. (4) Direkte AI-Highlight-Anzeige in TikTok/Builder via existing "Add to ..."-Workflow. |
+| ~~A3.10~~ | ~~**Multi-Improvements**~~ ✅ | ~~3-4h~~ | **Done 2026-05-17** — sourceIdx, Player-Preview, Single-Clip-Bug-Fix. |
+| ~~A3.11~~ | ~~**AI-Highlights als persistent clips**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — `DemoClip.kind?: 'source' | 'highlight'` + `reason?`. Multi-Analyze + onAnalyze schreiben AI-Highlights ZUSÄTZLICH zu project.aiHighlights auch als DemoClips mit kind='highlight' + sourceIdx in project.clips. Diese tauchen automatisch in TikTok-Tab Clip-Selector + Builder-Items auf — direkt nutzbar (Preview, Trim, Export) ohne explicit "Add to ..."-Klick. |
+| ~~A4~~ | ~~**Builder-12 Intro before-Mode + Preview-Sync**~~ ✅ | ~~2-3h~~ | **Done 2026-05-17** — `packages/shared/src/ffmpegArgs.ts` before-Mode rewritten: nutzt jetzt scale (0.2..4.0) + x/y + auto-fit (contain ≤1, cover >1) genau wie overlay-Mode. Pipeline: bei scale>1 cover-scale + crop auf canvas am Position-Offset; bei scale≤1 contain-scale + pad auf canvas am Position-Offset. Plus IntroOverlayControls in beiden modi sichtbar (vorher nur overlay). Kein Worker-Redeploy nötig — args werden client-side gebaut. |
 | ~~A3.5~~ | ~~**AI-Highlights zusätzlich sichtbar**~~ ✅ | ~~1-2h~~ | **Done 2026-05-17** — `project.aiHighlights?: AIHighlight[]` als separates Feld. HighlightsTab zeigt zweite Section "AI HIGHLIGHTS" unterhalb der source-clips. Read-only Liste mit time + score + reason. Source-clips bleiben unverändert. |
-| A4 | **Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit** | 1.5-2h | `before` ignoriert heute scale + x/y. UI-Controls auch im `before` zeigen. |
+| ~~A4~~ | ~~**Phase Builder-12 Intro `before`-Mode mit scale/x/y/auto-fit**~~ ✅ | ~~1.5-2h~~ | **Done 2026-05-17** — siehe weiter unten. |
 | A6 | **Security-Audit Findings (Phase A6, ~6-8d gesamt)** | siehe Sub | Audit 2026-05-16, 4 P0 / 8 P1 / 8 P2 / 14 P3 — **Volldoku: `SECURITY_AUDIT_2026-05-16.md`** |
 | ~~A6.1~~ | ~~**Rate Limiting Worker**~~ ✅ (P0-1) | ~~1h~~ | **Done 2026-05-16** — Worker rev `00018-bwh`. `express-rate-limit@7.5.1` per-userId nach authMiddleware. /upload-url 30/min, /render 5/min, /transcribe 5/min, /download 3/min. Cloud Run `trust proxy: 1`. 429 mit `retryAfterSec` + `[ratelimit:NAME]` log-warning. |
 | A6.2 | **`.ass` Content-Validation + Size-Limit** (P0-4) | 2h | Worker: max 64KB, reject `[Fonts]`/`[Graphics]`, cap `\bord`/`\blur`/`\fs`. Bessere Long-Term-Lösung in A6.4 |
@@ -553,9 +555,9 @@ gcloud run deploy fiano-render-worker --source . --region europe-west1 \
 - **GitHub-Repo**: `garymikefischer-art/fiano`
 - **Aktueller Branch zum Mergen**: `claude/modest-greider-5dd6e1`
 - **Worker-Rev**: `00020-tqs` (A3.8.b astats fallback deployed 2026-05-17)
-- **Letzter Commit**: A3.10 multi-clip-final (pending)
-- **Backup-Tag**: `pre-phase-a3.10-multiclip-final-20260517`
-- **Letzte Phase**: A3.10 Multi-Improvements (sourceIdx, AI-Highlight player preview, single-clip-onAnalyze bug-fix)
+- **Letzter Commit**: A3.11 + A4 (pending)
+- **Backup-Tag**: `pre-phase-a3.11-a4-20260517`
+- **Letzte Phase**: A3.11 AI-Highlights als persistent clips + A4 Intro before-Mode scale/x/y/auto-fit
 
 ### Speicherorte
 
