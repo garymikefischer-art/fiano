@@ -116,3 +116,45 @@ export function detectPeaks(energy: number[], threshold = 1.0): number[] {
   const cutoff = mean + threshold * stddev;
   return energy.map((v) => (v >= cutoff ? 1 : 0));
 }
+
+/**
+ * Phase A3.8 (2026-05-17): Transient-Detection — findet plötzliche Energy-
+ * Jumps (>jumpThreshold absolute Energy-Differenz innerhalb 1 Sekunde).
+ *
+ * Warum: bei Gaming-Audio (Fortnite/Warzone) dominieren laute Background-
+ * Game-Sounds (constant). Kills sind oft kurze Spikes ÜBER das constant-loud
+ * Level — `detectPeaks` mit globalem mean+stddev übersieht die. Transient-
+ * Detection vergleicht stattdessen Wert mit den letzten 2 Sekunden (lokaler
+ * Mean) und findet Anstiege.
+ *
+ * Returns Array von 0/1 gleicher Länge wie energy[].
+ */
+export function detectTransients(energy: number[], jumpThreshold = 0.15): number[] {
+  if (energy.length < 3) return new Array(energy.length).fill(0);
+  const flags = new Array(energy.length).fill(0);
+  // Window-Größe: 3 Sekunden vorher für lokalen Mean.
+  const W = 3;
+  for (let i = W; i < energy.length; i++) {
+    let localSum = 0;
+    for (let j = i - W; j < i; j++) localSum += energy[j];
+    const localMean = localSum / W;
+    const delta = energy[i] - localMean;
+    if (delta >= jumpThreshold) flags[i] = 1;
+  }
+  return flags;
+}
+
+/**
+ * Phase A3.8: Kombiniert detectPeaks + detectTransients. Returns Array
+ * gleicher Länge wo 1 = peak ODER transient. Für gaming-mode wird das
+ * direkt an highlights.ts als audioPeaks[] weitergegeben.
+ */
+export function detectPeaksOrTransients(
+  energy: number[],
+  peakThreshold = 1.0,
+  jumpThreshold = 0.15,
+): number[] {
+  const peaks = detectPeaks(energy, peakThreshold);
+  const trans = detectTransients(energy, jumpThreshold);
+  return peaks.map((p, i) => (p || trans[i] ? 1 : 0));
+}

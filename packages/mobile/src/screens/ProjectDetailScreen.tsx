@@ -41,6 +41,7 @@ import {
   DEFAULT_SPLIT_RATIO,
   formatDuration,
   formatTimecode,
+  type AIHighlight,
   type DemoClip,
   type DemoProject,
   type ProjectExtraVideo,
@@ -324,6 +325,9 @@ function HighlightsTab({
   onBuild: () => void;
   t: (k: string, f?: string) => string;
 }) {
+  // Phase A3.9: nav-hook für AI-Highlight → Export-Routing
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const exportSettings = useAppStore((s) => s.exportSettings);
   const totalDuration = project.clips.reduce((s, c) => s + (c.endSec - c.startSec), 0);
   const avgScore = project.clips.length
     ? Math.round((project.clips.reduce((s, c) => s + c.score, 0) / project.clips.length) * 100)
@@ -799,10 +803,10 @@ function HighlightsTab({
         </View>
       )}
 
-      {/* Phase A3.5 (2026-05-17): AI-Highlights-Section.
+      {/* Phase A3.5 + A3.9 (2026-05-17): AI-Highlights-Section.
           Sichtbar nur wenn Multi-Clip-Analyze AI-Highlights gefunden hat.
-          Read-only Liste — zukünftig könnte ein "Build from highlight"-Action
-          dazukommen, der die Range als Builder-Clip übernimmt. */}
+          A3.9: Cards sind jetzt klickbar — Action-Sheet mit Export- und
+          Builder-Add-Option. */}
       {(project.aiHighlights?.length ?? 0) > 0 && (
         <View style={{ gap: 8, marginTop: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -810,24 +814,29 @@ function HighlightsTab({
             <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
               {t('highlights.aiHighlightsHeading', 'AI HIGHLIGHTS')} · {project.aiHighlights!.length}
             </Text>
+            <Text style={{ color: '#71717a', fontSize: 10 }}>· {t('highlights.aiTapHint', 'tap for actions')}</Text>
           </View>
           {project.aiHighlights!.map((h, idx) => (
-            <View
+            <Pressable
               key={`ai-${idx}`}
-              style={{
+              onPress={() => onAIHighlightPress(h, idx, project, nav, exportSettings, t)}
+              style={({ pressed }) => ({
                 paddingHorizontal: 12,
                 paddingVertical: 10,
                 borderRadius: 10,
-                backgroundColor: 'rgba(255,16,57,0.06)',
+                backgroundColor: pressed ? 'rgba(255,16,57,0.14)' : 'rgba(255,16,57,0.06)',
                 borderWidth: 1,
                 borderColor: 'rgba(255,16,57,0.2)',
                 gap: 4,
-              }}
+              })}
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }}>
-                  {h.label || `Highlight ${idx + 1}`}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                  <Ionicons name="chevron-forward" size={11} color="#ff1039" />
+                  <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                    {h.label || `Highlight ${idx + 1}`}
+                  </Text>
+                </View>
                 <Text style={{ color: '#71717a', fontSize: 10 }}>
                   {formatTime(h.startSec)} – {formatTime(h.endSec)} · {Math.round((h.endSec - h.startSec))}s · {Math.round(h.score * 100)}%
                 </Text>
@@ -837,7 +846,7 @@ function HighlightsTab({
                   {h.reason}
                 </Text>
               )}
-            </View>
+            </Pressable>
           ))}
         </View>
       )}
@@ -851,6 +860,118 @@ function formatTime(sec: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Phase A3.9 (2026-05-17): Mappt einen AI-Highlight (absolute timestamps
+ * across alle source-clips bei Multi-Clip-Mode) auf seine Source + relative
+ * Trim-Range.
+ *
+ * Returns null bei cross-boundary highlights (selten, würde Multi-Clip-Export
+ * mit builderItemPlan benötigen — kommt in A3.9b).
+ */
+function resolveHighlightSource(
+  h: AIHighlight,
+  project: DemoProject,
+): { uri: string; trimStart: number; trimEnd: number; clipIndex: number } | null {
+  const sourceUris = project.sourceUris ?? [];
+  // Single-source-Mode: trims sind direkt auf project.sourceUri.
+  if (sourceUris.length < 2) {
+    if (!project.sourceUri) return null;
+    return {
+      uri: project.sourceUri,
+      trimStart: h.startSec,
+      trimEnd: h.endSec,
+      clipIndex: 0,
+    };
+  }
+  // Multi-source-Mode: durch perClipDurations iterieren um zu finden in
+  // welchem clip dieser highlight liegt.
+  const durations = project.perClipDurations ?? sourceUris.map(() => 0);
+  let offset = 0;
+  for (let i = 0; i < sourceUris.length; i++) {
+    const clipDur = durations[i] ?? 0;
+    const clipEnd = offset + clipDur;
+    if (h.startSec >= offset && h.endSec <= clipEnd + 0.5) {
+      return {
+        uri: sourceUris[i],
+        trimStart: Math.max(0, h.startSec - offset),
+        trimEnd: h.endSec - offset,
+        clipIndex: i,
+      };
+    }
+    offset = clipEnd;
+  }
+  return null; // cross-boundary — caller zeigt entweder Warning oder fällt zurück
+}
+
+/**
+ * Phase A3.9: Action-Handler bei Tap auf AI-Highlight-Card.
+ * Zeigt Alert mit drei Optionen:
+ *   1. Export 9:16 (direkt navigate, default export-settings)
+ *   2. Add to Builder (als builderExtras-Eintrag)
+ *   3. Cancel
+ */
+function onAIHighlightPress(
+  h: AIHighlight,
+  idx: number,
+  project: DemoProject,
+  nav: NativeStackNavigationProp<RootStackParamList>,
+  exportSettings: ReturnType<typeof useAppStore.getState>['exportSettings'],
+  t: (k: string, f?: string) => string,
+): void {
+  haptic.medium();
+  const resolved = resolveHighlightSource(h, project);
+  if (!resolved) {
+    Alert.alert(
+      t('highlights.aiCrossClipTitle', 'Highlight spans multiple clips'),
+      t(
+        'highlights.aiCrossClipBody',
+        'This highlight covers more than one source clip. Multi-clip highlight export is coming in a future phase. For now, narrow the highlight via Cue Editor or use Builder manually.',
+      ),
+    );
+    return;
+  }
+  const title = h.label || `Highlight ${idx + 1}`;
+  const subtitle = `${formatTime(h.startSec)} – ${formatTime(h.endSec)} · ${Math.round((h.endSec - h.startSec))}s · ${Math.round(h.score * 100)}%`;
+  Alert.alert(title, subtitle, [
+    { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+    {
+      text: t('highlights.aiAddToBuilder', 'Add to Builder'),
+      onPress: () => {
+        const newExtra: ProjectExtraVideo = {
+          id: `extra-ai-${Date.now().toString(36)}-${idx}`,
+          path: resolved.uri,
+          filename: `AI · ${title.slice(0, 50)}`,
+          durationSec: Math.max(0, resolved.trimEnd - resolved.trimStart),
+          trimStart: resolved.trimStart,
+          trimEnd: resolved.trimEnd,
+        };
+        useProjectsStore.getState().updateProject(project.id, {
+          builderExtras: [...(project.builderExtras ?? []), newExtra],
+        });
+        haptic.success();
+        Alert.alert(
+          t('highlights.aiAddedTitle', 'Added to Builder'),
+          t('highlights.aiAddedBody', 'Switch to the Builder tab to see and arrange the new clip.'),
+        );
+      },
+    },
+    {
+      text: t('highlights.aiExport916', 'Export 9:16'),
+      onPress: () => {
+        nav.navigate('Export', {
+          sourceUri: resolved.uri,
+          projectId: project.id,
+          trimStart: resolved.trimStart,
+          trimEnd: resolved.trimEnd,
+          sourceDuration: resolved.trimEnd - resolved.trimStart,
+          mode: 'tiktok',
+          exportSettings,
+        });
+      },
+    },
+  ]);
 }
 
 function SelectableClipRow({
@@ -4716,6 +4837,74 @@ function BuilderTab({
           </Text>
         </Pressable>
       </View>
+
+      {/* Phase A3.9 (2026-05-17): AI-Highlights als wählbare Quick-Adds.
+          Sichtbar wenn aiHighlights vorhanden. Pro Tap wird ein extra mit
+          dem highlight-range zu builderExtras + clipOrder hinzugefügt. */}
+      {(project.aiHighlights?.length ?? 0) > 0 && (
+        <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="sparkles" size={13} color="#ff1039" />
+            <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
+              {t('builder.aiHighlightsHeading', 'AI HIGHLIGHTS — TAP TO ADD')} · {project.aiHighlights!.length}
+            </Text>
+          </View>
+          {project.aiHighlights!.map((h, idx) => {
+            const resolved = resolveHighlightSource(h, project);
+            const disabled = !resolved;
+            return (
+              <Pressable
+                key={`builder-ai-${idx}`}
+                disabled={disabled}
+                onPress={() => {
+                  if (!resolved) return;
+                  haptic.medium();
+                  const newExtra: ProjectExtraVideo = {
+                    id: `extra-ai-${Date.now().toString(36)}-${idx}`,
+                    path: resolved.uri,
+                    filename: `AI · ${(h.label || `Highlight ${idx + 1}`).slice(0, 50)}`,
+                    durationSec: Math.max(0, resolved.trimEnd - resolved.trimStart),
+                    trimStart: resolved.trimStart,
+                    trimEnd: resolved.trimEnd,
+                  };
+                  updateProject(project.id, {
+                    builderExtras: [...(project.builderExtras ?? []), newExtra],
+                    clipOrder: [...(project.clipOrder ?? []), newExtra.id],
+                  });
+                  haptic.success();
+                }}
+                style={({ pressed }) => ({
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderRadius: 10,
+                  backgroundColor: disabled
+                    ? 'rgba(255,255,255,0.03)'
+                    : pressed
+                      ? 'rgba(255,16,57,0.18)'
+                      : 'rgba(255,16,57,0.08)',
+                  borderWidth: 1,
+                  borderColor: disabled ? 'rgba(255,255,255,0.06)' : 'rgba(255,16,57,0.30)',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  opacity: disabled ? 0.5 : 1,
+                })}
+              >
+                <Ionicons name="add-circle-outline" size={16} color={disabled ? '#52525b' : '#ff1039'} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                    {h.label || `Highlight ${idx + 1}`}
+                  </Text>
+                  <Text style={{ color: '#71717a', fontSize: 10 }}>
+                    {formatTime(h.startSec)}–{formatTime(h.endSec)} · {Math.round((h.endSec - h.startSec))}s · {Math.round(h.score * 100)}%
+                    {disabled && ` · ${t('builder.aiCrossClipShort', 'cross-clip')}`}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
       {/* Add-Ons — gleicher Pattern wie TikTok-Tab, nur ohne Stacking weil 16:9. */}
       <SectionHeader>{t('builder.addOnsHeader', 'ADD-ONS').toUpperCase()}</SectionHeader>
