@@ -19,6 +19,8 @@
 import { create } from 'zustand';
 import { Modal, Pressable, Text, View } from 'react-native';
 
+import { useColors, useResolvedMode } from '../lib/theme';
+
 export interface AppAlertButton {
   text: string;
   onPress?: () => void;
@@ -70,6 +72,9 @@ export function AppAlertHost() {
   const body = useAppAlertStore((s) => s.body);
   const buttons = useAppAlertStore((s) => s.buttons);
   const dismiss = useAppAlertStore((s) => s.dismiss);
+  // Phase B3 (2026-05-18): theme-aware card-surface + text.
+  const colors = useColors();
+  const mode = useResolvedMode();
 
   const onPressBtn = (btn: AppAlertButton) => {
     dismiss();
@@ -103,10 +108,10 @@ export function AppAlertHost() {
           style={{
             width: '100%',
             maxWidth: 360,
-            backgroundColor: '#1a0c12',
+            backgroundColor: mode === 'dark' ? '#1a0c12' : colors.bg.card,
             borderRadius: 18,
             borderWidth: 1,
-            borderColor: 'rgba(255,16,57,0.20)',
+            borderColor: colors.accent.border,
             shadowColor: '#000',
             shadowOpacity: 0.5,
             shadowRadius: 32,
@@ -119,7 +124,7 @@ export function AppAlertHost() {
           <View style={{ padding: 20, gap: 8 }}>
             <Text
               style={{
-                color: '#f1f2f2',
+                color: colors.text.primary,
                 fontSize: 16,
                 fontWeight: '700',
                 letterSpacing: -0.2,
@@ -128,7 +133,7 @@ export function AppAlertHost() {
               {title}
             </Text>
             {body && (
-              <Text style={{ color: '#a1a1aa', fontSize: 13, lineHeight: 19 }}>
+              <Text style={{ color: colors.text.secondary, fontSize: 13, lineHeight: 19 }}>
                 {body}
               </Text>
             )}
@@ -139,7 +144,7 @@ export function AppAlertHost() {
             style={{
               flexDirection: 'row',
               borderTopWidth: 1,
-              borderTopColor: 'rgba(255,255,255,0.06)',
+              borderTopColor: colors.border.subtle,
             }}
           >
             {buttons.map((btn, i) => {
@@ -155,20 +160,18 @@ export function AppAlertHost() {
                     paddingVertical: 13,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: pressed
-                      ? 'rgba(255,255,255,0.04)'
-                      : 'transparent',
+                    backgroundColor: pressed ? colors.bg.elevated : 'transparent',
                     borderRightWidth: isLast ? 0 : 1,
-                    borderRightColor: 'rgba(255,255,255,0.06)',
+                    borderRightColor: colors.border.subtle,
                   })}
                 >
                   <Text
                     style={{
                       color: isDestructive
-                        ? '#ff1039'
+                        ? colors.accent.base
                         : isCancel
-                          ? '#a1a1aa'
-                          : '#ff1039',
+                          ? colors.text.secondary
+                          : colors.accent.base,
                       fontSize: 14,
                       fontWeight: isDestructive || !isCancel ? '700' : '500',
                     }}

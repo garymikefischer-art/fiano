@@ -168,7 +168,7 @@ export function LibraryScreen() {
           paddingTop: 4,
           paddingBottom: 6,
           borderBottomWidth: 1,
-          borderBottomColor: 'rgba(255,255,255,0.06)',
+          borderBottomColor: colors.border.subtle,
         }}
       >
         <View style={{ marginLeft: -9 }}>
@@ -182,15 +182,15 @@ export function LibraryScreen() {
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: colors.border.subtle,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Ionicons name="search" size={16} color="#f1f2f2" />
+            <Ionicons name="search" size={16} color={colors.text.primary} />
           </Pressable>
           <NotificationBell count={unreadCount} onPress={() => nav.navigate('Notifications')} />
           <Pressable
@@ -199,13 +199,13 @@ export function LibraryScreen() {
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: '#ff1039',
+              backgroundColor: colors.accent.base,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.8 : 1,
             })}
           >
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{initial}</Text>
+            <Text style={{ color: colors.text.onAccent, fontSize: 14, fontWeight: '700' }}>{initial}</Text>
           </Pressable>
         </View>
       </View>
@@ -217,10 +217,10 @@ export function LibraryScreen() {
         {/* Title-Row: "Library" + Counts + "+ New Video" */}
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <View>
-            <Text style={{ color: '#f1f2f2', fontSize: 32, fontWeight: '700', letterSpacing: -0.8 }}>
+            <Text style={{ color: colors.text.primary, fontSize: 32, fontWeight: '700', letterSpacing: -0.8 }}>
               {t('library.title')}
             </Text>
-            <Text style={{ color: '#71717a', fontSize: 13, marginTop: 4 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 13, marginTop: 4 }}>
               {projects.length}{' '}
               {projects.length === 1
                 ? t('library.projectSingular')
@@ -231,7 +231,7 @@ export function LibraryScreen() {
           <Pressable
             onPress={() => nav.navigate('AddVideoProject')}
             style={({ pressed }) => ({
-              backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+              backgroundColor: pressed ? colors.accent.pressed : colors.accent.base,
               borderRadius: 999,
               paddingVertical: 11,
               paddingHorizontal: 16,
@@ -241,8 +241,8 @@ export function LibraryScreen() {
               marginTop: 6,
             })}
           >
-            <Ionicons name="add" size={18} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+            <Ionicons name="add" size={18} color={colors.text.onAccent} />
+            <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>
               {t('library.newVideo')}
             </Text>
           </Pressable>
@@ -272,19 +272,19 @@ export function LibraryScreen() {
         {filtered.length === 0 && (
           <View
             style={{
-              backgroundColor: 'rgba(255,255,255,0.045)',
+              backgroundColor: colors.bg.elevated,
               borderRadius: 16,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: colors.border.subtle,
               padding: 28,
               alignItems: 'center',
               marginTop: 8,
             }}
           >
-            <Text style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '600' }}>
+            <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '600' }}>
               {t('library.noMatches', 'No matches')}
             </Text>
-            <Text style={{ color: '#71717a', fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 12, marginTop: 6, textAlign: 'center' }}>
               {t('library.tryDifferentSearch', 'Try a different search term.')}
             </Text>
           </View>
@@ -309,6 +309,7 @@ function ProjectCard({
   analyzing: boolean;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onOpen}
@@ -316,10 +317,10 @@ function ProjectCard({
       delayLongPress={350}
       style={({ pressed }) => ({
         width: '48%',
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         overflow: 'hidden',
         opacity: pressed ? 0.85 : 1,
       })}
@@ -358,14 +359,14 @@ function ProjectCard({
       </View>
 
       <View style={{ padding: 12, gap: 6 }}>
-        <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+        <Text numberOfLines={1} style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
           {project.title}
         </Text>
-        <Text style={{ color: '#71717a', fontSize: 11 }}>{project.subtitle}</Text>
+        <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>{project.subtitle}</Text>
         <View style={{ marginTop: 2 }}>
           <ProjectStatusBadge status={project.status} compact />
         </View>
-        <Text style={{ color: '#71717a', fontSize: 10 }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
           {project.clips.length} {t('library.highlightsDetected', 'highlights detected')}
         </Text>
 
@@ -375,13 +376,13 @@ function ProjectCard({
             onPress={onOpen}
             style={({ pressed }) => ({
               flex: 1,
-              backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+              backgroundColor: pressed ? colors.accent.pressed : colors.accent.base,
               borderRadius: 10,
               paddingVertical: 8,
               alignItems: 'center',
             })}
           >
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+            <Text style={{ color: colors.text.onAccent, fontSize: 12, fontWeight: '700' }}>
               {t('library.openProject', 'Open')}
             </Text>
           </Pressable>
@@ -392,9 +393,9 @@ function ProjectCard({
               paddingHorizontal: 12,
               paddingVertical: 8,
               borderRadius: 10,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.10)',
+              borderColor: colors.border.subtle,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: analyzing || !project.sourceUri ? 0.5 : pressed ? 0.7 : 1,
@@ -403,7 +404,7 @@ function ProjectCard({
             <Ionicons
               name={analyzing ? 'hourglass-outline' : 'sparkles-outline'}
               size={14}
-              color="#f1f2f2"
+              color={colors.text.primary}
             />
           </Pressable>
         </View>

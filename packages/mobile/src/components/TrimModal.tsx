@@ -31,6 +31,7 @@ import Video, { type VideoRef, type OnLoadData, type OnProgressData } from 'reac
 
 import { BackgroundGlow } from './BackgroundGlow';
 import { haptic } from '../lib/haptics';
+import { useColors } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -73,6 +74,8 @@ export function TrimModal({
   t,
 }: Props) {
   const videoRef = useRef<VideoRef>(null);
+  // Phase B3 (2026-05-18): theme-aware modal-surface.
+  const colors = useColors();
 
   // Source-Duration: wird via onLoad ermittelt, falls nicht via Prop gegeben.
   const [sourceDuration, setSourceDuration] = useState<number>(sourceDurationProp ?? 0);
@@ -217,7 +220,7 @@ export function TrimModal({
 
   return (
     <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top', 'bottom']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
         <BackgroundGlow />
 
         {/* Header */}
