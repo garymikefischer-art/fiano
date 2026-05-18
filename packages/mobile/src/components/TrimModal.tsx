@@ -216,7 +216,7 @@ export function TrimModal({
     currentSec > startSec + 0.1 && currentSec < endSec - 0.1 && sourceDuration > 0;
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
       <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top', 'bottom']}>
         <BackgroundGlow />
 
