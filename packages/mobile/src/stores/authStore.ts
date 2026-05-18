@@ -71,7 +71,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    const { error } = await supabase.auth.signUp({ email, password });
+    // Phase A6.3.3 (2026-05-18): emailRedirectTo via Linking → fiano://auth-callback
+    // damit der Confirm-Link in der Email zurück in die App führt statt zur
+    // 404-Seite (Default Supabase Site-URL). Muss in Supabase-Dashboard unter
+    // Authentication → URL Configuration → Redirect URLs whitelisted sein.
+    const redirectTo = Linking.createURL('auth-callback');
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: redirectTo },
+    });
     if (error) throw error;
   },
 
