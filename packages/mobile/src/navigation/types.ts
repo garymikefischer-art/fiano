@@ -26,7 +26,7 @@ export type RootStackParamList = {
     initialTab?: 'highlights' | 'manual' | 'tiktok' | 'builder';
   };
   Settings: undefined;
-  Pricing: undefined;
+  Pricing: { paywallMode?: boolean } | undefined;
   Notifications: undefined;
   Help: undefined;
   Legal: undefined;

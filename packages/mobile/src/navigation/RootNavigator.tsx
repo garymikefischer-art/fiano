@@ -30,11 +30,24 @@ export function RootNavigator() {
   const authInitializing = useAuthStore((s) => s.initializing);
   const appInitializing = useAppStore((s) => s.initializing);
   const session = useAuthStore((s) => s.session);
+  const subscription = useAuthStore((s) => s.subscription);
   const onboardingCompleted = useAppStore((s) => s.onboardingCompleted);
 
   if (authInitializing || appInitializing) {
     return <SplashScreen />;
   }
+
+  // Phase A6.3.2 (2026-05-18): App-Paywall-Gate. User OHNE active creator/pro
+  // Sub kommt nicht in die App — Pricing-Screen ist der einzige sichtbare
+  // Screen mit paywallMode=true. Lifetime allein reicht NICHT (Mobile cloud
+  // render kostet uns monatlich → muss durch monatliches Revenue gedeckt sein).
+  const periodEnd = subscription?.current_period_end
+    ? new Date(subscription.current_period_end)
+    : null;
+  const hasActiveMobileSub =
+    subscription?.status === 'active' &&
+    (subscription?.plan === 'creator' || subscription?.plan === 'pro') &&
+    (periodEnd === null || periodEnd > new Date());
 
   return (
     <Stack.Navigator
@@ -51,6 +64,14 @@ export function RootNavigator() {
           <Stack.Screen
             name="Onboarding"
             component={OnboardingScreen}
+            options={{ headerShown: false, gestureEnabled: false }}
+          />
+        ) : !hasActiveMobileSub ? (
+          // Paywall-Gate: erst Sub kaufen, dann App-Zugang.
+          <Stack.Screen
+            name="Pricing"
+            component={PricingScreen}
+            initialParams={{ paywallMode: true }}
             options={{ headerShown: false, gestureEnabled: false }}
           />
         ) : (
