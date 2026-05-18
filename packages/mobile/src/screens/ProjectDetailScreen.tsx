@@ -3309,10 +3309,13 @@ function FullModePreview({
           source={{ uri: introUri }}
           paused={paused || !introPlaying}
           repeat={false}
-          // Phase A4 (2026-05-17): beide Modi nutzen jetzt scale/x/y/auto-fit.
-          // scale > 1 → cover (intro überlappt Bounds, kein Letterbox).
-          // scale ≤ 1 → contain (volles intro, ggf. mit black bars).
-          resizeMode={introScale > 1 ? 'cover' : 'contain'}
+          // Phase A4.d (2026-05-18): ALWAYS contain, kein Flip mehr.
+          // Bug: contain→cover-Sprung bei scale=1 ist visuell dramatisch
+          // (User-Report: "110% sieht aus wie 200%"). Mit always-contain ist
+          // die Skalierung jetzt linear und entspricht Worker (siehe
+          // ffmpegArgs.ts A4.d). Aspect-Pad wird bei aspect-mismatch sichtbar
+          // bei jeder Scale-Stufe.
+          resizeMode="contain"
           onEnd={() => setIntroPlaying(false)}
           onError={() => setIntroPlaying(false)}
           style={[
