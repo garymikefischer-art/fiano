@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, nativeImage, protocol, shell } from 'electron';
-import { join, extname } from 'node:path';
+import { app, BrowserWindow, ipcMain, nativeImage, protocol, session, shell } from 'electron';
+import { extname, join, normalize, resolve as resolvePath } from 'node:path';
 import { createReadStream, statSync, existsSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { registerIpc } from './ipc';
@@ -125,17 +125,16 @@ function registerMediaProtocol() {
       // 'movies' / 'videos' / 'desktop' / 'documents' / 'downloads' / 'temp'.
       // Vorher konnte Renderer-XSS via media://local/etc/passwd beliebige
       // System-Files lesen.
-      const { resolve, normalize } = await import('node:path');
-      const resolved = resolve(normalize(filePath));
+      const resolved = resolvePath(normalize(filePath));
       const allowedRoots = [
-        resolve(app.getPath('userData')),
-        resolve(app.getPath('movies')),
-        resolve(app.getPath('videos')),
-        resolve(app.getPath('documents')),
-        resolve(app.getPath('downloads')),
-        resolve(app.getPath('desktop')),
-        resolve(app.getPath('home')),
-        resolve(app.getPath('temp')),
+        resolvePath(app.getPath('userData')),
+        resolvePath(app.getPath('videos')),
+        resolvePath(app.getPath('documents')),
+        resolvePath(app.getPath('downloads')),
+        resolvePath(app.getPath('desktop')),
+        resolvePath(app.getPath('pictures')),
+        resolvePath(app.getPath('home')),
+        resolvePath(app.getPath('temp')),
       ];
       const inAllowedRoot = allowedRoots.some(
         (root) => resolved === root || resolved.startsWith(root + '/') || resolved.startsWith(root + '\\'),
@@ -339,8 +338,10 @@ app.whenReady().then(async () => {
   // Phase A6.8.1: Nur in Production setzen — Dev-Mode (Vite HMR) braucht
   // unsafe-eval + unsafe-inline für scripts, was die CSP-Härtung
   // konterkariert. In Dev läuft die App ohne CSP (nur localhost-Tools).
-  if (isProd) {
-    const { session } = await import('electron');
+  // isProd hier (whenReady-scope) re-evaluated — gleicher Wert wie in
+  // createWindow.
+  const cspIsProd = app.isPackaged;
+  if (cspIsProd) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       const csp = [
         "default-src 'self'",
