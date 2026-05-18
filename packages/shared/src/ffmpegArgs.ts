@@ -578,11 +578,10 @@ export function buildTikTokExportArgs(
     const overlayX = Math.round((W - introW) * xFrac);
     const overlayY = Math.round((H - introH) * yFrac);
     const overlayDur = Math.max(0.5, opts.intro.durationSec ?? 3);
-    const introFitFilter = scale > 1.0
-      ? `scale=${introW}:${introH}:force_original_aspect_ratio=increase,` +
-        `crop=${introW}:${introH}`
-      : `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
-        `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black`;
+    // Phase A4.d (2026-05-18): always contain (no flip at scale=1).
+    const introFitFilter =
+      `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
+      `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black`;
     filters.push(
       `[${introInputIdx}:v]${introFitFilter},fps=${fps},setsar=1[introV]`,
     );
@@ -617,21 +616,18 @@ export function buildTikTokExportArgs(
     // ragt raus → wird gecroppt). Bei scale≤1 ist Offset positiv (Pad-Margins).
     const introOverlayX = Math.round((W - introW) * introXFrac);
     const introOverlayY = Math.round((H - introH) * introYFrac);
+    // Phase A4.d (2026-05-18): ALWAYS contain. Vorher gab's einen Flip bei
+    // scale=1.0 (contain ↔ cover) der visuell dramatisch wirkte. Now smooth.
+    const containFit =
+      `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
+      `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black`;
     let introFinalize: string;
     if (introScale > 1.0) {
-      // Intro größer als Master-Canvas → cover-Scale dann Crop auf Canvas-
-      // Size am Position-Offset (kein Letterbox).
-      introFinalize =
-        `scale=${introW}:${introH}:force_original_aspect_ratio=increase,` +
-        `crop=${introW}:${introH},` +
-        `crop=${W}:${H}:${-introOverlayX}:${-introOverlayY}`;
+      // Intro contain within larger bounds, then crop to canvas
+      introFinalize = `${containFit},crop=${W}:${H}:${-introOverlayX}:${-introOverlayY}`;
     } else {
-      // Intro kleiner als Master-Canvas → contain-Scale (mit Aspect-Pad in
-      // den intro-eigenen Bounds), dann Pad auf Canvas-Size mit Offset.
-      introFinalize =
-        `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
-        `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black,` +
-        `pad=${W}:${H}:${introOverlayX}:${introOverlayY}:color=black`;
+      // Intro contain within bounds, then pad to canvas
+      introFinalize = `${containFit},pad=${W}:${H}:${introOverlayX}:${introOverlayY}:color=black`;
     }
     filters.push(`[${introInputIdx}:v]${introFinalize},fps=${fps},setsar=1[introV]`);
     filters.push(`[${introInputIdx}:a]aresample=async=1[introA]`);
