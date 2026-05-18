@@ -120,7 +120,7 @@ export function HomeScreen() {
           paddingTop: 4,
           paddingBottom: 6,
           borderBottomWidth: 1,
-          borderBottomColor: 'rgba(255,255,255,0.06)',
+          borderBottomColor: colors.border.subtle,
         }}
       >
         <View style={{ marginLeft: -9 }}>
@@ -135,13 +135,13 @@ export function HomeScreen() {
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: '#ff1039',
+              backgroundColor: colors.accent.base,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.8 : 1,
             })}
           >
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{initial}</Text>
+            <Text style={{ color: colors.text.onAccent, fontSize: 14, fontWeight: '700' }}>{initial}</Text>
           </Pressable>
         </View>
       </View>
@@ -158,7 +158,7 @@ export function HomeScreen() {
         {/* Feature Cards — horizontaler Scroll */}
         <View style={{ gap: 12 }}>
           <View style={{ paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
+            <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
               {t('home.whatYouCanDo', 'What you can do')}
             </Text>
           </View>
@@ -176,17 +176,17 @@ export function HomeScreen() {
         {/* Recent Projects */}
         <View style={{ gap: 12 }}>
           <View style={{ paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
+            <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
               {t('home.recentProjects')}
             </Text>
             <Pressable
               onPress={() => nav.navigate('Library')}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
             >
-              <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '600' }}>
+              <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '600' }}>
                 {t('home.viewAllProjects')}
               </Text>
-              <Ionicons name="arrow-forward" size={12} color="#a1a1aa" />
+              <Ionicons name="arrow-forward" size={12} color={colors.text.secondary} />
             </Pressable>
           </View>
           <ScrollView
@@ -210,6 +210,7 @@ export function HomeScreen() {
 }
 
 function SearchIconButton({ onPress }: { onPress: () => void }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -218,15 +219,15 @@ function SearchIconButton({ onPress }: { onPress: () => void }) {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: pressed ? 0.6 : 1,
       })}
     >
-      <Ionicons name="search" size={16} color="#f1f2f2" />
+      <Ionicons name="search" size={16} color={colors.text.primary} />
     </Pressable>
   );
 }
@@ -235,13 +236,14 @@ function SearchIconButton({ onPress }: { onPress: () => void }) {
 
 function HeroCard({ onNew }: { onNew: () => void }) {
   const t = useT();
+  const colors = useColors();
   return (
     <View
       style={{
         position: 'relative',
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         borderRadius: 22,
         padding: 22,
         gap: 14,
@@ -259,7 +261,7 @@ function HeroCard({ onNew }: { onNew: () => void }) {
 
       <Text
         style={{
-          color: '#f1f2f2',
+          color: colors.text.primary,
           fontSize: 30,
           fontWeight: '700',
           lineHeight: 34,
@@ -267,10 +269,10 @@ function HeroCard({ onNew }: { onNew: () => void }) {
         }}
       >
         {t('home.heroLine1')}{'\n'}
-        <Text style={{ color: '#ff1039' }}>{t('home.heroLine2Highlight')}</Text>{' '}
+        <Text style={{ color: colors.accent.base }}>{t('home.heroLine2Highlight')}</Text>{' '}
         {t('home.heroLine2Rest')}
       </Text>
-      <Text style={{ color: '#a1a1aa', fontSize: 13, lineHeight: 20 }}>
+      <Text style={{ color: colors.text.secondary, fontSize: 13, lineHeight: 20 }}>
         {t('home.heroDescription')}
       </Text>
       <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
@@ -278,21 +280,21 @@ function HeroCard({ onNew }: { onNew: () => void }) {
           onPress={onNew}
           style={({ pressed }) => ({
             flex: 1,
-            backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+            backgroundColor: pressed ? colors.accent.pressed : colors.accent.base,
             borderRadius: 12,
             paddingVertical: 12,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
             gap: 6,
-            shadowColor: '#ff1039',
+            shadowColor: colors.accent.base,
             shadowOpacity: 0.45,
             shadowRadius: 16,
             shadowOffset: { width: 0, height: 4 },
           })}
         >
-          <Ionicons name="add" size={16} color="#fff" />
-          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+          <Ionicons name="add" size={16} color={colors.text.onAccent} />
+          <Text style={{ color: colors.text.onAccent, fontSize: 13, fontWeight: '700' }}>
             {t('home.newProject')}
           </Text>
         </Pressable>
@@ -300,9 +302,9 @@ function HeroCard({ onNew }: { onNew: () => void }) {
           onPress={onNew}
           style={({ pressed }) => ({
             flex: 1,
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.12)',
+            borderColor: colors.border.strong,
             borderRadius: 12,
             paddingVertical: 12,
             flexDirection: 'row',
@@ -312,8 +314,8 @@ function HeroCard({ onNew }: { onNew: () => void }) {
             opacity: pressed ? 0.7 : 1,
           })}
         >
-          <Ionicons name="cloud-upload-outline" size={16} color="#f1f2f2" />
-          <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+          <Ionicons name="cloud-upload-outline" size={16} color={colors.text.primary} />
+          <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
             {t('home.importVideo')}
           </Text>
         </Pressable>
@@ -326,6 +328,7 @@ function HeroCard({ onNew }: { onNew: () => void }) {
 
 function FeatureTile({ feature, onPress }: { feature: FeatureCard; onPress: () => void }) {
   const t = useT();
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -333,8 +336,8 @@ function FeatureTile({ feature, onPress }: { feature: FeatureCard; onPress: () =
         width: 220,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderColor: colors.border.subtle,
+        backgroundColor: colors.bg.elevated,
         padding: 16,
         gap: 12,
         overflow: 'hidden',
@@ -365,10 +368,10 @@ function FeatureTile({ feature, onPress }: { feature: FeatureCard; onPress: () =
           <Ionicons name={feature.icon} size={20} color={feature.iconColor} />
         </View>
         <View style={{ gap: 4 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '700', letterSpacing: -0.2 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700', letterSpacing: -0.2 }}>
             {t(feature.titleKey)}
           </Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 16 }}>
+          <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 16 }}>
             {t(feature.descKey)}
           </Text>
         </View>
@@ -379,14 +382,14 @@ function FeatureTile({ feature, onPress }: { feature: FeatureCard; onPress: () =
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: '#ff1039',
+          backgroundColor: colors.accent.base,
           borderRadius: 10,
           paddingHorizontal: 12,
           paddingVertical: 8,
         }}
       >
-        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{t(feature.actionKey)}</Text>
-        <Ionicons name="arrow-forward" size={12} color="#fff" />
+        <Text style={{ color: colors.text.onAccent, fontSize: 11, fontWeight: '700' }}>{t(feature.actionKey)}</Text>
+        <Ionicons name="arrow-forward" size={12} color={colors.text.onAccent} />
       </View>
     </Pressable>
   );
@@ -395,6 +398,7 @@ function FeatureTile({ feature, onPress }: { feature: FeatureCard; onPress: () =
 /* ─── Recent Project Tile ────────────────────────────────────── */
 
 function RecentProjectTile({ project, onPress }: { project: Project; onPress: () => void }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -402,7 +406,7 @@ function RecentProjectTile({ project, onPress }: { project: Project; onPress: ()
         width: 180,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
+        borderColor: colors.border.subtle,
         overflow: 'hidden',
         opacity: pressed ? 0.85 : 1,
       })}
@@ -424,11 +428,11 @@ function RecentProjectTile({ project, onPress }: { project: Project; onPress: ()
         )}
         <Ionicons name="play-circle-outline" size={28} color="rgba(255,255,255,0.45)" />
       </View>
-      <View style={{ padding: 10, backgroundColor: 'rgba(255,255,255,0.04)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', gap: 4 }}>
-        <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+      <View style={{ padding: 10, backgroundColor: colors.bg.elevated, borderTopWidth: 1, borderTopColor: colors.border.subtle, gap: 4 }}>
+        <Text numberOfLines={1} style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>
           {project.title}
         </Text>
-        <Text style={{ color: '#71717a', fontSize: 10 }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
           {project.clips.length} clips · {project.subtitle}
         </Text>
         <ProjectStatusBadge status={project.status} compact />
@@ -438,6 +442,7 @@ function RecentProjectTile({ project, onPress }: { project: Project; onPress: ()
 }
 
 function NewProjectTile({ onPress, t }: { onPress: () => void; t: (k: string, f?: string) => string }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -446,12 +451,12 @@ function NewProjectTile({ onPress, t }: { onPress: () => void; t: (k: string, f?
         aspectRatio: 0.86,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.10)',
+        borderColor: colors.border.strong,
         borderStyle: 'dashed',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 10,
-        backgroundColor: pressed ? 'rgba(255,16,57,0.04)' : 'transparent',
+        backgroundColor: pressed ? colors.accent.subtle : 'transparent',
         opacity: pressed ? 0.85 : 1,
       })}
     >
@@ -460,16 +465,16 @@ function NewProjectTile({ onPress, t }: { onPress: () => void; t: (k: string, f?
           width: 38,
           height: 38,
           borderRadius: 10,
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          backgroundColor: colors.bg.elevated,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Ionicons name="add" size={18} color="#71717a" />
+        <Ionicons name="add" size={18} color={colors.text.tertiary} />
       </View>
-      <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '700' }}>{t('home.newProject')}</Text>
+      <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '700' }}>{t('home.newProject')}</Text>
     </Pressable>
   );
 }
