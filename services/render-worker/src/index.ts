@@ -260,16 +260,22 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     );
 
     // ── A6.3: Plan-Check + Quota-Increment (Server-side Enforcement) ──
-    // Resolution-Detection: höchste scale=W:H im Filter-Graph bestimmt
-    // ob '4k' (Pro/Lifetime only), '1080p' oder '720p'.
-    const argsJoined = args.join(' ');
-    const scaleMatches = [...argsJoined.matchAll(/scale=(\d+):(\d+)/g)];
-    let maxDim = 0;
-    for (const m of scaleMatches) {
-      maxDim = Math.max(maxDim, parseInt(m[1], 10), parseInt(m[2], 10));
+    // Resolution-Detection: bei spec-flow direkt aus spec.width/height,
+    // bei legacy args-flow via regex auf scale=W:H im filter_complex.
+    let requestedResolution: '720p' | '1080p' | '4k' = '1080p';
+    if (spec && typeof spec === 'object' && spec !== null) {
+      const s = spec as { width?: number; height?: number };
+      const maxDim = Math.max(s.width ?? 0, s.height ?? 0);
+      requestedResolution = maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
+    } else if (args) {
+      const argsJoined = args.join(' ');
+      const scaleMatches = [...argsJoined.matchAll(/scale=(\d+):(\d+)/g)];
+      let maxDim = 0;
+      for (const m of scaleMatches) {
+        maxDim = Math.max(maxDim, parseInt(m[1], 10), parseInt(m[2], 10));
+      }
+      requestedResolution = maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
     }
-    const requestedResolution: '720p' | '1080p' | '4k' =
-      maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
 
     const quotaResult = await checkAndIncrementRenderQuota(
       supabase,
