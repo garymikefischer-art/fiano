@@ -14,6 +14,9 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
@@ -22,6 +25,7 @@ import { useT } from '../lib/i18n';
 
 export function SignupScreen() {
   const t = useT();
+  const nav = useNavigation();
   const signUp = useAuthStore((s) => s.signUp);
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
 
@@ -72,6 +76,27 @@ export function SignupScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <BackgroundGlow />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: 'transparent' }}>
+        {/* Phase A6.3.4 (2026-05-18): Custom Back-Button statt React-Nav
+            Header-Bar — Header war hellerer Ton (#0d1014) als Screen-BG
+            (#0d0509) → sichtbarer Seam. headerShown=false in RootNavigator. */}
+        <Pressable
+          onPress={() => nav.goBack()}
+          hitSlop={8}
+          style={({ pressed }) => ({
+            width: 40,
+            height: 40,
+            marginLeft: 12,
+            marginTop: 6,
+            borderRadius: 20,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="arrow-back" size={22} color="#ff1039" />
+        </Pressable>
+      </SafeAreaView>
 
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
