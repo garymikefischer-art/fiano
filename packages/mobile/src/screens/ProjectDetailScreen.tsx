@@ -3198,7 +3198,9 @@ function FullModePreview({
   // (before+overlay) — preview muss Worker FFmpeg-Math 1:1 spiegeln.
   // Formel: introW = W*scale, introH = H*scale, overlay at (W-introW)*x,
   // (H-introH)*y. Mobile-RN nutzt percentages relative zu Container-Dim.
-  const introWidthPct = Math.max(0.2, Math.min(4, introScale));
+  // Phase A4.e (2026-05-18): scale gecapped auf max=1.0. Legacy-Projects
+  // mit scale>1 werden visually wie scale=1 gerendert (keine cover-flip).
+  const introWidthPct = Math.max(0.2, Math.min(1, introScale));
   const introLeftPct = introX * (1 - introWidthPct);
   const introTopPct = introY * (1 - introWidthPct);
   const introStyle = {
@@ -3208,25 +3210,6 @@ function FullModePreview({
     width: `${introWidthPct * 100}%`,
     height: `${introWidthPct * 100}%`,
   };
-  // [INTRO-DEBUG] Phase A4.e diagnostic (2026-05-18). Loggt Preview-Math
-  // bei jedem Render. Wird in A4.e-fix wieder entfernt.
-  if (introUri) {
-    console.log('[INTRO-DEBUG] PREVIEW', JSON.stringify({
-      mode: introMode,
-      introX,
-      introY,
-      introScale,
-      introWidthPct,
-      introLeftPct,
-      introTopPct,
-      containerAspect: aspect,
-      isPortrait,
-      leftStyle: introStyle.left,
-      topStyle: introStyle.top,
-      widthStyle: introStyle.width,
-      heightStyle: introStyle.height,
-    }));
-  }
 
   return (
     <View
@@ -3756,7 +3739,8 @@ function StackedSplitPreview({
           Pre-mounted für weniger Stutter beim zweiten Play. */}
       {videosActive && introUri && (() => {
         const isOverlay = introMode === 'overlay';
-        const widthPct = isOverlay ? Math.max(0.2, Math.min(4, introScale)) : 1;
+        // Phase A4.e (2026-05-18): scale gecapped auf max=1.0.
+        const widthPct = isOverlay ? Math.max(0.2, Math.min(1, introScale)) : 1;
         const heightPct = widthPct;
         const leftPct = isOverlay ? introX * (1 - widthPct) : 0;
         const topPct = isOverlay ? introY * (1 - heightPct) : 0;
@@ -3776,14 +3760,11 @@ function StackedSplitPreview({
             source={{ uri: introUri }}
             paused={paused || !introPlaying}
             repeat={false}
-            // Phase Builder-10: scale>1 = cover (intro überlappt Box),
-            // scale≤1 = contain (volles intro mit Letterbox). Before-mode
-            // immer cover.
-            resizeMode={
-              introMode === 'overlay'
-                ? introScale > 1 ? 'cover' : 'contain'
-                : 'cover'
-            }
+            // Phase A4.e (2026-05-18): ALWAYS contain im overlay-mode (selber
+            // Fix wie A4.d in FullModePreview, der hier vergessen wurde). Vorher:
+            // scale>1 flipte zu cover → "110% sieht wie 200% aus" User-Report.
+            // Before-mode bleibt cover (fullscreen intro vor Main).
+            resizeMode={introMode === 'overlay' ? 'contain' : 'cover'}
             onEnd={() => setIntroPlaying(false)}
             onError={() => setIntroPlaying(false)}
             style={[
@@ -4350,9 +4331,12 @@ function IntroOverlayControls({
   // Local state nur als initial-seed beim Mount. Slider-Drags updaten local
   // (smooth UI); commit schreibt JEWEILS NUR die geänderte Achse zum project
   // — kein Cross-Talk mehr (vorheriger Bug: Y-Commit setzte X auf stale localX).
+  // Phase A4.e (2026-05-18): localScale auf max 1.0 gecapped (slider-range
+  // 0.2..1.0). Legacy-Projects mit scale>1 → trotzdem auf 1.0 darstellen
+  // damit Slider nicht "stuck at max" wirkt.
   const [localX, setLocalX] = useState(() => project.intro?.x ?? 0);
   const [localY, setLocalY] = useState(() => project.intro?.y ?? 0);
-  const [localScale, setLocalScale] = useState(() => project.intro?.scale ?? 1);
+  const [localScale, setLocalScale] = useState(() => Math.min(1, project.intro?.scale ?? 1));
   const [localDuration, setLocalDuration] = useState(() => project.intro?.durationSec ?? 3);
 
   // Wenn das Project von außen die Intro zurücksetzt (z.B. neues Intro
@@ -4361,7 +4345,7 @@ function IntroOverlayControls({
   useEffect(() => {
     setLocalX(project.intro?.x ?? 0);
     setLocalY(project.intro?.y ?? 0);
-    setLocalScale(project.intro?.scale ?? 1);
+    setLocalScale(Math.min(1, project.intro?.scale ?? 1));
     setLocalDuration(project.intro?.durationSec ?? 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.intro?.path]);
@@ -4469,18 +4453,17 @@ function IntroOverlayControls({
         <SimpleSlider
           value={localScale}
           min={0.2}
-          max={4}
+          max={1}
           step={0.05}
           onChange={setLocalScale}
           onCommit={(v) => {
             haptic.selection();
-            commitOne('scale', v);
+            commitOne('scale', Math.min(1, v));
           }}
         />
-        {/* Phase A4.c (2026-05-18): UX-Hint — bei scale=100% hat intro
-            volle Canvas-Größe, da bleibt kein Spielraum für X/Y. User-Report:
-            "Horizontal/Vertical-Slider haben keine Funktion". Math ist
-            korrekt, aber UX-counter-intuitiv. */}
+        {/* Phase A4.e (2026-05-18): Slider gecapped auf max=1.0. Vorher max=4
+            verursachte "200% bei 110%" render-bug (StackedSplit cover-flip
+            + RN-quirk). Now: scale=1.0 = full canvas, X/Y wirken erst <100%. */}
         {Math.abs(localScale - 1) < 0.01 && (
           <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14, marginTop: 2 }}>
             {t(
