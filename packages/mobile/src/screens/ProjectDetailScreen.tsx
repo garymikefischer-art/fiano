@@ -5051,6 +5051,9 @@ function BuilderTab({
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [builderCueEditorOpen, setBuilderCueEditorOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  // Phase B0 (2026-05-18): Trim-Modal-State für Highlight-Clips in Builder.
+  // Parität mit 9:16-Tab — Scissors-Button auf jedem Clip-Item.
+  const [editingClipId, setEditingClipId] = useState<string | null>(null);
   const exportSettings = useAppStore((s) => s.exportSettings);
   const setExportSettingsStore = useAppStore((s) => s.setExportSettings);
   const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
@@ -5340,6 +5343,25 @@ function BuilderTab({
                         : t('builder.extraBadge', 'Extra · added video')}
                   </Text>
                 </View>
+                {/* Phase B0 (2026-05-18): Scissors-Trim auf Highlight-Clips
+                    (Parität mit 9:16-Tab). Extras haben separaten Inline-
+                    Editor (ExtraTrimEditor) unten. */}
+                {item.kind === 'clip' && (
+                  <Pressable
+                    onPress={() => {
+                      haptic.selection();
+                      setEditingClipId(item.clip.id);
+                    }}
+                    hitSlop={6}
+                    style={({ pressed }) => ({
+                      padding: 6,
+                      borderRadius: 8,
+                      backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'transparent',
+                    })}
+                  >
+                    <Ionicons name="cut-outline" size={16} color="#a1a1aa" />
+                  </Pressable>
+                )}
                 {isExtra && (
                   <Pressable onPress={() => removeExtra(item.id)} hitSlop={6} style={{ padding: 4 }}>
                     <Ionicons name="close-circle" size={18} color="#71717a" />
@@ -5672,6 +5694,79 @@ function BuilderTab({
           updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
         }
       />
+
+      {/* Phase B0 (2026-05-18): TrimModal für Highlight-Clips im Builder.
+          Parität mit 9:16-Tab — selber TrimModal, gleiche Save/Split-Logik. */}
+      {editingClipId && (() => {
+        const editClip = project.clips.find((c) => c.id === editingClipId);
+        if (!editClip) return null;
+        const projectSourceUris = project.sourceUris ?? [];
+        const isMultiSrc = projectSourceUris.length >= 2;
+        const explicitSrcIdx = editClip.sourceIdx;
+        const clipIdx = project.clips.indexOf(editClip);
+        const trimSourceUri =
+          explicitSrcIdx !== undefined && projectSourceUris[explicitSrcIdx]
+            ? projectSourceUris[explicitSrcIdx]
+            : isMultiSrc
+              ? projectSourceUris[Math.min(clipIdx, projectSourceUris.length - 1)]
+              : project.sourceUri;
+        if (!trimSourceUri) return null;
+        return (
+          <TrimModal
+            visible={true}
+            sourceUri={trimSourceUri}
+            initialStartSec={editClip.startSec}
+            initialEndSec={editClip.endSec}
+            sourceDuration={
+              project.perClipDurations?.[explicitSrcIdx ?? clipIdx] ?? undefined
+            }
+            clipLabel={editClip.label || `Clip ${clipIdx + 1}`}
+            t={t}
+            onClose={() => setEditingClipId(null)}
+            onSave={(s, e) => {
+              setEditingClipId(null);
+              const latest = useProjectsStore.getState().projects.find(
+                (p) => p.id === project.id,
+              );
+              if (!latest) return;
+              const nextClips = (latest.clips ?? []).map((cc) =>
+                cc.id === editClip.id ? { ...cc, startSec: s, endSec: e } : cc,
+              );
+              updateProject(project.id, { clips: nextClips });
+            }}
+            onSplit={(atSec) => {
+              setEditingClipId(null);
+              const latest = useProjectsStore.getState().projects.find(
+                (p) => p.id === project.id,
+              );
+              if (!latest) return;
+              const original = (latest.clips ?? []).find((c) => c.id === editClip.id);
+              if (!original) return;
+              const newIdLeft = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+              const newIdRight = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}a`;
+              const left: DemoClip = {
+                ...original,
+                id: newIdLeft,
+                startSec: original.startSec,
+                endSec: atSec,
+                label: original.label ? `${original.label} (1)` : `Clip ${clipIdx + 1}.1`,
+              };
+              const right: DemoClip = {
+                ...original,
+                id: newIdRight,
+                startSec: atSec,
+                endSec: original.endSec,
+                label: original.label ? `${original.label} (2)` : `Clip ${clipIdx + 1}.2`,
+                thumbUri: undefined,
+              };
+              const origIdx = (latest.clips ?? []).findIndex((c) => c.id === editClip.id);
+              const nextClips = [...(latest.clips ?? [])];
+              nextClips.splice(origIdx, 1, left, right);
+              updateProject(project.id, { clips: nextClips });
+            }}
+          />
+        );
+      })()}
 
       {exportModalOpen && (project.sourceUri || (project.sourceUris && project.sourceUris.length > 0) || hasExtras) && (
         <ExportSettingsModal
