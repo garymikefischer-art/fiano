@@ -249,12 +249,13 @@ function createWindow() {
     icon, // Win/Linux nutzen das aus dem BrowserWindow
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      // Phase A6.8 (2026-05-18): sandbox=true + webSecurity=true (P1-8).
-      // sandbox=true = Renderer-Process läuft in OS-Sandbox, kein direkter
-      //   Node-API-Zugang. Preload-Script verbindet contextBridge.
-      // webSecurity=true = enforce same-origin-policy (default seit Electron
-      //   12 aber explicit für Klarheit).
-      sandbox: true,
+      // Phase A6.8.1 (2026-05-18): sandbox=true brach Renderer-Boot (black
+      // screen) — preload nutzt Node-APIs (path/fs) für IPC die in
+      // sandbox-mode nicht verfügbar sind. Zurück auf false. Re-enable
+      // sandbox=true erfordert preload-Refactor (kein require'fs', alles
+      // über IPC zu main).
+      // webSecurity bleibt true (default + explicit).
+      sandbox: false,
       contextIsolation: true,
       webSecurity: true,
       // Production: DevTools komplett aus. Dev-Mode (npm run dev): an für Debug.
@@ -334,35 +335,37 @@ app.whenReady().then(async () => {
   registerIpc();
 
   // Phase A6.8 (2026-05-18): Content-Security-Policy via session headers (P1-8).
-  // Defense-in-depth gegen Renderer-XSS. Cleartext-Listing aller erlaubten
-  // Origins für API-Calls + Inline-Styles (Tailwind generated).
-  const { session } = await import('electron');
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const csp = [
-      "default-src 'self'",
-      // Tailwind hat inline styles + CSS dynamic; unsafe-inline für styles ist
-      // notwendig. Für scripts NUR 'self' (kein unsafe-inline).
-      "style-src 'self' 'unsafe-inline'",
-      "script-src 'self'",
-      // Images: self + data: (icons) + media:// (videos/thumbs) + https für
-      // remote thumbs etc.
-      "img-src 'self' data: media: https:",
-      "media-src 'self' media: https: blob:",
-      "font-src 'self' data:",
-      // API-Calls: Supabase, Stripe, fiano-Worker.
-      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.openai.com https://*.run.app https://api.youtube.com https://www.googleapis.com https://generativelanguage.googleapis.com",
-      "frame-src 'self' https://js.stripe.com https://*.stripe.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; ');
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [csp],
-      },
+  // Defense-in-depth gegen Renderer-XSS.
+  // Phase A6.8.1: Nur in Production setzen — Dev-Mode (Vite HMR) braucht
+  // unsafe-eval + unsafe-inline für scripts, was die CSP-Härtung
+  // konterkariert. In Dev läuft die App ohne CSP (nur localhost-Tools).
+  if (isProd) {
+    const { session } = await import('electron');
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      const csp = [
+        "default-src 'self'",
+        // Tailwind hat inline styles. Scripts: 'unsafe-inline' notwendig
+        // wegen Vite-bundled inline-loader-scripts. 'unsafe-eval' für
+        // einige Libs die Function-constructor nutzen.
+        "style-src 'self' 'unsafe-inline'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "img-src 'self' data: media: https: blob:",
+        "media-src 'self' media: https: blob:",
+        "font-src 'self' data:",
+        "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.openai.com https://*.run.app https://api.youtube.com https://www.googleapis.com https://generativelanguage.googleapis.com",
+        "frame-src 'self' https://js.stripe.com https://*.stripe.com",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join('; ');
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [csp],
+        },
+      });
     });
-  });
+  }
 
   // Falls App durch fiano://-URL gestartet wurde (Win/Linux), URL ist im argv
   const initialAuthUrl = process.argv.find((a) => a.startsWith('fiano://'));
