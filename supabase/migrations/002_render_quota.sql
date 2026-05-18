@@ -19,14 +19,16 @@
 --   2. RPC `check_and_increment_render_quota(p_user_id, p_resolution)` atomic.
 --   3. Worker callt RPC vor jedem render. Bei 402 → Mobile zeigt UpgradeModal.
 --
--- Plan-Limits (Phase A6.3.1 — kein Free-Tier, keine kostenlosen Renders):
+-- Plan-Limits (Phase A6.3.2 — kein Free, kein Lifetime auf Mobile):
 --   inactive/no-sub:  0 renders     → subscription_required
 --   creator:          30 renders    max 1080p (no 4K)
 --   pro:              200 renders   4K OK
---   studio_lifetime:  500 renders   4K OK (cap gegen abuse, one-time payment)
 --
--- Rationale: Cloud Run cost ~$0.003-0.015 pro Render. Limits sichern dass
--- Subscription-Revenue immer höher ist als Cloud-Render-Kosten.
+-- Lifetime ist Desktop-only (lokales FFmpeg, kein Worker-Render). User mit
+-- lifetime-flag aber ohne aktive creator/pro Subscription bekommen 0 Renders.
+--
+-- Rationale: Cloud Run cost ~$0.003-0.015 pro Render. Limits + paywall-gate
+-- sichern dass Cloud-Render-Kosten nie höher sind als Subscription-Revenue.
 --
 -- Schema-Design:
 --   render_usage hat 1 row pro user. Bei Monatswechsel wird `month_key` und
@@ -101,25 +103,26 @@ BEGIN
   FROM public.subscriptions
   WHERE user_id = p_user_id;
 
-  IF v_lifetime IS TRUE THEN
-    v_active_plan := 'studio_lifetime';
-  ELSIF v_status = 'active'
-        AND (v_period_end IS NULL OR v_period_end > now())
-        AND v_plan IN ('creator', 'pro') THEN
+  -- Phase A6.3.2 (2026-05-18): Lifetime entfernt aus Mobile-Cloud-Render.
+  -- Lifetime = Desktop-only (lokales FFmpeg). User mit lifetime-flag aber
+  -- ohne aktive monthly subscription = inactive für Cloud-Render.
+  IF v_status = 'active'
+     AND (v_period_end IS NULL OR v_period_end > now())
+     AND v_plan IN ('creator', 'pro') THEN
     v_active_plan := v_plan;
   ELSE
     v_active_plan := 'inactive';
   END IF;
+  -- v_lifetime read aber nicht genutzt (Desktop-only).
+  PERFORM v_lifetime;
 
-  -- Plan-Limits (A6.3.1: kein Free-Tier — inactive = 0).
   v_monthly_limit := CASE v_active_plan
-    WHEN 'inactive'         THEN 0
-    WHEN 'creator'          THEN 30
-    WHEN 'pro'              THEN 200
-    WHEN 'studio_lifetime'  THEN 500
+    WHEN 'inactive'  THEN 0
+    WHEN 'creator'   THEN 30
+    WHEN 'pro'       THEN 200
     ELSE 0
   END;
-  v_allows_4k := v_active_plan IN ('pro', 'studio_lifetime');
+  v_allows_4k := v_active_plan = 'pro';
 
   -- Phase A6.3.1: Kein Free-Tier — inactive Users werden früh abgewiesen.
   IF v_active_plan = 'inactive' THEN
@@ -223,21 +226,19 @@ BEGIN
   FROM public.subscriptions
   WHERE user_id = p_user_id;
 
-  IF v_lifetime IS TRUE THEN
-    v_active_plan := 'studio_lifetime';
-  ELSIF v_status = 'active'
-        AND (v_period_end IS NULL OR v_period_end > now())
-        AND v_plan IN ('creator', 'pro') THEN
+  IF v_status = 'active'
+     AND (v_period_end IS NULL OR v_period_end > now())
+     AND v_plan IN ('creator', 'pro') THEN
     v_active_plan := v_plan;
   ELSE
     v_active_plan := 'inactive';
   END IF;
+  PERFORM v_lifetime;
 
   v_monthly_limit := CASE v_active_plan
-    WHEN 'inactive'         THEN 0
-    WHEN 'creator'          THEN 30
-    WHEN 'pro'              THEN 200
-    WHEN 'studio_lifetime'  THEN 500
+    WHEN 'inactive'  THEN 0
+    WHEN 'creator'   THEN 30
+    WHEN 'pro'       THEN 200
     ELSE 0
   END;
 
@@ -249,7 +250,7 @@ BEGIN
     'plan', v_active_plan,
     'render_count', COALESCE(v_current_count, 0),
     'monthly_limit', v_monthly_limit,
-    'allows_4k', v_active_plan IN ('pro', 'studio_lifetime')
+    'allows_4k', v_active_plan = 'pro'
   );
 END;
 $$;
