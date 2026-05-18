@@ -10,3 +10,4 @@ export * from './i18n';
 export * from './ffmpegArgs';
 export * from './subtitles';
 export * from './assBuilder';
+export * from './assValidator';

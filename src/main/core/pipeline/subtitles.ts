@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import type {
   Highlight, SubtitleFontFamily, SubtitleSettings, SubtitleStyle, SubtitlePosition,
 } from '@shared/types';
+import { validateAssContent } from '@shared/assValidator';
 import type { Transcript } from './transcribe';
 
 // Output-Höhe für 9:16-Master (libass arbeitet in Pixel; muss zur Render-Höhe passen)
@@ -123,7 +124,17 @@ export async function generateClipSrt(
   }
 
   const srtPath = path.join(outDir, fileName);
-  await fs.writeFile(srtPath, lines.join('\n'), 'utf8');
+  // Phase A6.2 (2026-05-18): validateAssContent auf SRT-mit-inline-ASS-Overrides.
+  // SRT-Sections gibt's nicht (Validator passt's durch), aber `\bord`/`\blur`/
+  // `\fs`/`\p1+`/`\fn`-Checks greifen. Defense-in-depth gegen libass-DoS.
+  // Bei reject: error throwen statt silent-fallback — falsche subs sind
+  // besser sichtbar als korrumpierter Render.
+  const srtBody = lines.join('\n');
+  const validation = validateAssContent(srtBody);
+  if (!validation.ok) {
+    throw new Error(`Subtitle SRT validation failed: ${validation.reason}`);
+  }
+  await fs.writeFile(srtPath, validation.sanitized, 'utf8');
   console.log(`[subtitles] wrote ${i - 1} cues → ${srtPath}${style === 'layered' ? ' [layered-transformed]' : ''}`);
   return srtPath;
 }
