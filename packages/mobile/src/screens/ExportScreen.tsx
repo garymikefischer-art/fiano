@@ -230,6 +230,29 @@ export function ExportScreen() {
         : params.sourceDuration ?? ts + 60;
       const clipDur = Math.max(0.1, te - ts);
 
+      // [SUBS-DEBUG] Phase B6.2 (2026-05-18): Diagnose-Logs für Multi-Clip-
+      // Subtitle-Bug. User-Report: clip 2 zeigt im Export keine Subs trotz
+      // 2 vorhandener Cues (clipIndex=1). Wird in B6.3-fix wieder entfernt.
+      console.log(
+        `[SUBS-DEBUG] Project info: sourceUris=${JSON.stringify(
+          project?.sourceUris ?? [],
+        )}, perClipDurations=${JSON.stringify(
+          project?.perClipDurations ?? [],
+        )}, primarySrc=${project?.sourceUri}`,
+      );
+      console.log(
+        `[SUBS-DEBUG] Export setup: hasItemPlan=${hasItemPlan}, builderClips=${JSON.stringify(
+          builderClips,
+        )}, builderUniqueSourceUris.length=${builderUniqueSourceUris.length}`,
+      );
+      console.log(
+        `[SUBS-DEBUG] rawCues=${rawCues.length}, chunkedRaw=${
+          chunkedRaw.length
+        }, withClipIndex=${
+          chunkedRaw.filter((c: any) => typeof c.clipIndex === 'number').length
+        }`,
+      );
+
       // Phase B6.1 (2026-05-18): Multi-Source-aware cue mapping.
       //
       // Multi-Source-Projects haben cues mit `clipIndex` (gesetzt durch
@@ -272,12 +295,32 @@ export function ExportScreen() {
               ? projectSourceUris[ci]
               : primarySourceUri;
           const cueSrcIdx = cueSourceUri ? uniqueSrcMap.get(cueSourceUri) : undefined;
-          if (cueSrcIdx === undefined) return null;
+          if (cueSrcIdx === undefined) {
+            console.log(
+              `[SUBS-DEBUG] DROP: cue ci=${ci} time=${c.startSec.toFixed(
+                2,
+              )}..${c.endSec.toFixed(2)} text="${c.text.slice(0, 30)}" — source not in selection`,
+            );
+            return null;
+          }
           // Cue auf source-local time bringen (Multi-Source: globale Time
           // minus Source-Offset). Single-source: clipIndex undef → offset 0.
+          // Phase B6.2 (2026-05-18): Defensive fallback — wenn offset cue's
+          // time negative macht (cue scheinbar source-local statt global),
+          // dann ohne offset retry. Schützt vor Legacy-Daten wo cues nicht
+          // korrekt offset wurden.
           const sourceOffset = ci !== undefined ? sourceOffsetForClipIdx(ci) : 0;
-          const cueLocalStart = c.startSec - sourceOffset;
-          const cueLocalEnd = c.endSec - sourceOffset;
+          let cueLocalStart = c.startSec - sourceOffset;
+          let cueLocalEnd = c.endSec - sourceOffset;
+          if (cueLocalStart < 0 && c.startSec >= 0) {
+            console.log(
+              `[SUBS-DEBUG] FALLBACK: cue ci=${ci} time=${c.startSec.toFixed(
+                2,
+              )} would go negative with offset=${sourceOffset}, retry without offset`,
+            );
+            cueLocalStart = c.startSec;
+            cueLocalEnd = c.endSec;
+          }
           let outOffset = 0;
           for (const clip of builderClips) {
             const dur = Math.max(0, clip.endSec - clip.startSec);
@@ -288,14 +331,29 @@ export function ExportScreen() {
             const overlapStart = Math.max(cueLocalStart, clip.startSec);
             const overlapEnd = Math.min(cueLocalEnd, clip.endSec);
             if (overlapEnd > overlapStart + 0.04) {
-              return {
+              const out = {
                 startSec: outOffset + Math.max(0, overlapStart - clip.startSec),
                 endSec: outOffset + Math.min(dur, overlapEnd - clip.startSec),
                 text: c.text,
               };
+              console.log(
+                `[SUBS-DEBUG] MAP: cue ci=${ci} src-local=${cueLocalStart.toFixed(
+                  2,
+                )}..${cueLocalEnd.toFixed(2)} → output=${out.startSec.toFixed(
+                  2,
+                )}..${out.endSec.toFixed(2)} text="${c.text.slice(0, 30)}"`,
+              );
+              return out;
             }
             outOffset += dur;
           }
+          console.log(
+            `[SUBS-DEBUG] NO-OVERLAP: cue ci=${ci} src-local=${cueLocalStart.toFixed(
+              2,
+            )}..${cueLocalEnd.toFixed(
+              2,
+            )} cueSrcIdx=${cueSrcIdx} — no clip overlapped. text="${c.text.slice(0, 30)}"`,
+          );
           return null;
         }
         // 9:16 / Manual: shift + clamp statt strikt zu filtern.
@@ -314,6 +372,20 @@ export function ExportScreen() {
       const chunkedCues = chunkedRaw
         .map(mapCueToOutput)
         .filter((c): c is { startSec: number; endSec: number; text: string } => c !== null);
+      console.log(
+        `[SUBS-DEBUG] Final chunkedCues count=${chunkedCues.length} (from ${chunkedRaw.length} raw)`,
+      );
+      if (chunkedCues.length > 0) {
+        const last = chunkedCues[chunkedCues.length - 1];
+        const first = chunkedCues[0];
+        console.log(
+          `[SUBS-DEBUG] Output time range: first=${first.startSec.toFixed(
+            2,
+          )}..${first.endSec.toFixed(2)} last=${last.startSec.toFixed(
+            2,
+          )}..${last.endSec.toFixed(2)}`,
+        );
+      }
       // Diagnose-Log: wenn raw cues vorhanden waren aber nach mapping leer →
       // hilft beim Debuggen falls subs unsichtbar bleiben.
       if (chunkedRaw.length > 0 && chunkedCues.length === 0) {
