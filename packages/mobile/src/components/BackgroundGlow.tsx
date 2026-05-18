@@ -20,15 +20,16 @@ import Svg, { Defs, RadialGradient, Stop, Rect } from 'react-native-svg';
 import { useResolvedMode } from '../lib/theme';
 
 export function BackgroundGlow() {
-  // Phase B3 (2026-05-18): theme-aware glow opacity. Light-Mode bekommt weniger
-  // Sättigung, damit der rote Schein nicht über das helle BG dominiert.
+  // Phase B3.4 (2026-05-18): theme-aware glow. Light-Mode: nur EIN sehr
+  // subtiler red-tint top-right (kein flächiger pink-Wash wie B3 v1).
+  // Dark-Mode unverändert.
   const mode = useResolvedMode();
   const isLight = mode === 'light';
-  const tintBase = isLight ? 0.06 : 0.15;
-  const tintMid = isLight ? 0.04 : 0.10;
-  const glowMain = isLight ? 0.06 : 0.15;
-  const glowSecond = isLight ? 0.04 : 0.09;
-  const baseWash = isLight ? 0.02 : 0.04;
+  const tintBase = isLight ? 0.025 : 0.15;
+  const tintMid = isLight ? 0 : 0.10;
+  const glowMain = isLight ? 0.02 : 0.15;
+  const glowSecond = isLight ? 0 : 0.09;
+  const baseWash = isLight ? 0 : 0.04;
   return (
     <Svg
       style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}

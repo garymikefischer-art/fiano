@@ -6,17 +6,23 @@
 
 import Svg, { Polygon, Path, G } from 'react-native-svg';
 
+import { useColors } from '../lib/theme';
+
 type LogoVariant = 'wordmark' | 'mark';
 
 interface Props {
   variant?: LogoVariant;
   /** Höhe in px. Breite wird aus viewBox-Ratio abgeleitet. */
   height?: number;
-  /** Buchstaben-Farbe (default weiß). Pfeil bleibt brand-rot. */
+  /** Buchstaben-Farbe (default: theme.text.primary). Pfeil bleibt brand-rot. */
   letterColor?: string;
 }
 
-export function FianoLogo({ variant = 'wordmark', height = 56, letterColor = '#f1f2f2' }: Props) {
+export function FianoLogo({ variant = 'wordmark', height = 56, letterColor }: Props) {
+  // Phase B3.4 (2026-05-18): default letter-color folgt theme (dark→#f1f2f2,
+  // light→#18181b). Explicit letterColor-Prop overridet weiterhin.
+  const colors = useColors();
+  const resolvedLetterColor = letterColor ?? colors.text.primary;
   if (variant === 'mark') {
     const ratio = 1000 / 858.6;
     return (
@@ -41,7 +47,7 @@ export function FianoLogo({ variant = 'wordmark', height = 56, letterColor = '#f
       <Polygon fill="#ff1039" points="321.29 194.98 270.15 246.97 152.12 246.97 203.25 194.98 321.29 194.98" />
       <Polygon fill="#ff1039" points="203.6 377.66 203.6 296.62 152.12 246.97 75.51 246.97 203.6 377.66" />
       {/* Wortmarke "fiano" */}
-      <G fill={letterColor}>
+      <G fill={resolvedLetterColor}>
         <Path d="M622.84,369h37.7l0-75.6c-.95-34.41,57.75-28.88,57.75,2V369h38.09V244.65H718.27v13.23c-16.07-18.37-42.86-23.5-65.76-16.24-13.81,4.38-29.67,18.48-29.67,34.08Z" />
         <Path d="M432.39,244.65h0l-37.29.39v-8.22c0-2.54,2.47-5.55,4.82-6.4a30.34,30.34,0,0,1,4.2-1h19.45V198.14c-13.71-.22-28.18-1.34-41.79.92-18.89,3.13-24.3,14.37-25.17,32.56-.21,4.46.15,9,0,13.43H343.38v30.47h13.23V369H395.1V275.52h37.29V369h38.09V244.65Z" />
         <Path d="M837.68,239.15c-31.32,1.74-64.8,16.6-72.7,49.6-7.7,32.17,3.89,62.22,34.14,76.53,47.25,22.35,121.76,6.81,125.24-54.68C927.19,260.84,882.08,236.68,837.68,239.15Zm34,95.57c-20.93,20.39-61.29,11.19-67.11-18.61-6.12-31.35,20.57-54.95,51.12-45.91C883.56,278.45,892.6,314.38,871.7,334.72Z" />

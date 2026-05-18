@@ -5440,6 +5440,11 @@ function BuilderTab({
   };
 
   return (
+    // Phase B1.2 (2026-05-18): Fragment-Wrapper damit Modals NACH dem
+    // NestableScrollContainer rendern können — sonst zerschießt der
+    // Reanimated-Context der NestableDraggableFlatList das RN-Modal-
+    // Layout (Scissors-Bug aus B1-Test).
+    <>
     <NestableScrollContainer
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 14 }}
       showsVerticalScrollIndicator={false}
@@ -5824,30 +5829,33 @@ function BuilderTab({
           'Use the up/down arrows above to set the clip order — the final cut concatenates them in that order.',
         )}
       </Text>
+    </NestableScrollContainer>
 
-      {/* Subtitle-Settings-Modal — lazy mount. */}
-      {subModalOpen && (
-        <SubtitleSettingsModal
-          visible={subModalOpen}
-          settings={subSettings}
-          onClose={() => setSubModalOpen(false)}
-          onChange={(next) => updateProject(project.id, { subtitles: next })}
-        />
-      )}
-
-      <CueEditorModal
-        visible={builderCueEditorOpen}
-        cues={subSettings.cues ?? []}
-        sourceUris={project.sourceUris}
-        onClose={() => setBuilderCueEditorOpen(false)}
-        onSave={(nextCues) =>
-          updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
-        }
+    {/* Phase B1.2 (2026-05-18): Modals OUTSIDE NestableScrollContainer rendern,
+        sonst kann RN-Modal sein Layout nicht voll aufbauen (Scissors-Bug). */}
+    {/* Subtitle-Settings-Modal — lazy mount. */}
+    {subModalOpen && (
+      <SubtitleSettingsModal
+        visible={subModalOpen}
+        settings={subSettings}
+        onClose={() => setSubModalOpen(false)}
+        onChange={(next) => updateProject(project.id, { subtitles: next })}
       />
+    )}
 
-      {/* Phase B0 (2026-05-18): TrimModal für Highlight-Clips im Builder.
-          Parität mit 9:16-Tab — selber TrimModal, gleiche Save/Split-Logik. */}
-      {editingClipId && (() => {
+    <CueEditorModal
+      visible={builderCueEditorOpen}
+      cues={subSettings.cues ?? []}
+      sourceUris={project.sourceUris}
+      onClose={() => setBuilderCueEditorOpen(false)}
+      onSave={(nextCues) =>
+        updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
+      }
+    />
+
+    {/* Phase B0 (2026-05-18): TrimModal für Highlight-Clips im Builder.
+        Parität mit 9:16-Tab — selber TrimModal, gleiche Save/Split-Logik. */}
+    {editingClipId && (() => {
         const editClip = project.clips.find((c) => c.id === editingClipId);
         if (!editClip) return null;
         const projectSourceUris = project.sourceUris ?? [];
@@ -5987,7 +5995,7 @@ function BuilderTab({
           }}
         />
       )}
-    </NestableScrollContainer>
+    </>
   );
 }
 
