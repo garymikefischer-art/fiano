@@ -560,6 +560,37 @@ export function buildTikTokExportArgs(
   let finalVideo: string;
   let finalAudio: string;
   const introMode = opts.intro?.mode ?? 'before';
+  // [INTRO-DEBUG] Phase A4.e diagnostic (2026-05-18). Loggt Worker-Math
+  // (build-time on Mobile, da Mobile via shared/src/ffmpegArgs.ts die args
+  // baut bevor sie an /v1/render geschickt werden). Wird in A4.e-fix wieder
+  // entfernt.
+  if (opts.intro && introInputIdx >= 0) {
+    const _scale = (opts.intro.scale ?? 1.0);
+    const _xFrac = (opts.intro.x ?? 0);
+    const _yFrac = (opts.intro.y ?? 0);
+    const _scaleClamped = Math.max(0.2, Math.min(4, _scale));
+    const _xClamped = Math.max(0, Math.min(1, _xFrac));
+    const _yClamped = Math.max(0, Math.min(1, _yFrac));
+    const _introW = Math.round(W * _scaleClamped);
+    const _introH = Math.round(H * _scaleClamped);
+    const _overlayX = Math.round((W - _introW) * _xClamped);
+    const _overlayY = Math.round((H - _introH) * _yClamped);
+    // eslint-disable-next-line no-console
+    console.log('[INTRO-DEBUG] WORKER-ARGS', JSON.stringify({
+      mode: introMode,
+      canvas: { W, H },
+      input: { scale: _scale, x: _xFrac, y: _yFrac },
+      clamped: { scale: _scaleClamped, x: _xClamped, y: _yClamped },
+      introBox: { introW: _introW, introH: _introH },
+      overlay: { overlayX: _overlayX, overlayY: _overlayY },
+      ratios: {
+        widthPct: _introW / W,
+        heightPct: _introH / H,
+        leftPct: _overlayX / W,
+        topPct: _overlayY / H,
+      },
+    }));
+  }
   if (opts.intro && introInputIdx >= 0 && introMode === 'overlay') {
     // Phase 9.6.6.1 + Builder-9: Intro skaliert + per x/y positioniert + zeitlich
     // begrenzt. Aspect: CONTAIN-mode (decrease+pad) — Intro wird vollständig

@@ -3208,6 +3208,25 @@ function FullModePreview({
     width: `${introWidthPct * 100}%`,
     height: `${introWidthPct * 100}%`,
   };
+  // [INTRO-DEBUG] Phase A4.e diagnostic (2026-05-18). Loggt Preview-Math
+  // bei jedem Render. Wird in A4.e-fix wieder entfernt.
+  if (introUri) {
+    console.log('[INTRO-DEBUG] PREVIEW', JSON.stringify({
+      mode: introMode,
+      introX,
+      introY,
+      introScale,
+      introWidthPct,
+      introLeftPct,
+      introTopPct,
+      containerAspect: aspect,
+      isPortrait,
+      leftStyle: introStyle.left,
+      topStyle: introStyle.top,
+      widthStyle: introStyle.width,
+      heightStyle: introStyle.height,
+    }));
+  }
 
   return (
     <View
