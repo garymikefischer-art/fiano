@@ -156,9 +156,31 @@ export function PricingScreen() {
       }
       const result = await WebBrowser.openAuthSessionAsync(data.url, successUrl);
       if (result.type === 'success') {
-        // Stripe webhook hat parallel die subscriptions-Table updated.
-        // Wir refetchen + Paywall öffnet sich beim nächsten Render.
-        await fetchSubscription();
+        // Phase A6.3.6 (2026-05-18): Stripe redirected sofort, aber der
+        // Stripe-Webhook braucht 1-3s um die subscriptions-Table zu updaten
+        // (race condition). Wir pollen alle 1.5s bis status='active' ist
+        // (max 20s = 13 versuche), dann öffnet Paywall-Gate sich automatisch.
+        for (let i = 0; i < 13; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          await fetchSubscription();
+          const latest = useAuthStore.getState().subscription;
+          if (
+            (latest?.status === 'active' || latest?.status === 'trialing') &&
+            (latest?.plan === 'creator' || latest?.plan === 'pro')
+          ) {
+            console.log('[PricingScreen] sub activated after poll iteration', i);
+            return;
+          }
+        }
+        // Fallback: webhook noch nicht durch — User soll manuell continue
+        // probieren oder paar Sekunden warten.
+        Alert.alert(
+          t('pricing.checkoutPendingTitle', 'Payment received'),
+          t(
+            'pricing.checkoutPending',
+            'Your payment was processed. Our system is still activating your subscription — tap "Refresh" below to check again.',
+          ),
+        );
       }
       // cancel oder dismiss: User landet wieder auf PricingScreen, kein Error.
     } catch (err: any) {
@@ -166,6 +188,31 @@ export function PricingScreen() {
         t('pricing.checkoutErrorTitle', 'Checkout failed'),
         err?.message ?? String(err),
       );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Phase A6.3.6 (2026-05-18): Manual-Refresh Button für edge-case wo Polling
+  // nach 20s noch keinen active sub findet. Tap → fetchSubscription → wenn jetzt
+  // aktiv, paywall-gate öffnet sich.
+  const onRefreshSub = async () => {
+    setBusy('creator');
+    try {
+      await fetchSubscription();
+      const latest = useAuthStore.getState().subscription;
+      if (
+        (latest?.status !== 'active' && latest?.status !== 'trialing') ||
+        (latest?.plan !== 'creator' && latest?.plan !== 'pro')
+      ) {
+        Alert.alert(
+          t('pricing.stillPendingTitle', 'Still pending'),
+          t(
+            'pricing.stillPendingBody',
+            'Your subscription is still being processed. Try again in a few seconds.',
+          ),
+        );
+      }
     } finally {
       setBusy(null);
     }
@@ -310,6 +357,31 @@ export function PricingScreen() {
             t={t}
           />
         ))}
+
+        {/* Phase A6.3.6 (2026-05-18): Manual-Refresh wenn User schon bezahlt
+            hat (currentPlan != null) aber paywall-gate noch zu — bedeutet
+            Webhook ist noch nicht durch. Tap → fetchSubscription → wenn
+            jetzt aktiv, RootNavigator switcht automatisch zu MainTabs. */}
+        {paywallMode && currentPlan && (
+          <Pressable
+            onPress={onRefreshSub}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+              borderRadius: 14,
+              paddingVertical: 14,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              marginTop: 6,
+            })}
+          >
+            <Ionicons name="refresh" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+              {t('pricing.refreshSub', 'Refresh subscription status')}
+            </Text>
+          </Pressable>
+        )}
 
         <Text style={{ color: '#52525b', fontSize: 11, textAlign: 'center', marginTop: 8, lineHeight: 16 }}>
           {t('pricing.footnote')}
