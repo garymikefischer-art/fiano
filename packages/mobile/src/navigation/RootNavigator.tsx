@@ -41,13 +41,18 @@ export function RootNavigator() {
   // Sub kommt nicht in die App — Pricing-Screen ist der einzige sichtbare
   // Screen mit paywallMode=true. Lifetime allein reicht NICHT (Mobile cloud
   // render kostet uns monatlich → muss durch monatliches Revenue gedeckt sein).
+  // Phase A6.3.6: status='trialing' wird auch erlaubt (Stripe gibt das bei
+  // Trial-Subs zurück). 'active' bleibt der Default.
   const periodEnd = subscription?.current_period_end
     ? new Date(subscription.current_period_end)
     : null;
   const hasActiveMobileSub =
-    subscription?.status === 'active' &&
+    (subscription?.status === 'active' || subscription?.status === 'trialing') &&
     (subscription?.plan === 'creator' || subscription?.plan === 'pro') &&
     (periodEnd === null || periodEnd > new Date());
+  console.log(
+    `[RootNavigator] subscription state: status=${subscription?.status} plan=${subscription?.plan} periodEnd=${subscription?.current_period_end} → hasActiveMobileSub=${hasActiveMobileSub}`,
+  );
 
   return (
     <Stack.Navigator
