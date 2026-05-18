@@ -4442,6 +4442,7 @@ function LayoutOption({
   active: boolean;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -4707,6 +4708,7 @@ function IntroOverlayControls({
   project: DemoProject;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   const updateProject = useProjectsStore((s) => s.updateProject);
   const setIntroDefaults = useAppStore((s) => s.setIntroDefaults);
   const introDefaults = useAppStore((s) => s.introDefaults);
@@ -4950,6 +4952,7 @@ function ExtraTrimEditor({
   extra: ProjectExtraVideo;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   const updateProject = useProjectsStore((s) => s.updateProject);
   const duration = extra.durationSec ?? 0;
   const knownDuration = duration > 0;

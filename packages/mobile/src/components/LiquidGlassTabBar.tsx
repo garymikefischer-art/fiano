@@ -83,8 +83,9 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
       <View style={{ borderRadius: 28, overflow: 'hidden' }}>
         <BlurView intensity={100} tint={isLight ? 'light' : 'dark'} style={{ flex: 1 }}>
           {/* Background-Tint — sehr leicht, lässt blur durchscheinen für
-              echten frosted-glass-Look. User-Wunsch B3.5 (2026-05-18): dark
-              mode soll noch glaser sein → opacity weiter runter auf 0.18. */}
+              echten frosted-glass-Look. User-Wunsch B3.6 (2026-05-18): dark
+              mode noch unschärfer → opacity weiter runter auf 0.10. Light
+              mode bleibt bei 0.55 (User: "schöner als dark"). */}
           <View
             style={{
               flexDirection: 'row',
@@ -92,7 +93,7 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
               paddingHorizontal: 6,
               backgroundColor: isLight
                 ? 'rgba(250,250,250,0.55)'
-                : 'rgba(10,10,14,0.18)',
+                : 'rgba(10,10,14,0.10)',
               borderRadius: 28,
             }}
           >
