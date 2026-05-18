@@ -28,6 +28,7 @@ import path from 'node:path';
 import { authMiddleware, type AuthedRequest } from './auth.js';
 import { runFFmpeg } from './render.js';
 import { validateAssContent } from './assValidator.js';
+import { checkAndIncrementRenderQuota } from './planCheck.js';
 import {
   createOutputDownloadUrl,
   createUploadUrlForKey,
@@ -240,6 +241,42 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
 
     console.log(
       `[${jobId}] render user=${userId} project=${projectId} sources=${sources.length} otherInputs=${allKeys.length - sources.length}`,
+    );
+
+    // ── A6.3: Plan-Check + Quota-Increment (Server-side Enforcement) ──
+    // Resolution-Detection: höchste scale=W:H im Filter-Graph bestimmt
+    // ob '4k' (Pro/Lifetime only), '1080p' oder '720p'.
+    const argsJoined = args.join(' ');
+    const scaleMatches = [...argsJoined.matchAll(/scale=(\d+):(\d+)/g)];
+    let maxDim = 0;
+    for (const m of scaleMatches) {
+      maxDim = Math.max(maxDim, parseInt(m[1], 10), parseInt(m[2], 10));
+    }
+    const requestedResolution: '720p' | '1080p' | '4k' =
+      maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
+
+    const quotaResult = await checkAndIncrementRenderQuota(
+      supabase,
+      userId,
+      requestedResolution,
+    );
+    if (!quotaResult.allowed) {
+      console.log(
+        `[${jobId}] render rejected: plan=${quotaResult.plan} reason=${quotaResult.reason}`,
+      );
+      return res.status(402).json({
+        ok: false,
+        jobId,
+        error: 'plan_limit_reached',
+        reason: quotaResult.reason,
+        plan: quotaResult.plan,
+        renderCount: 'render_count' in quotaResult ? quotaResult.render_count : undefined,
+        monthlyLimit: 'monthly_limit' in quotaResult ? quotaResult.monthly_limit : undefined,
+        requestedResolution: 'requested_resolution' in quotaResult ? quotaResult.requested_resolution : requestedResolution,
+      });
+    }
+    console.log(
+      `[${jobId}] quota ok: plan=${quotaResult.plan} count=${quotaResult.render_count}/${quotaResult.monthly_limit} res=${requestedResolution}`,
     );
 
     // ── 1. Alle Inputs nach /tmp/ ziehen + Replace-Map bauen ──────────
