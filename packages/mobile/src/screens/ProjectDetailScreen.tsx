@@ -3247,6 +3247,10 @@ function FullModePreview({
   }, [introUri]);
   // Phase Builder-5: sequential-playback state für Multi-Source-Builder.
   const [currentIdx, setCurrentIdx] = useState(0);
+  // Phase B2 (2026-05-18): pendingSeekSec — wenn User per Drag-to-Seek auf
+  // ein anderes item springt, hier den target-local-time merken. Video re-
+  // mounted via key={activeUri}, im onLoad seeken wir dann dort hin.
+  const [pendingSeekSec, setPendingSeekSec] = useState<number | null>(null);
   const videoRef = useRef<VideoRef>(null);
   const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
   const off = Math.min(1, Math.max(0, offsetX));
@@ -3327,10 +3331,26 @@ function FullModePreview({
   }, [paused, controlsVisible, currentSec]);
 
   // Ref-Sync für PanResponder closures (wie StackedSplitPreview).
-  const stateRef = useRef({ trackWidth, durationSec });
+  // Phase B2 (2026-05-18): zusätzlich sources/itemDurations für multi-clip
+  // drag-to-seek über die cumulative timeline.
+  const stateRef = useRef({
+    trackWidth,
+    durationSec,
+    displayDur,
+    sources,
+    itemDurations,
+    currentIdx,
+  });
   useEffect(() => {
-    stateRef.current = { trackWidth, durationSec };
-  }, [trackWidth, durationSec]);
+    stateRef.current = {
+      trackWidth,
+      durationSec,
+      displayDur,
+      sources,
+      itemDurations,
+      currentIdx,
+    };
+  }, [trackWidth, durationSec, displayDur, sources, itemDurations, currentIdx]);
 
   const togglePlay = () => {
     if (!videosActive) {
@@ -3362,9 +3382,46 @@ function FullModePreview({
   };
 
   const seekFromTouch = (x: number) => {
-    const { trackWidth: w, durationSec: d } = stateRef.current;
-    if (w <= 0 || d <= 0) return;
+    const {
+      trackWidth: w,
+      durationSec: d,
+      displayDur: cumDur,
+      sources: seqSources,
+      itemDurations: probedDurations,
+      currentIdx: idx,
+    } = stateRef.current;
+    if (w <= 0) return;
     const frac = Math.max(0, Math.min(1, x / w));
+    // Phase B2 (2026-05-18): Multi-Clip Drag-to-Seek. Wenn sources[] gesetzt,
+    // map cumulative-position → (item-idx, local-time). Sonst single-video.
+    if (seqSources && seqSources.length > 1 && cumDur > 0) {
+      const targetCumul = frac * cumDur;
+      let acc = 0;
+      for (let i = 0; i < seqSources.length; i++) {
+        const it = seqSources[i];
+        const realEnd = it.endSec > 0
+          ? it.endSec
+          : (probedDurations[`${i}-${it.uri}`] ?? it.startSec);
+        const itDur = Math.max(0, realEnd - it.startSec);
+        if (targetCumul <= acc + itDur || i === seqSources.length - 1) {
+          const localSec = it.startSec + Math.max(0, targetCumul - acc);
+          if (i !== idx) {
+            setCurrentIdx(i);
+            // Phase B2 (2026-05-18): pendingSeekSec → wird in onLoad nach
+            // re-mount des Video-Elements consumed.
+            setPendingSeekSec(localSec);
+            setCurrentSec(localSec);
+          } else {
+            videoRef.current?.seek(localSec);
+            setCurrentSec(localSec);
+          }
+          return;
+        }
+        acc += itDur;
+      }
+    }
+    // Single-video Pfad (kein Sequence): direct seek.
+    if (d <= 0) return;
     const sec = frac * d;
     videoRef.current?.seek(sec);
     setCurrentSec(sec);
@@ -3492,8 +3549,15 @@ function FullModePreview({
               disableFocus
               onLoad={(d) => {
                 setDurationSec(d.duration);
-                const start = activeStart > 0 ? activeStart : 0;
-                if (start > 0 && videoRef.current) videoRef.current.seek(start);
+                // Phase B2: pendingSeekSec → drag-target hat Vorrang vor activeStart.
+                const target =
+                  pendingSeekSec !== null
+                    ? pendingSeekSec
+                    : activeStart > 0
+                      ? activeStart
+                      : 0;
+                if (target > 0 && videoRef.current) videoRef.current.seek(target);
+                if (pendingSeekSec !== null) setPendingSeekSec(null);
               }}
               onProgress={(d) => handleProgress(d.currentTime)}
               onEnd={handleVideoEnd}
