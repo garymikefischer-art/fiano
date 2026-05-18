@@ -690,20 +690,25 @@ export function ExportScreen() {
               </Text>
             </View>
             <Text style={{ color: '#f1f2f2', fontSize: 13, lineHeight: 19 }}>
-              {planLimit.reason === 'resolution_locked'
+              {planLimit.reason === 'subscription_required'
                 ? t(
-                    'export.planLimitResolution',
-                    '4K export requires Pro plan or higher. Choose 1080p or upgrade your plan.',
+                    'export.planLimitSubscription',
+                    'Cloud Render requires an active subscription. Subscribe to Creator, Pro or Studio Lifetime to start exporting.',
                   )
-                : planLimit.reason === 'monthly_limit_exceeded'
+                : planLimit.reason === 'resolution_locked'
                   ? t(
-                      'export.planLimitMonthly',
-                      'You\'ve used {n}/{m} renders this month on the {plan} plan. Upgrade for more renders.',
+                      'export.planLimitResolution',
+                      '4K export requires Pro plan or higher. Choose 1080p or upgrade your plan.',
                     )
-                      .replace('{n}', String(planLimit.renderCount ?? '?'))
-                      .replace('{m}', String(planLimit.monthlyLimit ?? '?'))
-                      .replace('{plan}', planLimit.plan ?? 'free')
-                  : t('export.planLimitGeneric', 'Render blocked by plan limit.')}
+                  : planLimit.reason === 'monthly_limit_exceeded'
+                    ? t(
+                        'export.planLimitMonthly',
+                        'You\'ve used {n}/{m} renders this month on the {plan} plan. Upgrade for more renders.',
+                      )
+                        .replace('{n}', String(planLimit.renderCount ?? '?'))
+                        .replace('{m}', String(planLimit.monthlyLimit ?? '?'))
+                        .replace('{plan}', planLimit.plan ?? 'inactive')
+                    : t('export.planLimitGeneric', 'Render blocked by plan limit.')}
             </Text>
           </View>
         )}

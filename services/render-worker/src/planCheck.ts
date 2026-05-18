@@ -1,15 +1,19 @@
 /**
- * Plan-Check + Monthly Quota Module (Phase A6.3, 2026-05-18).
+ * Plan-Check + Monthly Quota Module (Phase A6.3 + A6.3.1, 2026-05-18).
  *
  * Server-side Enforcement der Subscription-Plans + monthly Render-Quota.
  * Adressiert SECURITY_AUDIT P0-2: Mobile-Paywall war client-only, ein User
  * mit gültigem JWT konnte via curl unlimited 4K-Renders ausführen.
  *
  * Plan-Limits (sync gehalten mit `supabase/migrations/002_render_quota.sql`):
- *   free:             3 renders/Monat, max 1080p
- *   creator:          30 renders/Monat, max 1080p
- *   pro:              300 renders/Monat, 4K OK
- *   studio_lifetime:  unlimited, 4K OK
+ *   inactive/no-sub:  0 renders     → subscription_required
+ *   creator:          30 renders    max 1080p (kein 4K)
+ *   pro:              200 renders   4K OK
+ *   studio_lifetime:  500 renders   4K OK (Cap gegen Abuse, one-time payment)
+ *
+ * Rationale (Phase A6.3.1): Cloud Run cost ~$0.003-0.015 pro Render.
+ * Limits sichern dass Subscription-Revenue immer höher ist als Cloud-
+ * Render-Kosten. Kein Free-Tier.
  *
  * Aufruf-Pattern:
  *   `await checkAndIncrementRenderQuota(supabase, userId, resolution)` direkt
@@ -21,14 +25,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export type RenderQuotaResult =
   | {
       allowed: true;
-      plan: 'free' | 'creator' | 'pro' | 'studio_lifetime';
+      plan: 'creator' | 'pro' | 'studio_lifetime';
       render_count: number;
       monthly_limit: number;
     }
   | {
       allowed: false;
-      reason: 'monthly_limit_exceeded' | 'resolution_locked' | 'rpc_error';
-      plan: 'free' | 'creator' | 'pro' | 'studio_lifetime' | null;
+      reason:
+        | 'subscription_required'
+        | 'monthly_limit_exceeded'
+        | 'resolution_locked'
+        | 'rpc_error';
+      plan: 'inactive' | 'creator' | 'pro' | 'studio_lifetime' | null;
       render_count?: number;
       monthly_limit?: number;
       requested_resolution?: string;

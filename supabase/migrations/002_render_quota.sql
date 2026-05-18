@@ -19,11 +19,14 @@
 --   2. RPC `check_and_increment_render_quota(p_user_id, p_resolution)` atomic.
 --   3. Worker callt RPC vor jedem render. Bei 402 → Mobile zeigt UpgradeModal.
 --
--- Plan-Limits (hardcoded im Worker, einfacher änderbar als hier in SQL):
---   free:             3 renders/Monat, max 1080p
---   creator:          30 renders/Monat, max 1080p
---   pro:              300 renders/Monat, 4K OK
---   studio_lifetime:  unlimited, 4K OK
+-- Plan-Limits (Phase A6.3.1 — kein Free-Tier, keine kostenlosen Renders):
+--   inactive/no-sub:  0 renders     → subscription_required
+--   creator:          30 renders    max 1080p (no 4K)
+--   pro:              200 renders   4K OK
+--   studio_lifetime:  500 renders   4K OK (cap gegen abuse, one-time payment)
+--
+-- Rationale: Cloud Run cost ~$0.003-0.015 pro Render. Limits sichern dass
+-- Subscription-Revenue immer höher ist als Cloud-Render-Kosten.
 --
 -- Schema-Design:
 --   render_usage hat 1 row pro user. Bei Monatswechsel wird `month_key` und
@@ -105,18 +108,28 @@ BEGIN
         AND v_plan IN ('creator', 'pro') THEN
     v_active_plan := v_plan;
   ELSE
-    v_active_plan := 'free';
+    v_active_plan := 'inactive';
   END IF;
 
-  -- Plan-Limits.
+  -- Plan-Limits (A6.3.1: kein Free-Tier — inactive = 0).
   v_monthly_limit := CASE v_active_plan
-    WHEN 'free'             THEN 3
+    WHEN 'inactive'         THEN 0
     WHEN 'creator'          THEN 30
-    WHEN 'pro'              THEN 300
-    WHEN 'studio_lifetime'  THEN 1000000  -- praktisch unlimited
+    WHEN 'pro'              THEN 200
+    WHEN 'studio_lifetime'  THEN 500
     ELSE 0
   END;
   v_allows_4k := v_active_plan IN ('pro', 'studio_lifetime');
+
+  -- Phase A6.3.1: Kein Free-Tier — inactive Users werden früh abgewiesen.
+  IF v_active_plan = 'inactive' THEN
+    RETURN jsonb_build_object(
+      'allowed', false,
+      'reason', 'subscription_required',
+      'plan', v_active_plan,
+      'monthly_limit', 0
+    );
+  END IF;
 
   -- Resolution-Check: 4K nur für pro/lifetime.
   IF p_resolution = '4k' AND NOT v_allows_4k THEN
@@ -217,14 +230,14 @@ BEGIN
         AND v_plan IN ('creator', 'pro') THEN
     v_active_plan := v_plan;
   ELSE
-    v_active_plan := 'free';
+    v_active_plan := 'inactive';
   END IF;
 
   v_monthly_limit := CASE v_active_plan
-    WHEN 'free'             THEN 3
+    WHEN 'inactive'         THEN 0
     WHEN 'creator'          THEN 30
-    WHEN 'pro'              THEN 300
-    WHEN 'studio_lifetime'  THEN 1000000
+    WHEN 'pro'              THEN 200
+    WHEN 'studio_lifetime'  THEN 500
     ELSE 0
   END;
 
