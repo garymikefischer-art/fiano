@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Image,
   Modal,
   PanResponder,
   Pressable,
@@ -22,6 +23,7 @@ import {
 import { appAlert } from './AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 
 import { VideoPlayer } from './VideoPlayer';
 import { BackgroundGlow } from './BackgroundGlow';
@@ -56,6 +58,9 @@ export function RegionPickerModal({
   const [gameplay, setGameplay] = useState<Region>(initialGameplay);
   const [active, setActive] = useState<ActiveBox>('facecam');
   const [testUri, setTestUri] = useState<string | null>(null);
+  // Phase B4 (2026-05-18): Test-Image-Upload als Alternative zu Test-Video.
+  // Useful wenn User nur ein Screenshot statt vollständiges Video hat.
+  const [testType, setTestType] = useState<'video' | 'image'>('video');
   const [busy, setBusy] = useState(false);
 
   // Bei jedem visible-Reset: state zurück auf die Props (frischer Edit-State).
@@ -74,11 +79,40 @@ export function RegionPickerModal({
       const picked = await picker({ maxDurationSec: 600 });
       if (picked) {
         setTestUri(picked.uri);
+        setTestType('video');
         haptic.success();
       }
     } catch (e: any) {
       haptic.error();
       appAlert('Test clip', e?.message ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Phase B4 (2026-05-18): Test-Image-Upload. Alternative für User die nur
+  // einen Screenshot haben statt vollständiges Video. Selber RegionStage,
+  // nur <Image> statt <Video> als Hintergrund.
+  const onUploadTestImage = async () => {
+    setBusy(true);
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') {
+        appAlert('Permission required', 'Allow photo library access to pick a test image.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 1, // full quality — wir brauchen scharfe Refs für Region-Picking
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      setTestUri(result.assets[0].uri);
+      setTestType('image');
+      haptic.success();
+    } catch (e: any) {
+      haptic.error();
+      appAlert('Test image', e?.message ?? String(e));
     } finally {
       setBusy(false);
     }
@@ -152,12 +186,14 @@ export function RegionPickerModal({
             <View style={{ gap: 10 }}>
               <RegionStage
                 uri={testUri}
+                type={testType}
                 facecam={facecam}
                 gameplay={gameplay}
                 active={active}
                 onChangeFacecam={setFacecam}
                 onChangeGameplay={setGameplay}
               />
+              {/* Phase B4 (2026-05-18): drei Replace-Buttons (Files / Gallery / Image). */}
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Pressable
                   onPress={() => onUploadTestClip(true)}
@@ -175,9 +211,30 @@ export function RegionPickerModal({
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
-                  <Ionicons name="refresh" size={14} color="#f1f2f2" />
-                  <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
-                    Replace test clip
+                  <Ionicons name="videocam-outline" size={14} color="#f1f2f2" />
+                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>
+                    Replace clip
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={onUploadTestImage}
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    paddingVertical: 9,
+                    borderRadius: 10,
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.12)',
+                    alignItems: 'center',
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    gap: 6,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Ionicons name="image-outline" size={14} color="#f1f2f2" />
+                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>
+                    Replace image
                   </Text>
                 </Pressable>
               </View>
@@ -197,9 +254,9 @@ export function RegionPickerModal({
                 paddingHorizontal: 24,
               }}
             >
-              <Ionicons name="videocam-outline" size={36} color="rgba(255,255,255,0.32)" />
+              <Ionicons name="images-outline" size={36} color="rgba(255,255,255,0.32)" />
               <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
-                Upload a test clip
+                Upload a test clip or image
               </Text>
               <Text
                 style={{
@@ -210,15 +267,17 @@ export function RegionPickerModal({
                   maxWidth: 280,
                 }}
               >
-                Pick any 16:9 video to position the facecam (red) + gameplay (blue) regions
-                visually. The chosen clip is only used for preview.
+                Pick any 16:9 video or screenshot to position the facecam (red) + gameplay
+                (blue) regions visually. Used for preview only.
               </Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              {/* Phase B4 (2026-05-18): drei Upload-Buttons (Gallery video / Files
+                  video / Image). Image-Upload für User die nur Screenshot haben. */}
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <Pressable
                   onPress={() => onUploadTestClip(false)}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    paddingHorizontal: 14,
+                    paddingHorizontal: 12,
                     paddingVertical: 9,
                     borderRadius: 10,
                     backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
@@ -228,14 +287,14 @@ export function RegionPickerModal({
                     opacity: busy ? 0.6 : 1,
                   })}
                 >
-                  <Ionicons name="images-outline" size={14} color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Gallery</Text>
+                  <Ionicons name="videocam-outline" size={14} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Gallery video</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => onUploadTestClip(true)}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    paddingHorizontal: 14,
+                    paddingHorizontal: 12,
                     paddingVertical: 9,
                     borderRadius: 10,
                     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -248,7 +307,26 @@ export function RegionPickerModal({
                   })}
                 >
                   <Ionicons name="folder-open-outline" size={14} color="#f1f2f2" />
-                  <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>Files</Text>
+                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>Files video</Text>
+                </Pressable>
+                <Pressable
+                  onPress={onUploadTestImage}
+                  disabled={busy}
+                  style={({ pressed }) => ({
+                    paddingHorizontal: 12,
+                    paddingVertical: 9,
+                    borderRadius: 10,
+                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.12)',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    opacity: pressed ? 0.6 : 1,
+                  })}
+                >
+                  <Ionicons name="image-outline" size={14} color="#f1f2f2" />
+                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>Image</Text>
                 </Pressable>
               </View>
             </View>
@@ -329,6 +407,7 @@ export function RegionPickerModal({
 
 function RegionStage({
   uri,
+  type,
   facecam,
   gameplay,
   active,
@@ -336,6 +415,8 @@ function RegionStage({
   onChangeGameplay,
 }: {
   uri: string;
+  /** Phase B4 (2026-05-18): 'video' = VideoPlayer, 'image' = statisches Bild. */
+  type: 'video' | 'image';
   facecam: Region | null;
   gameplay: Region;
   active: ActiveBox;
@@ -357,7 +438,15 @@ function RegionStage({
         setStageSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })
       }
     >
-      <VideoPlayer uri={uri} />
+      {type === 'video' ? (
+        <VideoPlayer uri={uri} />
+      ) : (
+        <Image
+          source={{ uri }}
+          style={{ aspectRatio: 16 / 9, width: '100%' }}
+          resizeMode="cover"
+        />
+      )}
 
       {stageSize.width > 0 && (
         <>
