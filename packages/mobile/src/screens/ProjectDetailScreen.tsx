@@ -207,7 +207,14 @@ export function ProjectDetailScreen() {
         />
       )}
       {activeTab === 'manual' && <ManualTab project={project} t={t} />}
-      {activeTab === 'tiktok' && <TikTokTab project={project} t={t} />}
+      {activeTab === 'tiktok' && (
+        <TikTokTab
+          project={project}
+          selectedClipIds={selectedClipIds}
+          setSelectedClipIds={setSelectedClipIds}
+          t={t}
+        />
+      )}
       {activeTab === 'builder' && (
         <BuilderTab project={project} selectedClipIds={selectedClipIds} t={t} />
       )}
@@ -1853,9 +1860,15 @@ type Layout = 'stacked' | 'full' | 'split';
 
 function TikTokTab({
   project,
+  selectedClipIds,
+  setSelectedClipIds,
   t,
 }: {
   project: DemoProject;
+  /** Phase B6 (2026-05-18): Multi-Select-Set vom Root — shared mit Highlights-Tab.
+   *  Hier nutzt der "Export N selected clips"-Button die Auswahl. */
+  selectedClipIds: Set<string>;
+  setSelectedClipIds: (s: Set<string>) => void;
   t: (k: string, f?: string) => string;
 }) {
   const nav = useNavigation<Nav>();
@@ -1965,6 +1978,16 @@ function TikTokTab({
   // Phase B5 (2026-05-18): TrimModal-State. null = closed.
   const [editingClipIdx, setEditingClipIdx] = useState<number | null>(null);
   const clips = project.clips ?? [];
+  // Phase B6 (2026-05-18): Multi-Select-Toggle für Export-Selektion.
+  const toggleClipSelection = (id: string) => {
+    const next = new Set(selectedClipIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedClipIds(next);
+    haptic.selection();
+  };
+  const selectedClipsInOrder = clips.filter((c) => selectedClipIds.has(c.id));
+  const selectedCount = selectedClipsInOrder.length;
   const showClipSelector = clips.length >= 2;
   const safeIdx = Math.min(selectedClipIdx, Math.max(0, clips.length - 1));
   const selectedClip = clips[safeIdx];
@@ -2124,9 +2147,35 @@ function TikTokTab({
           einen Clip → Preview + Export werden auf den Clip umgestellt. */}
       {showClipSelector && (
         <View style={{ gap: 8 }}>
-          <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
-            {t('tiktok.clipsHeader', 'CLIPS').toUpperCase()} · {clips.length}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
+              {t('tiktok.clipsHeader', 'CLIPS').toUpperCase()} · {clips.length}
+              {selectedCount > 0 && (
+                <Text style={{ color: '#ff1039' }}>
+                  {'  ·  '}{selectedCount} {t('tiktok.selected', 'selected')}
+                </Text>
+              )}
+            </Text>
+            {/* Phase B6 (2026-05-18): Select-All / Clear-All Toggle. */}
+            <Pressable
+              onPress={() => {
+                haptic.selection();
+                if (selectedCount === clips.length) {
+                  setSelectedClipIds(new Set());
+                } else {
+                  setSelectedClipIds(new Set(clips.map((c) => c.id)));
+                }
+              }}
+              hitSlop={6}
+              style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+            >
+              <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700' }}>
+                {selectedCount === clips.length
+                  ? t('tiktok.clearAll', 'Clear all')
+                  : t('tiktok.selectAll', 'Select all')}
+              </Text>
+            </Pressable>
+          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -2134,6 +2183,7 @@ function TikTokTab({
           >
             {clips.map((c, i) => {
               const active = i === safeIdx;
+              const isSelected = selectedClipIds.has(c.id);
               const dur = Math.max(0, c.endSec - c.startSec);
               return (
                 <Pressable
@@ -2146,8 +2196,14 @@ function TikTokTab({
                     width: 150,
                     borderRadius: 12,
                     borderWidth: 1.5,
-                    borderColor: active ? '#ff1039' : 'rgba(255,255,255,0.08)',
-                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    borderColor: active
+                      ? '#ff1039'
+                      : isSelected
+                        ? 'rgba(255,16,57,0.5)'
+                        : 'rgba(255,255,255,0.08)',
+                    backgroundColor: isSelected
+                      ? 'rgba(255,16,57,0.08)'
+                      : 'rgba(255,255,255,0.04)',
                     overflow: 'hidden',
                   }}
                 >
@@ -2165,10 +2221,12 @@ function TikTokTab({
                         resizeMode="cover"
                       />
                     )}
+                    {/* Phase B6 (2026-05-18): Time-badge nach bottom-left
+                        verschoben, top-left ist jetzt der Multi-Select-Checkbox. */}
                     <View
                       style={{
                         position: 'absolute',
-                        top: 6,
+                        bottom: 6,
                         left: 6,
                         backgroundColor: 'rgba(0,0,0,0.65)',
                         paddingHorizontal: 6,
@@ -2194,9 +2252,41 @@ function TikTokTab({
                           justifyContent: 'center',
                         }}
                       >
-                        <Ionicons name="checkmark" size={14} color="#fff" />
+                        <Ionicons name="play" size={12} color="#fff" />
                       </View>
                     )}
+                    {/* Phase B6 (2026-05-18): Multi-Select-Checkbox top-left.
+                        Separater Hit-Area: Card-Body-Tap = preview-select
+                        (existing), Checkbox-Tap = export-multi-select-toggle.
+                        Bei B6 sind Multi-Select-Clips farblich highlight'd. */}
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleClipSelection(c.id);
+                      }}
+                      hitSlop={8}
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        width: 26,
+                        height: 26,
+                        borderRadius: 13,
+                        backgroundColor: selectedClipIds.has(c.id)
+                          ? '#ff1039'
+                          : 'rgba(0,0,0,0.65)',
+                        borderWidth: 1.5,
+                        borderColor: selectedClipIds.has(c.id)
+                          ? '#ff1039'
+                          : 'rgba(255,255,255,0.45)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {selectedClipIds.has(c.id) && (
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                      )}
+                    </Pressable>
                     {/* Phase B5 (2026-05-18): Trim/Edit-Button. Öffnet TrimModal
                         für diesen Clip. stopPropagation damit der Card-Tap
                         (selectClip) nicht zusätzlich feuert. */}
@@ -2746,10 +2836,11 @@ function TikTokTab({
         </Text>
       </Pressable>
 
-      {/* Phase A3.4 (2026-05-17): Multi-Clip-9:16-Export.
-          Sichtbar nur bei isMultiSource. Exportiert ALLE source-clips hinter-
-          einander im aktuellen 9:16 Layout (project.tiktokLayout). */}
-      {isMultiSource && (
+      {/* Phase B6 (2026-05-18): Multi-Select-9:16-Export.
+          Sichtbar wenn ≥2 clips selected. Exportiert NUR die selected clips
+          hintereinander, mit Intro nur am ersten + Musik durchgehend.
+          Order: clips[]-order gefiltert nach selectedClipIds. */}
+      {selectedCount >= 2 && (
         <Pressable
           onPress={() => {
             haptic.medium();
@@ -2771,9 +2862,9 @@ function TikTokTab({
         >
           <Ionicons name="layers" size={16} color="#ff1039" />
           <Text style={{ color: '#ff1039', fontSize: 14, fontWeight: '700' }}>
-            {t('tiktok.exportButtonAll', 'Export all {n} clips hintereinander').replace(
+            {t('tiktok.exportButtonSelected', 'Export {n} selected clips').replace(
               '{n}',
-              String(projectSourceUris.length),
+              String(selectedCount),
             )}
           </Text>
         </Pressable>
@@ -2915,18 +3006,39 @@ function TikTokTab({
             // mode='tiktok' + builderItemPlan. ExportScreen erkennt das und
             // nutzt den Multi-Source-Pfad mit project.tiktokLayout (statt
             // Builder's 'full' 16:9-Layout).
-            if (pendingMultiExport && isMultiSource) {
-              const itemPlan = clips.map((c, i) => {
-                const srcIdx = Math.min(i, projectSourceUris.length - 1);
+            if (pendingMultiExport && selectedClipsInOrder.length >= 2) {
+              // Phase B6 (2026-05-18): Nur SELECTED clips exportieren.
+              // Source-resolution per-clip:
+              //   1. clip.sourceIdx (gesetzt bei AI-Highlight cross-source) → projectSourceUris[idx]
+              //   2. multi-source legacy → projectSourceUris[clipIdx]
+              //   3. single-source → project.sourceUri
+              // Intro spielt nur am ersten Clip (Worker-Level: intro ist top-
+              // level RenderSpec, vor concat appended). Musik geht durchgehend
+              // (Worker mischt amix über die gesamte concat-Länge).
+              const itemPlan = selectedClipsInOrder.map((c) => {
+                const explicitSrcIdx = c.sourceIdx;
+                let src: string | undefined;
+                if (
+                  explicitSrcIdx !== undefined &&
+                  projectSourceUris[explicitSrcIdx] !== undefined
+                ) {
+                  src = projectSourceUris[explicitSrcIdx];
+                } else if (isMultiSource) {
+                  const clipIdx = clips.indexOf(c);
+                  src = projectSourceUris[Math.min(clipIdx, projectSourceUris.length - 1)];
+                } else {
+                  src = project.sourceUri;
+                }
                 return {
-                  sourceUri: projectSourceUris[srcIdx],
+                  sourceUri: src ?? '',
                   trimStart: c.startSec,
                   trimEnd: c.endSec,
                 };
-              });
+              }).filter((p) => p.sourceUri);
               setPendingMultiExport(false);
+              if (itemPlan.length < 2) return;
               nav.navigate('Export', {
-                sourceUri: projectSourceUris[0],
+                sourceUri: itemPlan[0].sourceUri,
                 projectId: project.id,
                 trimStart: 0,
                 trimEnd: project.durationSec,
