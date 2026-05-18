@@ -69,6 +69,7 @@ import { SimpleSlider } from '../components/SimpleSlider';
 import { VoiceOversSection } from '../components/VoiceOversSection';
 import { CueEditorModal } from '../components/CueEditorModal';
 import { ActionSheet, type ActionSheetItem } from '../components/ActionSheet';
+import { RegionPickerModal } from '../components/RegionPickerModal';
 import { extractVideoThumbnail } from '../lib/thumbnails';
 import { transcribeVideo, transcribeMultiSource } from '../lib/whisper';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
@@ -1904,6 +1905,12 @@ function TikTokTab({
   // Bei `true` baut der onConfirm-Handler einen builderItemPlan aus allen
   // source-clips und navigiert mit `mode='tiktok' + builderItemPlan`.
   const [pendingMultiExport, setPendingMultiExport] = useState(false);
+  // Phase A4.c (2026-05-18): Region-Picker per-Project state.
+  // Öffnet den existing RegionPickerModal (auch in SettingsScreen genutzt)
+  // mit den AKTUELLEN regions (project-overrides oder defaults). On-save
+  // werden die werte als project-overrides geschrieben — NICHT in app-store
+  // (globale defaults bleiben unverändert, User-Wunsch).
+  const [regionModalOpen, setRegionModalOpen] = useState(false);
   const exportSettings = useAppStore((s) => s.exportSettings);
   const setExportSettingsStore = useAppStore((s) => s.setExportSettings);
   const hasVoiceOvers = (project.voiceOvers ?? []).length > 0;
@@ -2047,16 +2054,20 @@ function TikTokTab({
     if (picked) {
       // Phase Builder-5: appStore.introDefaults beim Pick anwenden — damit
       // User die overlay-Position nicht jedes Mal neu einstellen muss.
+      // Phase A4.c (2026-05-18): Fallback-Defaults sind jetzt 'bottom'-Preset
+      // (x=0.5, y=1, scale=0.4) statt fullscreen. Grund: bei scale=1.0
+      // haben X/Y-Slider keinen Effekt (intro=canvas), Slider wirken un-
+      // intuitiv tot. Mit scale=0.4 sieht User sofort wie Sliders wirken.
       const defaults = useAppStore.getState().introDefaults;
       updateProject(project.id, {
         intro: {
           path: picked.uri,
           filename: picked.filename ?? 'video',
           mode: defaults?.mode ?? introMode,
-          x: defaults?.x,
-          y: defaults?.y,
-          scale: defaults?.scale,
-          durationSec: defaults?.durationSec,
+          x: defaults?.x ?? 0.5,
+          y: defaults?.y ?? 1.0,
+          scale: defaults?.scale ?? 0.4,
+          durationSec: defaults?.durationSec ?? 3,
         },
       });
       haptic.success();
@@ -2226,40 +2237,66 @@ function TikTokTab({
               : t('tiktok.overrideOff', 'Using settings defaults')}
           </Text>
         </View>
-        <Pressable
-          onPress={() => {
-            haptic.selection();
-            if (usingOverride) {
-              // Override clearen
-              updateProject(project.id, { facecamRegion: undefined, gameplayRegion: undefined });
-            } else {
-              // Aktuellen Default als Project-Override einfrieren
-              updateProject(project.id, {
-                facecamRegion: defaultFacecam,
-                gameplayRegion: defaultGameplay,
-              });
-            }
-          }}
-          style={({ pressed }) => ({
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-            borderRadius: 999,
-            backgroundColor: usingOverride ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.06)',
-            borderWidth: 1,
-            borderColor: usingOverride ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.10)',
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <Text
-            style={{
-              color: usingOverride ? '#ff1039' : '#a1a1aa',
-              fontSize: 11,
-              fontWeight: '700',
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          {/* Phase A4.c (2026-05-18): Edit-Button öffnet RegionPickerModal.
+              Werte werden als project-overrides gespeichert (NICHT global). */}
+          <Pressable
+            onPress={() => {
+              haptic.medium();
+              setRegionModalOpen(true);
             }}
+            style={({ pressed }) => ({
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 999,
+              backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'rgba(255,16,57,0.08)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,16,57,0.35)',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+            })}
           >
-            {usingOverride ? t('common.on', 'ON') : t('common.off', 'OFF')}
-          </Text>
-        </Pressable>
+            <Ionicons name="create-outline" size={11} color="#ff1039" />
+            <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700' }}>
+              {t('tiktok.editRegions', 'Edit')}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              haptic.selection();
+              if (usingOverride) {
+                // Override clearen
+                updateProject(project.id, { facecamRegion: undefined, gameplayRegion: undefined });
+              } else {
+                // Aktuellen Default als Project-Override einfrieren
+                updateProject(project.id, {
+                  facecamRegion: defaultFacecam,
+                  gameplayRegion: defaultGameplay,
+                });
+              }
+            }}
+            style={({ pressed }) => ({
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 999,
+              backgroundColor: usingOverride ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.06)',
+              borderWidth: 1,
+              borderColor: usingOverride ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.10)',
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text
+              style={{
+                color: usingOverride ? '#ff1039' : '#a1a1aa',
+                fontSize: 11,
+                fontWeight: '700',
+              }}
+            >
+              {usingOverride ? t('common.on', 'ON') : t('common.off', 'OFF')}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Layout */}
@@ -2732,6 +2769,22 @@ function TikTokTab({
         onSave={(nextCues) =>
           updateProject(project.id, { subtitles: { ...subSettings, cues: nextCues } })
         }
+      />
+
+      {/* Phase A4.c (2026-05-18): Region-Picker per-Project. Speichert nur
+          ins project (NICHT in app-store / globale defaults). */}
+      <RegionPickerModal
+        visible={regionModalOpen}
+        initialFacecam={facecamRegion}
+        initialGameplay={gameplayRegion}
+        onClose={() => setRegionModalOpen(false)}
+        onSave={(fc, gp) => {
+          updateProject(project.id, {
+            facecamRegion: fc,
+            gameplayRegion: gp,
+          });
+          setRegionModalOpen(false);
+        }}
       />
 
       {/* Export-Settings-Modal vor Export-Click. */}
@@ -4395,13 +4448,25 @@ function IntroOverlayControls({
           value={localScale}
           min={0.2}
           max={4}
-          step={0.1}
+          step={0.05}
           onChange={setLocalScale}
           onCommit={(v) => {
             haptic.selection();
             commitOne('scale', v);
           }}
         />
+        {/* Phase A4.c (2026-05-18): UX-Hint — bei scale=100% hat intro
+            volle Canvas-Größe, da bleibt kein Spielraum für X/Y. User-Report:
+            "Horizontal/Vertical-Slider haben keine Funktion". Math ist
+            korrekt, aber UX-counter-intuitiv. */}
+        {Math.abs(localScale - 1) < 0.01 && (
+          <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14, marginTop: 2 }}>
+            {t(
+              'intro.sliderHintFullScale',
+              'At 100% the intro fills the canvas — move Scale below 100% to use Horizontal/Vertical sliders.',
+            )}
+          </Text>
+        )}
         <SliderLabelRow
           label={t('intro.sliderDuration', 'Duration')}
           value={`${localDuration.toFixed(1)}s`}
