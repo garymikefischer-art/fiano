@@ -561,32 +561,23 @@ export function buildTikTokExportArgs(
   let finalAudio: string;
   const introMode = opts.intro?.mode ?? 'before';
   if (opts.intro && introInputIdx >= 0 && introMode === 'overlay') {
-    // Phase 9.6.6.1 + Builder-9: Intro skaliert + per x/y positioniert + zeitlich
-    // begrenzt. Aspect: CONTAIN-mode (decrease+pad) — Intro wird vollständig
-    // sichtbar, mit black bars falls aspect mismatch zur Box. RN-Preview nutzt
-    // `resizeMode="contain"` zur Parität.
-    // Phase Builder-10: scale-Range 0.2..4.0. Auto-Mode:
-    //  scale ≤ 1.0 → CONTAIN (decrease+pad): volles Intro sichtbar, evtl. mit
-    //                schwarzen Balken bei aspect mismatch zur Box.
-    //  scale > 1.0  → COVER (increase+crop): Intro überlappt Box, kein Letter-
-    //                box mehr. Crops sind dafür sichtbar.
+    // Phase A4.f (2026-05-18): scale referenziert die VIDEO-BREITE, Höhe
+    // wird via `:-2` automatisch aus dem Source-Aspect abgeleitet. Position
+    // dann mit overlay-Expression `(W-w)*X:(H-h)*Y` — w/h sind die echten
+    // gerenderten Intro-Dimensionen. Effekt: Y-Slider geht edge-to-edge
+    // (nicht mehr eine quadratische scale-Box mit padding).
+    // scale-clamp bleibt 0.2..4.0 für Desktop-legacy; Mobile-Slider cap=1.0.
     const scale = clamp(opts.intro.scale ?? 1.0, 0.2, 4.0);
-    const introW = Math.round(W * scale);
-    const introH = Math.round(H * scale);
     const xFrac = clamp(opts.intro.x ?? 0, 0, 1);
     const yFrac = clamp(opts.intro.y ?? 0, 0, 1);
-    const overlayX = Math.round((W - introW) * xFrac);
-    const overlayY = Math.round((H - introH) * yFrac);
     const overlayDur = Math.max(0.5, opts.intro.durationSec ?? 3);
-    // Phase A4.d (2026-05-18): always contain (no flip at scale=1).
-    const introFitFilter =
-      `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
-      `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black`;
+    const introTargetW = Math.max(2, Math.round(W * scale));
     filters.push(
-      `[${introInputIdx}:v]${introFitFilter},fps=${fps},setsar=1[introV]`,
+      `[${introInputIdx}:v]scale=${introTargetW}:-2:flags=lanczos,fps=${fps},setsar=1[introV]`,
     );
     filters.push(
-      `${videoComposed}[introV]overlay=${overlayX}:${overlayY}:` +
+      `${videoComposed}[introV]overlay=` +
+        `x='(W-w)*${xFrac.toFixed(4)}':y='(H-h)*${yFrac.toFixed(4)}':` +
         `enable='between(t,0,${overlayDur.toFixed(2)})'[vfinal]`,
     );
     finalVideo = '[vfinal]';
@@ -594,42 +585,22 @@ export function buildTikTokExportArgs(
   } else if (opts.intro && introInputIdx >= 0) {
     // 'before' = Intro spielt komplett, dann Main-Composition. Beide auf 9:16/16:9.
     //
-    // Phase A4 (2026-05-17): scale + x + y + auto-fit werden jetzt auch im
-    // before-Mode angewendet. Vorher (Doku §6 known bug): hardcoded
-    // scale=W:H increase+crop = immer cover-full, scale/x/y ignoriert →
-    // bei Letterbox-Intros keine Workaround-Möglichkeit ohne overlay-Mode.
-    //
-    // Neue Pipeline pro Intro-Frame:
-    //   1. Intro-Source auf (W*scale) × (H*scale) skalieren via auto-fit:
-    //      - scale ≤ 1.0 → contain (decrease+pad mit black) — Intro voll,
-    //        ggf. mit schwarzem Padding bei aspect-mismatch
-    //      - scale > 1.0  → cover (increase+crop) — Intro überlappt Bounds,
-    //        kein Letterbox mehr
-    //   2. In W × H Canvas einbetten mit x/y-Offset (overlay mit black Hintergrund).
-    //   3. fps + setsar + concat zur main-Composition.
+    // Phase A4.f (2026-05-18): Intro-Frame wird auf canvas-Größe gepaddet,
+    // wobei Intro selbst auf width=W*scale skaliert wird und position via
+    // FFmpeg `pad x/y` Expressions `(W-iw)*X:(H-ih)*Y` (iw/ih = scaled intro
+    // dims). Damit gilt: Y=0 → Intro-Top bündig mit Canvas-Top; Y=1 → Intro-
+    // Bottom bündig mit Canvas-Bottom; aspect-erhaltend, kein Crop.
     const introScale = clamp(opts.intro.scale ?? 1.0, 0.2, 4.0);
-    const introW = Math.round(W * introScale);
-    const introH = Math.round(H * introScale);
     const introXFrac = clamp(opts.intro.x ?? 0, 0, 1);
     const introYFrac = clamp(opts.intro.y ?? 0, 0, 1);
-    // Position innerhalb der Canvas. Bei scale>1 ist Offset negativ (Intro
-    // ragt raus → wird gecroppt). Bei scale≤1 ist Offset positiv (Pad-Margins).
-    const introOverlayX = Math.round((W - introW) * introXFrac);
-    const introOverlayY = Math.round((H - introH) * introYFrac);
-    // Phase A4.d (2026-05-18): ALWAYS contain. Vorher gab's einen Flip bei
-    // scale=1.0 (contain ↔ cover) der visuell dramatisch wirkte. Now smooth.
-    const containFit =
-      `scale=${introW}:${introH}:force_original_aspect_ratio=decrease,` +
-      `pad=${introW}:${introH}:(ow-iw)/2:(oh-ih)/2:color=black`;
-    let introFinalize: string;
-    if (introScale > 1.0) {
-      // Intro contain within larger bounds, then crop to canvas
-      introFinalize = `${containFit},crop=${W}:${H}:${-introOverlayX}:${-introOverlayY}`;
-    } else {
-      // Intro contain within bounds, then pad to canvas
-      introFinalize = `${containFit},pad=${W}:${H}:${introOverlayX}:${introOverlayY}:color=black`;
-    }
-    filters.push(`[${introInputIdx}:v]${introFinalize},fps=${fps},setsar=1[introV]`);
+    const introTargetW = Math.max(2, Math.round(W * introScale));
+    filters.push(
+      `[${introInputIdx}:v]scale=${introTargetW}:-2:flags=lanczos,` +
+        `pad=${W}:${H}:` +
+        `x='(${W}-iw)*${introXFrac.toFixed(4)}':` +
+        `y='(${H}-ih)*${introYFrac.toFixed(4)}':color=black,` +
+        `fps=${fps},setsar=1[introV]`,
+    );
     filters.push(`[${introInputIdx}:a]aresample=async=1[introA]`);
     // concat n=2 erwartet alternating video+audio pro segment: [v0][a0][v1][a1].
     filters.push(

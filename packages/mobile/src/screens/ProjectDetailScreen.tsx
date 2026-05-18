@@ -70,6 +70,7 @@ import { VoiceOversSection } from '../components/VoiceOversSection';
 import { CueEditorModal } from '../components/CueEditorModal';
 import { ActionSheet, type ActionSheetItem } from '../components/ActionSheet';
 import { RegionPickerModal } from '../components/RegionPickerModal';
+import { TrimModal } from '../components/TrimModal';
 import { extractVideoThumbnail } from '../lib/thumbnails';
 import { transcribeVideo, transcribeMultiSource } from '../lib/whisper';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
@@ -1961,6 +1962,8 @@ function TikTokTab({
   // selectedClipIdx wählt den aktiven Clip; effective-sourceUri/trim werden in
   // LayoutPreview UND Export-Navigation genutzt.
   const [selectedClipIdx, setSelectedClipIdx] = useState(0);
+  // Phase B5 (2026-05-18): TrimModal-State. null = closed.
+  const [editingClipIdx, setEditingClipIdx] = useState<number | null>(null);
   const clips = project.clips ?? [];
   const showClipSelector = clips.length >= 2;
   const safeIdx = Math.min(selectedClipIdx, Math.max(0, clips.length - 1));
@@ -2194,6 +2197,32 @@ function TikTokTab({
                         <Ionicons name="checkmark" size={14} color="#fff" />
                       </View>
                     )}
+                    {/* Phase B5 (2026-05-18): Trim/Edit-Button. Öffnet TrimModal
+                        für diesen Clip. stopPropagation damit der Card-Tap
+                        (selectClip) nicht zusätzlich feuert. */}
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        haptic.selection();
+                        setEditingClipIdx(i);
+                      }}
+                      hitSlop={6}
+                      style={{
+                        position: 'absolute',
+                        bottom: 6,
+                        right: 6,
+                        width: 26,
+                        height: 26,
+                        borderRadius: 13,
+                        backgroundColor: 'rgba(0,0,0,0.75)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.18)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="cut-outline" size={13} color="#fff" />
+                    </Pressable>
                   </View>
                   <View style={{ padding: 8 }}>
                     <Text
@@ -2787,6 +2816,88 @@ function TikTokTab({
         }}
       />
 
+      {/* Phase B5 (2026-05-18): TrimModal pro Clip. Save = update startSec/
+          endSec. Split = clip wird in 2 Clips am Playhead aufgeteilt (gleiche
+          sourceIdx, neue IDs). */}
+      {editingClipIdx !== null && clips[editingClipIdx] && (() => {
+        const editClip = clips[editingClipIdx];
+        // Source-Resolution analog effectiveSourceUri-Logik.
+        const explicitSrcIdx = editClip.sourceIdx;
+        const trimSourceUri =
+          explicitSrcIdx !== undefined && projectSourceUris[explicitSrcIdx] !== undefined
+            ? projectSourceUris[explicitSrcIdx]
+            : isMultiSource
+              ? projectSourceUris[Math.min(editingClipIdx, projectSourceUris.length - 1)]
+              : project.sourceUri;
+        if (!trimSourceUri) return null;
+        return (
+          <TrimModal
+            visible={true}
+            sourceUri={trimSourceUri}
+            initialStartSec={editClip.startSec}
+            initialEndSec={editClip.endSec}
+            sourceDuration={
+              project.perClipDurations?.[
+                explicitSrcIdx ?? editingClipIdx
+              ] ?? undefined
+            }
+            clipLabel={editClip.label || `Clip ${editingClipIdx + 1}`}
+            t={t}
+            onClose={() => setEditingClipIdx(null)}
+            onSave={(s, e) => {
+              const idx = editingClipIdx;
+              setEditingClipIdx(null);
+              const latest = useProjectsStore.getState().projects.find(
+                (p) => p.id === project.id,
+              );
+              if (!latest) return;
+              const nextClips = (latest.clips ?? []).map((cc, i) =>
+                i === idx ? { ...cc, startSec: s, endSec: e } : cc,
+              );
+              updateProject(project.id, { clips: nextClips });
+            }}
+            onSplit={(atSec) => {
+              const idx = editingClipIdx;
+              setEditingClipIdx(null);
+              const latest = useProjectsStore.getState().projects.find(
+                (p) => p.id === project.id,
+              );
+              if (!latest) return;
+              const original = (latest.clips ?? [])[idx];
+              if (!original) return;
+              // Split: original wird zu zwei Clips. ID-Generierung analog
+              // projectsStore.generateId.
+              const newIdLeft = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+              const newIdRight = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}a`;
+              const left: DemoClip = {
+                ...original,
+                id: newIdLeft,
+                startSec: original.startSec,
+                endSec: atSec,
+                label: original.label
+                  ? `${original.label} (1)`
+                  : `Clip ${idx + 1}.1`,
+              };
+              const right: DemoClip = {
+                ...original,
+                id: newIdRight,
+                startSec: atSec,
+                endSec: original.endSec,
+                label: original.label
+                  ? `${original.label} (2)`
+                  : `Clip ${idx + 1}.2`,
+                // Neuer Clip braucht eigenes Thumb — wird via thumb-auto-gen
+                // useEffect (Phase 9.5.8.3) ergänzt.
+                thumbUri: undefined,
+              };
+              const nextClips = [...(latest.clips ?? [])];
+              nextClips.splice(idx, 1, left, right);
+              updateProject(project.id, { clips: nextClips });
+            }}
+          />
+        );
+      })()}
+
       {/* Export-Settings-Modal vor Export-Click. */}
       {exportModalOpen && effectiveSourceUri && (
         <ExportSettingsModal
@@ -3014,6 +3125,13 @@ function FullModePreview({
   const [durationSec, setDurationSec] = useState(0);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [trackWidth, setTrackWidth] = useState(0);
+  // Phase A4.f (2026-05-18): intro source-aspect (width/height) wird via
+  // Video.onLoad.naturalSize captured. Math nutzt das um Position relativ zu
+  // den VIDEO-Bounds zu berechnen (Y-Slider geht edge-to-edge).
+  const [introSrcAspect, setIntroSrcAspect] = useState<number | null>(null);
+  useEffect(() => {
+    setIntroSrcAspect(null);
+  }, [introUri]);
   // Phase Builder-5: sequential-playback state für Multi-Source-Builder.
   const [currentIdx, setCurrentIdx] = useState(0);
   const videoRef = useRef<VideoRef>(null);
@@ -3194,21 +3312,33 @@ function FullModePreview({
     }
   };
 
-  // Phase A4 (2026-05-17): scale/x/y/auto-fit jetzt in BEIDEN Modi
-  // (before+overlay) — preview muss Worker FFmpeg-Math 1:1 spiegeln.
-  // Formel: introW = W*scale, introH = H*scale, overlay at (W-introW)*x,
-  // (H-introH)*y. Mobile-RN nutzt percentages relative zu Container-Dim.
-  // Phase A4.e (2026-05-18): scale gecapped auf max=1.0. Legacy-Projects
-  // mit scale>1 werden visually wie scale=1 gerendert (keine cover-flip).
-  const introWidthPct = Math.max(0.2, Math.min(1, introScale));
+  // Phase A4.f (2026-05-18): scale referenziert die VIDEO-BREITE (nicht
+  // eine quadratische scale-Box wie vor A4.f). Die Höhe ergibt sich aus
+  // dem Source-Aspect, damit das gerenderte Video selbst den Canvas-Rand
+  // erreicht (Y-Slider edge-to-edge auch bei aspect-mismatch).
+  // Math:
+  //   widthFrac = scale (0.2..1.0)
+  //   heightFrac = widthFrac * canvasAspect / sourceAspect
+  //   (heightFrac>1 case: cap → super-vertikale Intros)
+  //   leftFrac = x * (1 - widthFrac), topFrac = y * (1 - heightFrac)
+  // Worker (ffmpegArgs.ts) nutzt FFmpeg-`overlay=x=(W-w)*X:y=(H-h)*Y`
+  // Expressions die das gleiche Resultat ergeben.
+  const widthFracDesired = Math.max(0.2, Math.min(1, introScale));
+  const srcAspect = introSrcAspect ?? aspect;
+  let introWidthPct = widthFracDesired;
+  let introHeightPct = widthFracDesired * aspect / srcAspect;
+  if (introHeightPct > 1) {
+    introWidthPct = introWidthPct / introHeightPct;
+    introHeightPct = 1;
+  }
   const introLeftPct = introX * (1 - introWidthPct);
-  const introTopPct = introY * (1 - introWidthPct);
+  const introTopPct = introY * (1 - introHeightPct);
   const introStyle = {
     position: 'absolute' as const,
     left: `${introLeftPct * 100}%`,
     top: `${introTopPct * 100}%`,
     width: `${introWidthPct * 100}%`,
-    height: `${introWidthPct * 100}%`,
+    height: `${introHeightPct * 100}%`,
   };
 
   return (
@@ -3318,6 +3448,12 @@ function FullModePreview({
           // ffmpegArgs.ts A4.d). Aspect-Pad wird bei aspect-mismatch sichtbar
           // bei jeder Scale-Stufe.
           resizeMode="contain"
+          onLoad={(d: any) => {
+            const ns = d?.naturalSize;
+            if (ns && ns.width > 0 && ns.height > 0) {
+              setIntroSrcAspect(ns.width / ns.height);
+            }
+          }}
           onEnd={() => setIntroPlaying(false)}
           onError={() => setIntroPlaying(false)}
           style={[
@@ -3555,6 +3691,12 @@ function StackedSplitPreview({
   // Intro-Playback-Phase (Phase 9.6.6 Preview): wenn Intro vorhanden + User
   // tippt Play → erst spielt das Intro (full-screen), dann der Main-Stacked-Preview.
   const [introPlaying, setIntroPlaying] = useState(false);
+  // Phase A4.f (2026-05-18): intro source-aspect (via onLoad.naturalSize)
+  // — siehe FullModePreview-Erklärung.
+  const [introSrcAspect, setIntroSrcAspect] = useState<number | null>(null);
+  useEffect(() => {
+    setIntroSrcAspect(null);
+  }, [introUri]);
   const [paused, setPaused] = useState(true);
   const [muted, setMuted] = useState(false);
   const [currentSec, setCurrentSec] = useState(0);
@@ -3739,9 +3881,19 @@ function StackedSplitPreview({
           Pre-mounted für weniger Stutter beim zweiten Play. */}
       {videosActive && introUri && (() => {
         const isOverlay = introMode === 'overlay';
-        // Phase A4.e (2026-05-18): scale gecapped auf max=1.0.
-        const widthPct = isOverlay ? Math.max(0.2, Math.min(1, introScale)) : 1;
-        const heightPct = widthPct;
+        // Phase A4.f (2026-05-18): Position math basiert auf VIDEO-bounds
+        // (siehe FullModePreview-Erklärung). StackedSplit canvas immer 9:16.
+        const canvasAspect = 9 / 16;
+        const widthFracDesired = isOverlay
+          ? Math.max(0.2, Math.min(1, introScale))
+          : 1;
+        const srcAspect = introSrcAspect ?? canvasAspect;
+        let widthPct = widthFracDesired;
+        let heightPct = widthFracDesired * canvasAspect / srcAspect;
+        if (heightPct > 1) {
+          widthPct = widthPct / heightPct;
+          heightPct = 1;
+        }
         const leftPct = isOverlay ? introX * (1 - widthPct) : 0;
         const topPct = isOverlay ? introY * (1 - heightPct) : 0;
         const overlayStyle = isOverlay
@@ -3765,6 +3917,12 @@ function StackedSplitPreview({
             // scale>1 flipte zu cover → "110% sieht wie 200% aus" User-Report.
             // Before-mode bleibt cover (fullscreen intro vor Main).
             resizeMode={introMode === 'overlay' ? 'contain' : 'cover'}
+            onLoad={(d: any) => {
+              const ns = d?.naturalSize;
+              if (ns && ns.width > 0 && ns.height > 0) {
+                setIntroSrcAspect(ns.width / ns.height);
+              }
+            }}
             onEnd={() => setIntroPlaying(false)}
             onError={() => setIntroPlaying(false)}
             style={[
