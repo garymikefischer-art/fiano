@@ -25,6 +25,7 @@ import {
   type ExportFps,
   type ExportResolution,
   type ExportBitrate,
+  type ThemeMode,
 } from '../stores/appStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { RegionPreview } from '../components/RegionPreview';
@@ -58,6 +59,8 @@ export function SettingsScreen() {
   const setYoutubeCookies = useAppStore((s) => s.setYoutubeCookies);
   const exportSettings = useAppStore((s) => s.exportSettings);
   const setExportSettings = useAppStore((s) => s.setExportSettings);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const setThemeMode = useAppStore((s) => s.setThemeMode);
   const [openaiInput, setOpenaiInput] = useState(openaiKey);
   const [geminiInput, setGeminiInput] = useState(geminiKey);
   const [youtubeCookiesInput, setYoutubeCookiesInput] = useState(youtubeCookies);
@@ -318,6 +321,12 @@ export function SettingsScreen() {
               }
             }}
           />
+        </Group>
+
+        {/* Phase B3 (2026-05-18): Appearance-Switch (Light/Dark/System). */}
+        <SectionLabel>{t('settings.appearanceHeading', 'APPEARANCE').toUpperCase()}</SectionLabel>
+        <Group>
+          <ThemePicker themeMode={themeMode} setThemeMode={setThemeMode} t={t} />
         </Group>
 
         {/* Capture Regions — analog Desktop Settings → Appearance / Capture */}
@@ -881,5 +890,66 @@ function Row({
     <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
       {content}
     </Pressable>
+  );
+}
+
+/**
+ * Phase B3 (2026-05-18): Theme-Picker — Segmented-Control mit 3 Options.
+ * 'system' folgt OS-Setting, 'light' und 'dark' overrident.
+ */
+function ThemePicker({
+  themeMode,
+  setThemeMode,
+  t,
+}: {
+  themeMode: ThemeMode;
+  setThemeMode: (m: ThemeMode) => void | Promise<void>;
+  t: (k: string, f?: string) => string;
+}) {
+  const options: { value: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { value: 'light', label: t('settings.themeLight', 'Light'), icon: 'sunny-outline' },
+    { value: 'dark', label: t('settings.themeDark', 'Dark'), icon: 'moon-outline' },
+    { value: 'system', label: t('settings.themeSystem', 'System'), icon: 'phone-portrait-outline' },
+  ];
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
+      {options.map((opt) => {
+        const active = themeMode === opt.value;
+        return (
+          <Pressable
+            key={opt.value}
+            onPress={() => {
+              haptic.selection();
+              void setThemeMode(opt.value);
+            }}
+            style={({ pressed }) => ({
+              flex: 1,
+              paddingVertical: 12,
+              borderRadius: 12,
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: active
+                ? 'rgba(255,16,57,0.18)'
+                : pressed
+                  ? 'rgba(255,255,255,0.08)'
+                  : 'rgba(255,255,255,0.04)',
+              borderWidth: 1,
+              borderColor: active ? 'rgba(255,16,57,0.45)' : 'rgba(255,255,255,0.08)',
+            })}
+          >
+            <Ionicons name={opt.icon} size={18} color={active ? '#ff1039' : '#a1a1aa'} />
+            <Text
+              style={{
+                color: active ? '#ff1039' : '#f1f2f2',
+                fontSize: 12,
+                fontWeight: '700',
+              }}
+            >
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
