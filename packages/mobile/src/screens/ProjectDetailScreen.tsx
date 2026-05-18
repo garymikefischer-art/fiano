@@ -83,6 +83,14 @@ import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicke
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
 import * as sounds from '../lib/sounds';
+// Phase B1 (2026-05-18): Drag-Reorder im Builder-Tab via long-press.
+// Nestable-Varianten weil die Liste innerhalb eines ScrollViews lebt.
+import {
+  NestableScrollContainer,
+  NestableDraggableFlatList,
+  ScaleDecorator,
+  type RenderItemParams,
+} from 'react-native-draggable-flatlist';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ProjectDetail'>;
@@ -5276,8 +5284,124 @@ function BuilderTab({
     );
   }
 
+  // Phase B1 (2026-05-18): Drag-Reorder onDragEnd. Persistiert in project.clipOrder.
+  // Restliche unselected clips ans Ende anhängen, damit clipOrder vollständig bleibt
+  // (analog moveItem). Ohne den Catch-up würden Highlight-Toggles die Reihenfolge
+  // anderer Items verwerfen.
+  const onBuilderDragEnd = ({ data }: { data: BuilderItem[] }) => {
+    haptic.medium();
+    const newIds = data.map((i) => i.id);
+    const restIds = project.clips
+      .map((c) => c.id)
+      .filter((id) => !newIds.includes(id));
+    updateProject(project.id, { clipOrder: [...newIds, ...restIds] });
+  };
+
+  const renderBuilderItem = ({
+    item,
+    drag,
+    isActive,
+    getIndex,
+  }: RenderItemParams<BuilderItem>) => {
+    const isExtra = item.kind === 'extra';
+    const idx = getIndex() ?? 0;
+    const isFirst = idx === 0;
+    const isLast = idx === orderedItems.length - 1;
+    return (
+      <ScaleDecorator>
+        <Pressable
+          onLongPress={() => {
+            haptic.selection();
+            drag();
+          }}
+          delayLongPress={180}
+          disabled={isActive}
+          style={({ pressed }) => ({
+            gap: 8,
+            padding: 12,
+            marginBottom: 8,
+            borderRadius: 14,
+            backgroundColor: isExtra ? 'rgba(255,16,57,0.06)' : 'rgba(255,255,255,0.04)',
+            borderWidth: 1,
+            borderColor: isExtra ? 'rgba(255,16,57,0.25)' : 'rgba(255,255,255,0.08)',
+            opacity: isActive ? 0.92 : pressed ? 0.94 : 1,
+          })}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ gap: 4 }}>
+              <ReorderArrow
+                icon="chevron-up"
+                disabled={isFirst}
+                onPress={() => moveItem(item.id, -1)}
+              />
+              <ReorderArrow
+                icon="chevron-down"
+                disabled={isLast}
+                onPress={() => moveItem(item.id, 1)}
+              />
+            </View>
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                backgroundColor: 'rgba(255,16,57,0.18)',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Ionicons
+                name={isExtra ? 'film-outline' : 'sparkles-outline'}
+                size={14}
+                color="#ff1039"
+              />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+                {item.kind === 'clip'
+                  ? item.clip.label
+                  : (item.extra.filename ?? t('builder.extraLabel', 'Extra video'))}
+              </Text>
+              <Text style={{ color: '#71717a', fontSize: 11, fontVariant: ['tabular-nums'] }}>
+                {item.kind === 'clip'
+                  ? `${formatTimecode(item.clip.startSec)} → ${formatTimecode(item.clip.endSec)} · ${formatDuration(item.clip.endSec - item.clip.startSec)}`
+                  : item.extra.durationSec
+                    ? `${formatTimecode(item.extra.trimStart ?? 0)} → ${formatTimecode(item.extra.trimEnd ?? item.extra.durationSec)} · ${formatDuration((item.extra.trimEnd ?? item.extra.durationSec) - (item.extra.trimStart ?? 0))}`
+                    : t('builder.extraBadge', 'Extra · added video')}
+              </Text>
+            </View>
+            {item.kind === 'clip' && (
+              <Pressable
+                onPress={() => {
+                  haptic.selection();
+                  setEditingClipId(item.clip.id);
+                }}
+                hitSlop={6}
+                style={({ pressed }) => ({
+                  padding: 6,
+                  borderRadius: 8,
+                  backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'transparent',
+                })}
+              >
+                <Ionicons name="cut-outline" size={16} color="#a1a1aa" />
+              </Pressable>
+            )}
+            {isExtra && (
+              <Pressable onPress={() => removeExtra(item.id)} hitSlop={6} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={18} color="#71717a" />
+              </Pressable>
+            )}
+          </View>
+          {isExtra && (
+            <ExtraTrimEditor projectId={project.id} extra={item.extra} t={t} />
+          )}
+        </Pressable>
+      </ScaleDecorator>
+    );
+  };
+
   return (
-    <ScrollView
+    <NestableScrollContainer
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 14 }}
       showsVerticalScrollIndicator={false}
     >
@@ -5352,94 +5476,17 @@ function BuilderTab({
       </View>
 
       <View style={{ gap: 8 }}>
-        {orderedItems.map((item, idx) => {
-          const isExtra = item.kind === 'extra';
-          return (
-            <View
-              key={item.id}
-              style={{
-                gap: 8,
-                padding: 12,
-                borderRadius: 14,
-                backgroundColor: isExtra ? 'rgba(255,16,57,0.06)' : 'rgba(255,255,255,0.04)',
-                borderWidth: 1,
-                borderColor: isExtra ? 'rgba(255,16,57,0.25)' : 'rgba(255,255,255,0.08)',
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ gap: 4 }}>
-                  <ReorderArrow
-                    icon="chevron-up"
-                    disabled={idx === 0}
-                    onPress={() => moveItem(item.id, -1)}
-                  />
-                  <ReorderArrow
-                    icon="chevron-down"
-                    disabled={idx === orderedItems.length - 1}
-                    onPress={() => moveItem(item.id, 1)}
-                  />
-                </View>
-                <View
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 8,
-                    backgroundColor: 'rgba(255,16,57,0.18)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Ionicons
-                    name={isExtra ? 'film-outline' : 'sparkles-outline'}
-                    size={14}
-                    color="#ff1039"
-                  />
-                </View>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
-                    {item.kind === 'clip' ? item.clip.label : (item.extra.filename ?? t('builder.extraLabel', 'Extra video'))}
-                  </Text>
-                  <Text style={{ color: '#71717a', fontSize: 11, fontVariant: ['tabular-nums'] }}>
-                    {item.kind === 'clip'
-                      ? `${formatTimecode(item.clip.startSec)} → ${formatTimecode(item.clip.endSec)} · ${formatDuration(item.clip.endSec - item.clip.startSec)}`
-                      : item.extra.durationSec
-                        ? `${formatTimecode(item.extra.trimStart ?? 0)} → ${formatTimecode(item.extra.trimEnd ?? item.extra.durationSec)} · ${formatDuration((item.extra.trimEnd ?? item.extra.durationSec) - (item.extra.trimStart ?? 0))}`
-                        : t('builder.extraBadge', 'Extra · added video')}
-                  </Text>
-                </View>
-                {/* Phase B0 (2026-05-18): Scissors-Trim auf Highlight-Clips
-                    (Parität mit 9:16-Tab). Extras haben separaten Inline-
-                    Editor (ExtraTrimEditor) unten. */}
-                {item.kind === 'clip' && (
-                  <Pressable
-                    onPress={() => {
-                      haptic.selection();
-                      setEditingClipId(item.clip.id);
-                    }}
-                    hitSlop={6}
-                    style={({ pressed }) => ({
-                      padding: 6,
-                      borderRadius: 8,
-                      backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'transparent',
-                    })}
-                  >
-                    <Ionicons name="cut-outline" size={16} color="#a1a1aa" />
-                  </Pressable>
-                )}
-                {isExtra && (
-                  <Pressable onPress={() => removeExtra(item.id)} hitSlop={6} style={{ padding: 4 }}>
-                    <Ionicons name="close-circle" size={18} color="#71717a" />
-                  </Pressable>
-                )}
-              </View>
-              {/* Phase Builder-3: Trim-Editor inline pro Extra. Probe duration
-                  lazy + 2 SimpleSlider (start, end). */}
-              {isExtra && (
-                <ExtraTrimEditor projectId={project.id} extra={item.extra} t={t} />
-              )}
-            </View>
-          );
-        })}
+        {/* Phase B1 (2026-05-18): long-press → drag-reorder via
+            NestableDraggableFlatList (lebt innerhalb des Builder-ScrollView).
+            ReorderArrow bleibt als A11y-Fallback erhalten. ItemSeparator wird
+            durch marginBottom auf den Cards realisiert (Phase B1, renderBuilderItem). */}
+        <NestableDraggableFlatList
+          data={orderedItems}
+          keyExtractor={(item) => item.id}
+          renderItem={renderBuilderItem}
+          onDragEnd={onBuilderDragEnd}
+          activationDistance={20}
+        />
         {/* Add-Extra-Video-Button (Phase Builder-3) */}
         <Pressable
           onPress={addExtraVideo}
@@ -5901,7 +5948,7 @@ function BuilderTab({
           }}
         />
       )}
-    </ScrollView>
+    </NestableScrollContainer>
   );
 }
 
