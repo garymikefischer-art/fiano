@@ -39,28 +39,48 @@ type R = RouteProp<RootStackParamList, 'Export'>;
 
 type Phase = 'idle' | 'uploading' | 'rendering' | 'saving' | 'done' | 'failed' | 'canceled';
 
+/** Chunked-Cue mit clipIndex-Pass-through (Phase B6.1, 2026-05-18). */
+interface ChunkedCue {
+  startSec: number;
+  endSec: number;
+  text: string;
+  /** Von der ursprünglichen Cue durchgereicht — identifiziert die source bei
+   *  Multi-Source-Projekten. undefined = single-source / legacy. */
+  clipIndex?: number;
+}
+
 /**
  * Splittet eine Cue in N-Wort-Chunks. Phase Builder-4: wenn cue.words mit
  * Word-level-Timestamps (Whisper) vorhanden ist, nutze ECHTE per-word-Zeiten.
  * Sonst fallback auf proportionale Aufteilung des cue-Ranges.
+ *
+ * Phase B6.1 (2026-05-18): Pass-through von clipIndex damit Multi-Source-
+ * Subs nach Chunking weiterhin der richtigen Source zugeordnet werden können.
  */
 function chunkCueByWords(
-  cue: { startSec: number; endSec: number; text: string; words?: { text: string; startSec: number; endSec: number }[] },
+  cue: {
+    startSec: number;
+    endSec: number;
+    text: string;
+    words?: { text: string; startSec: number; endSec: number }[];
+    clipIndex?: number;
+  },
   maxWords: number,
-): { startSec: number; endSec: number; text: string }[] {
+): ChunkedCue[] {
   // Word-level path: nutze echte Whisper-Timestamps.
   if (cue.words && cue.words.length > 0) {
     if (cue.words.length <= maxWords) {
       // Cue ist klein genug → behalte als ein chunk mit ursprünglichem Text.
-      return [{ startSec: cue.startSec, endSec: cue.endSec, text: cue.text }];
+      return [{ startSec: cue.startSec, endSec: cue.endSec, text: cue.text, clipIndex: cue.clipIndex }];
     }
-    const out: { startSec: number; endSec: number; text: string }[] = [];
+    const out: ChunkedCue[] = [];
     for (let i = 0; i < cue.words.length; i += maxWords) {
       const chunkWords = cue.words.slice(i, i + maxWords);
       out.push({
         startSec: chunkWords[0].startSec,
         endSec: chunkWords[chunkWords.length - 1].endSec,
         text: chunkWords.map((w) => w.text).join(' '),
+        clipIndex: cue.clipIndex,
       });
     }
     return out;
@@ -68,10 +88,10 @@ function chunkCueByWords(
   // Fallback: proportionale Aufteilung (für alte Projekte ohne word-timestamps).
   const words = cue.text.trim().split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) {
-    return [{ startSec: cue.startSec, endSec: cue.endSec, text: cue.text }];
+    return [{ startSec: cue.startSec, endSec: cue.endSec, text: cue.text, clipIndex: cue.clipIndex }];
   }
   const totalDur = Math.max(0.1, cue.endSec - cue.startSec);
-  const out: { startSec: number; endSec: number; text: string }[] = [];
+  const out: ChunkedCue[] = [];
   for (let i = 0; i < words.length; i += maxWords) {
     const chunkWords = words.slice(i, i + maxWords);
     const fracStart = i / words.length;
@@ -80,6 +100,7 @@ function chunkCueByWords(
       startSec: cue.startSec + fracStart * totalDur,
       endSec: cue.startSec + fracEnd * totalDur,
       text: chunkWords.join(' '),
+      clipIndex: cue.clipIndex,
     });
   }
   return out;
@@ -209,31 +230,63 @@ export function ExportScreen() {
         : params.sourceDuration ?? ts + 60;
       const clipDur = Math.max(0.1, te - ts);
 
-      // Builder cue-mapping: cues sind absolute Source-Times zum project.sourceUri
-      // (Whisper-Output). Beim per-source-trim sind sie nur für clips relevant
-      // die aus dieser Source kommen. Bei Multi-Clip-Import ist project.sourceUri
-      // = sourceUris[0] (first picked) — Whisper hat das analysiert.
+      // Phase B6.1 (2026-05-18): Multi-Source-aware cue mapping.
+      //
+      // Multi-Source-Projects haben cues mit `clipIndex` (gesetzt durch
+      // transcribeMultiSource) — der Index in `project.sourceUris[]`. Cue-
+      // Times sind GLOBAL (offset durch Summe der vorherigen Source-Durations).
+      //
+      // Mapping-Algorithmus:
+      //   1. Cue's source bestimmen: cue.clipIndex → project.sourceUris[ci]
+      //   2. Cue's source-local-time = cue.startSec - sourceOffset (Summe der
+      //      perClipDurations[0..clipIndex-1])
+      //   3. Cue's source-idx in unique-Map: uniqueSrcMap.get(sourceUri)
+      //   4. Iterate selected clips, match nur clips mit src=cueSrcIdx.
+      //   5. Bei overlap → return output-time.
+      //
+      // Single-Source-Fallback: clipIndex undefined → assume primary source,
+      // sourceOffset=0, match against clips with src=primarySrcIdx.
       const primarySourceUri =
         project?.sourceUri ??
         project?.sourceUris?.[0] ??
         '';
       const primarySrcIdx = primarySourceUri ? uniqueSrcMap.get(primarySourceUri) : undefined;
+      const projectSourceUris = project?.sourceUris ?? [];
+      const perClipDurations = project?.perClipDurations ?? [];
+      const sourceOffsetForClipIdx = (ci: number): number => {
+        let off = 0;
+        for (let i = 0; i < ci && i < perClipDurations.length; i++) {
+          off += perClipDurations[i] ?? 0;
+        }
+        return off;
+      };
 
       const mapCueToOutput = (
-        c: { startSec: number; endSec: number; text: string },
+        c: ChunkedCue,
       ): { startSec: number; endSec: number; text: string } | null => {
         if (hasItemPlan && builderClips.length > 0) {
+          // Cue's source ableiten.
+          const ci = c.clipIndex;
+          const cueSourceUri =
+            ci !== undefined && projectSourceUris[ci] !== undefined
+              ? projectSourceUris[ci]
+              : primarySourceUri;
+          const cueSrcIdx = cueSourceUri ? uniqueSrcMap.get(cueSourceUri) : undefined;
+          if (cueSrcIdx === undefined) return null;
+          // Cue auf source-local time bringen (Multi-Source: globale Time
+          // minus Source-Offset). Single-source: clipIndex undef → offset 0.
+          const sourceOffset = ci !== undefined ? sourceOffsetForClipIdx(ci) : 0;
+          const cueLocalStart = c.startSec - sourceOffset;
+          const cueLocalEnd = c.endSec - sourceOffset;
           let outOffset = 0;
           for (const clip of builderClips) {
             const dur = Math.max(0, clip.endSec - clip.startSec);
-            // Cues nur an clips matchen die aus der primary source kommen
-            // (cues sind nur zu dieser Source absolut). Extras-clips skip.
-            if (primarySrcIdx === undefined || clip.src !== primarySrcIdx) {
+            if (clip.src !== cueSrcIdx) {
               outOffset += dur;
               continue;
             }
-            const overlapStart = Math.max(c.startSec, clip.startSec);
-            const overlapEnd = Math.min(c.endSec, clip.endSec);
+            const overlapStart = Math.max(cueLocalStart, clip.startSec);
+            const overlapEnd = Math.min(cueLocalEnd, clip.endSec);
             if (overlapEnd > overlapStart + 0.04) {
               return {
                 startSec: outOffset + Math.max(0, overlapStart - clip.startSec),
@@ -255,6 +308,9 @@ export function ExportScreen() {
           text: c.text,
         };
       };
+      // Note: primarySrcIdx Referenz vom Logging unten genutzt (war vorher
+      // direkt in der Mapping-Funktion).
+      void primarySrcIdx;
       const chunkedCues = chunkedRaw
         .map(mapCueToOutput)
         .filter((c): c is { startSec: number; endSec: number; text: string } => c !== null);
