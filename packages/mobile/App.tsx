@@ -5,11 +5,11 @@
  * navigiert zwischen Auth-Stack und App-Stack basierend auf Login-State.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
 
 import { Platform } from 'react-native';
@@ -25,6 +25,7 @@ import { initSounds, appStart as playAppStart } from './src/lib/sounds';
 import { UpgradeModal } from './src/components/UpgradeModal';
 import { AppAlertHost } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
+import { useColors, useResolvedMode } from './src/lib/theme';
 
 /**
  * Setzt die Android-Navigation-Bar-Farbe zur Laufzeit. Macht den schwarzen
@@ -32,29 +33,17 @@ import { initThumbnailBackfill } from './src/lib/thumbnails';
  * Tint-Farbe geben. Lazy require → no-op wenn das Native-Modul (noch) nicht
  * verlinkt ist.
  */
-function configureAndroidNavBar() {
+function configureAndroidNavBar(bg: string, buttonStyle: 'light' | 'dark') {
   if (Platform.OS !== 'android') return;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const NavigationBar = require('expo-navigation-bar');
-    void NavigationBar.setBackgroundColorAsync('#0d0509').catch(() => {});
-    void NavigationBar.setButtonStyleAsync('light').catch(() => {});
+    void NavigationBar.setBackgroundColorAsync(bg).catch(() => {});
+    void NavigationBar.setButtonStyleAsync(buttonStyle).catch(() => {});
   } catch {
     /* expo-navigation-bar nicht installiert oder Native-Build pending — ignorieren */
   }
 }
-
-const navTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    background: '#090b0c',
-    card: '#13161a',
-    text: '#f1f2f2',
-    border: '#2a2e34',
-    primary: '#ff1039',
-  },
-};
 
 export default function App() {
   const initAuth = useAuthStore((s) => s.init);
@@ -62,8 +51,32 @@ export default function App() {
   const initNotifications = useNotificationsStore((s) => s.init);
   const initProjects = useProjectsStore((s) => s.init);
 
+  // Phase B3 (2026-05-18): theme-resolved colors für NavigationContainer +
+  // System-Nav-Bar. useColors hookt sich an appStore.themeMode + System-Color-
+  // Scheme — re-rendert wenn User Theme switcht ODER OS Dark-Mode togglet.
+  const colors = useColors();
+  const resolvedMode = useResolvedMode();
+  const navTheme = useMemo(
+    () => ({
+      ...(resolvedMode === 'dark' ? DarkTheme : DefaultTheme),
+      colors: {
+        ...(resolvedMode === 'dark' ? DarkTheme.colors : DefaultTheme.colors),
+        background: colors.bg.secondary,
+        card: colors.bg.card,
+        text: colors.text.primary,
+        border: colors.border.subtle,
+        primary: colors.accent.base,
+      },
+    }),
+    [resolvedMode, colors],
+  );
+
+  // Android Nav-Bar follow theme — re-applied bei jedem Theme-Wechsel.
   useEffect(() => {
-    configureAndroidNavBar();
+    configureAndroidNavBar(colors.bg.primary, resolvedMode === 'dark' ? 'light' : 'dark');
+  }, [colors.bg.primary, resolvedMode]);
+
+  useEffect(() => {
     void initLanguage();
     void initApp();
     void initNotifications();
@@ -121,10 +134,10 @@ export default function App() {
   }, [initAuth, initApp, initNotifications, initProjects]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#090b0c' }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
       <SafeAreaProvider>
         <NavigationContainer theme={navTheme}>
-          <StatusBar style="light" />
+          <StatusBar style={resolvedMode === 'dark' ? 'light' : 'dark'} />
           <RootNavigator />
           {/* Phase A5: globaler Upgrade-Modal für Feature-Locks. Liest
               useUpgradeModal-Store, unmounts wenn featureId === null. */}

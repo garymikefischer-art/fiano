@@ -15,6 +15,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
+import { useColors, useResolvedMode } from '../lib/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -40,6 +41,10 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const t = useT();
+  // Phase B3 (2026-05-18): theme-aware Tab-Bar.
+  const colors = useColors();
+  const mode = useResolvedMode();
+  const isLight = mode === 'light';
   const horizontalMargin = 12;
   const innerHorizontalPadding = 6;
   const barWidth = width - horizontalMargin * 2;
@@ -69,15 +74,15 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
         elevation: 12,
       }}
     >
-      <BlurView intensity={100} tint="dark" style={{ flex: 1 }}>
+      <BlurView intensity={100} tint={isLight ? 'light' : 'dark'} style={{ flex: 1 }}>
         <View
           style={{
             flexDirection: 'row',
             paddingVertical: 7,
             paddingHorizontal: 6,
-            backgroundColor: 'rgba(15,15,18,0.42)',
+            backgroundColor: isLight ? 'rgba(250,250,250,0.55)' : 'rgba(15,15,18,0.42)',
             borderWidth: 1.5,
-            borderColor: 'rgba(255,255,255,0.18)',
+            borderColor: isLight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.18)',
             borderRadius: 28,
           }}
         >
@@ -123,11 +128,11 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
                 <Ionicons
                   name={focused ? icons.active : icons.inactive}
                   size={20}
-                  color={focused ? '#ff1039' : '#a1a1aa'}
+                  color={focused ? colors.accent.base : colors.text.secondary}
                 />
                 <Text
                   style={{
-                    color: focused ? '#ff1039' : '#a1a1aa',
+                    color: focused ? colors.accent.base : colors.text.secondary,
                     fontSize: 10,
                     fontWeight: focused ? '700' : '500',
                     letterSpacing: 0.2,

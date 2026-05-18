@@ -28,6 +28,10 @@ const LAST_PROJECT_KEY = 'fiano.lastOpenedProject';
 const YOUTUBE_COOKIES_KEY = 'fiano.api.youtube-cookies';
 const SUBTITLE_PRESETS_KEY = 'fiano.subtitle.presets';
 const INTRO_DEFAULTS_KEY = 'fiano.intro.defaults';
+const THEME_MODE_KEY = 'fiano.theme.mode';
+
+/** Phase B3 (2026-05-18): Theme-Mode Persistence-Type. */
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 /** Region-Coords als Anteile (0..1) auf der Source-Video-Fläche. */
 export interface Region {
@@ -102,6 +106,8 @@ interface AppState {
    *  initial values genutzt — damit User die overlay-Position nicht jedes Mal
    *  neu eingeben muss. Null = keinem Default (intro-pick startet bei 0/0/1). */
   introDefaults: { mode: 'before' | 'overlay'; x: number; y: number; scale: number; durationSec: number } | null;
+  /** Phase B3 (2026-05-18): Theme-Mode. 'system' = folgt OS-Dark-Setting. */
+  themeMode: ThemeMode;
 
   init: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -120,6 +126,8 @@ interface AppState {
   setIntroDefaults: (
     d: { mode: 'before' | 'overlay'; x: number; y: number; scale: number; durationSec: number } | null,
   ) => Promise<void>;
+  /** Phase B3: Theme-Mode setzen (persistiert in SecureStore). */
+  setThemeMode: (m: ThemeMode) => Promise<void>;
 }
 
 /** Liest entweder einen JSON-Region oder einen Legacy-Preset-String. */
@@ -161,6 +169,7 @@ export const useAppStore = create<AppState>((set) => ({
   exportSettings: DEFAULT_EXPORT,
   lastOpenedProjectId: null,
   introDefaults: null,
+  themeMode: 'system',
 
   init: async () => {
     try {
@@ -175,6 +184,7 @@ export const useAppStore = create<AppState>((set) => ({
         exportRaw,
         lastProject,
         introDefaultsRaw,
+        themeModeRaw,
       ] = await Promise.all([
         SecureStore.getItemAsync(ONBOARDING_KEY),
         SecureStore.getItemAsync(FACECAM_KEY),
@@ -194,6 +204,7 @@ export const useAppStore = create<AppState>((set) => ({
         SecureStore.getItemAsync(EXPORT_KEY),
         SecureStore.getItemAsync(LAST_PROJECT_KEY),
         SecureStore.getItemAsync(INTRO_DEFAULTS_KEY),
+        SecureStore.getItemAsync(THEME_MODE_KEY),
       ]);
       let exportSettings = DEFAULT_EXPORT;
       if (exportRaw) {
@@ -235,6 +246,10 @@ export const useAppStore = create<AppState>((set) => ({
           /* keep null */
         }
       }
+      const themeMode: ThemeMode =
+        themeModeRaw === 'light' || themeModeRaw === 'dark' || themeModeRaw === 'system'
+          ? themeModeRaw
+          : 'system';
       set({
         onboardingCompleted: onboarding === '1',
         facecamRegion: parseRegion(facecam, FACECAM_PRESETS, DEFAULT_FACECAM),
@@ -247,6 +262,7 @@ export const useAppStore = create<AppState>((set) => ({
         exportSettings,
         lastOpenedProjectId: lastProject ?? null,
         introDefaults,
+        themeMode,
         initializing: false,
       });
     } catch {
@@ -388,6 +404,15 @@ export const useAppStore = create<AppState>((set) => ({
       } else {
         await SecureStore.deleteItemAsync(INTRO_DEFAULTS_KEY);
       }
+    } catch {
+      /* ignore */
+    }
+  },
+
+  setThemeMode: async (m) => {
+    set({ themeMode: m });
+    try {
+      await SecureStore.setItemAsync(THEME_MODE_KEY, m);
     } catch {
       /* ignore */
     }

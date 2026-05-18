@@ -25,6 +25,7 @@ import { BackgroundGlow } from '../components/BackgroundGlow';
 import { NotificationBell } from '../components/NotificationBell';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge';
 import { useT } from '../lib/i18n';
+import { useColors, useResolvedMode } from '../lib/theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 
 type Nav = CompositeNavigationProp<
@@ -93,6 +94,8 @@ const FEATURES: FeatureCard[] = [
 export function HomeScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
+  const colors = useColors();
+  const mode = useResolvedMode();
   const user = useAuthStore((s) => s.user);
   const initial = (user?.email?.[0] ?? '?').toUpperCase();
   const projects = useProjects();
@@ -100,8 +103,11 @@ export function HomeScreen() {
   const recent = projects.slice(0, 4);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
-      <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
+      <RNStatusBar
+        barStyle={mode === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bg.secondary}
+      />
       <BackgroundGlow />
 
       {/* Header */}

@@ -25,6 +25,7 @@ import {
   type ExportFps,
   type ExportResolution,
   type ExportBitrate,
+  type ThemeMode,
 } from '../stores/appStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { RegionPreview } from '../components/RegionPreview';
@@ -34,6 +35,7 @@ import { haptic } from '../lib/haptics';
 import { useT, useLanguage, LANGUAGES } from '../lib/i18n';
 import { ensureNotificationPermissions, scheduleLocalNotification } from '../lib/pushNotifications';
 import * as sounds from '../lib/sounds';
+import { useColors } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
@@ -41,6 +43,9 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
 export function SettingsScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
+  // Phase B3 (2026-05-18): theme-aware top-level background. Helpers nutzen
+  // useColors() direkt (siehe SectionLabel/Group/Divider/Row unten).
+  const colors = useColors();
   const user = useAuthStore((s) => s.user);
   const subscription = useAuthStore((s) => s.subscription);
   const signOut = useAuthStore((s) => s.signOut);
@@ -58,6 +63,8 @@ export function SettingsScreen() {
   const setYoutubeCookies = useAppStore((s) => s.setYoutubeCookies);
   const exportSettings = useAppStore((s) => s.exportSettings);
   const setExportSettings = useAppStore((s) => s.setExportSettings);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const setThemeMode = useAppStore((s) => s.setThemeMode);
   const [openaiInput, setOpenaiInput] = useState(openaiKey);
   const [geminiInput, setGeminiInput] = useState(geminiKey);
   const [youtubeCookiesInput, setYoutubeCookiesInput] = useState(youtubeCookies);
@@ -133,7 +140,7 @@ export function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -318,6 +325,12 @@ export function SettingsScreen() {
               }
             }}
           />
+        </Group>
+
+        {/* Phase B3 (2026-05-18): Appearance-Switch (Light/Dark/System). */}
+        <SectionLabel>{t('settings.appearanceHeading', 'APPEARANCE').toUpperCase()}</SectionLabel>
+        <Group>
+          <ThemePicker themeMode={themeMode} setThemeMode={setThemeMode} t={t} />
         </Group>
 
         {/* Capture Regions — analog Desktop Settings → Appearance / Capture */}
@@ -810,10 +823,11 @@ function ExportPickerRow<T extends string | number>({
 }
 
 function SectionLabel({ children }: { children: string }) {
+  const colors = useColors();
   return (
     <Text
       style={{
-        color: '#a1a1aa',
+        color: colors.text.secondary,
         fontSize: 11,
         fontWeight: '700',
         letterSpacing: 0.6,
@@ -825,14 +839,14 @@ function SectionLabel({ children }: { children: string }) {
   );
 }
 
-
 function Group({ children }: { children: React.ReactNode }) {
+  const colors = useColors();
   return (
     <View
       style={{
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         borderRadius: 16,
         overflow: 'hidden',
       }}
@@ -843,7 +857,8 @@ function Group({ children }: { children: React.ReactNode }) {
 }
 
 function Divider() {
-  return <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 48 }} />;
+  const colors = useColors();
+  return <View style={{ height: 1, backgroundColor: colors.border.subtle, marginLeft: 48 }} />;
 }
 
 function Row({
@@ -861,17 +876,20 @@ function Row({
   onPress?: () => void;
   tone?: 'default' | 'warn' | 'danger';
 }) {
-  const labelColor = tone === 'danger' ? '#ef4444' : tone === 'warn' ? '#fbbf24' : '#f1f2f2';
-  const iconColor = tone === 'danger' ? '#ef4444' : tone === 'warn' ? '#fbbf24' : '#a1a1aa';
+  const colors = useColors();
+  const labelColor =
+    tone === 'danger' ? colors.status.error : tone === 'warn' ? colors.status.warning : colors.text.primary;
+  const iconColor =
+    tone === 'danger' ? colors.status.error : tone === 'warn' ? colors.status.warning : colors.text.secondary;
 
   const content = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 14 }}>
       <Ionicons name={icon} size={18} color={iconColor} />
       <Text style={{ flex: 1, color: labelColor, fontSize: 14, fontWeight: '600' }}>{label}</Text>
       {right ?? (value ? (
-        <Text style={{ color: '#71717a', fontSize: 13 }}>{value}</Text>
+        <Text style={{ color: colors.text.tertiary, fontSize: 13 }}>{value}</Text>
       ) : onPress ? (
-        <Ionicons name="chevron-forward" size={16} color="#52525b" />
+        <Ionicons name="chevron-forward" size={16} color={colors.text.muted} />
       ) : null)}
     </View>
   );
@@ -881,5 +899,71 @@ function Row({
     <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
       {content}
     </Pressable>
+  );
+}
+
+/**
+ * Phase B3 (2026-05-18): Theme-Picker — Segmented-Control mit 3 Options.
+ * 'system' folgt OS-Setting, 'light' und 'dark' overrident.
+ */
+function ThemePicker({
+  themeMode,
+  setThemeMode,
+  t,
+}: {
+  themeMode: ThemeMode;
+  setThemeMode: (m: ThemeMode) => void | Promise<void>;
+  t: (k: string, f?: string) => string;
+}) {
+  const colors = useColors();
+  const options: { value: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { value: 'light', label: t('settings.themeLight', 'Light'), icon: 'sunny-outline' },
+    { value: 'dark', label: t('settings.themeDark', 'Dark'), icon: 'moon-outline' },
+    { value: 'system', label: t('settings.themeSystem', 'System'), icon: 'phone-portrait-outline' },
+  ];
+  return (
+    <View style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
+      {options.map((opt) => {
+        const active = themeMode === opt.value;
+        return (
+          <Pressable
+            key={opt.value}
+            onPress={() => {
+              haptic.selection();
+              void setThemeMode(opt.value);
+            }}
+            style={({ pressed }) => ({
+              flex: 1,
+              paddingVertical: 12,
+              borderRadius: 12,
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: active
+                ? 'rgba(255,16,57,0.18)'
+                : pressed
+                  ? colors.bg.elevated
+                  : 'transparent',
+              borderWidth: 1,
+              borderColor: active ? colors.accent.border : colors.border.subtle,
+            })}
+          >
+            <Ionicons
+              name={opt.icon}
+              size={18}
+              color={active ? colors.accent.base : colors.text.secondary}
+            />
+            <Text
+              style={{
+                color: active ? colors.accent.base : colors.text.primary,
+                fontSize: 12,
+                fontWeight: '700',
+              }}
+            >
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
