@@ -370,6 +370,8 @@ function HighlightsTab({
 }) {
   // Phase A3.9: nav-hook für AI-Highlight → Export-Routing
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // Phase B3.5 (2026-05-18): theme-aware text + surface.
+  const colors = useColors();
   const exportSettings = useAppStore((s) => s.exportSettings);
   const totalDuration = project.clips.reduce((s, c) => s + (c.endSec - c.startSec), 0);
   const avgScore = project.clips.length
@@ -605,7 +607,7 @@ function HighlightsTab({
       )}
       {/* Phase A3.6: Multi-Source-Tab — zeigt welcher Clip gerade abgespielt wird. */}
       {isMultiSource && (
-        <Text style={{ color: '#71717a', fontSize: 11, marginTop: -8 }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 11, marginTop: -8 }}>
           {t('multiClip.playingClip', 'Playing clip {n}/{total}')
             .replace('{n}', String(activeSourceIdx + 1))
             .replace('{total}', String(projectSourceUris.length))}
@@ -615,7 +617,7 @@ function HighlightsTab({
       {/* Stats */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <ProjectStatusBadge status={project.status} />
-        <Text style={{ color: '#71717a', fontSize: 12 }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 12 }}>
           {project.clips.length} {t('projectDetail.highlightsLabel', 'highlights')}
           {project.clips.length > 0 && ` · ${formatDuration(totalDuration)}`}
           {project.clips.length > 0 && ` · ${t('projectDetail.avgScore', 'avg score')} ${avgScore}`}
@@ -646,7 +648,7 @@ function HighlightsTab({
               size={16}
               color={hasCues ? '#22c55e' : '#ff1039'}
             />
-            <Text style={{ flex: 1, color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+            <Text style={{ flex: 1, color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
               {t('highlights.aiAnalysis', 'AI Analysis')}
             </Text>
             {hasCues && (
@@ -655,7 +657,7 @@ function HighlightsTab({
               </Text>
             )}
           </View>
-          <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }}>
+          <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 15 }}>
             {hasCues
               ? t(
                   'highlights.aiAnalysisDone',
@@ -670,7 +672,7 @@ function HighlightsTab({
             <View style={{ gap: 4 }}>
               {/* Phase A3: Multi-Clip-Progress hat Vorrang — zeigt "Clip 2/5 · Uploading" */}
               {multiProgress ? (
-                <Text style={{ color: '#71717a', fontSize: 10 }}>
+                <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
                   {t('highlights.analyzeAllProgress', 'Clip {n}/{total} · {phase}')
                     .replace('{n}', String(multiProgress.current + 1))
                     .replace('{total}', String(multiProgress.total))
@@ -682,7 +684,7 @@ function HighlightsTab({
                     )}
                 </Text>
               ) : (
-                <Text style={{ color: '#71717a', fontSize: 10 }}>
+                <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
                   {analysisPhase === 'uploading'
                     ? t('highlights.uploading', `Uploading source… ${Math.round(uploadProgress * 100)}%`).replace(
                         '${pct}',
@@ -780,7 +782,7 @@ function HighlightsTab({
                 })}
               >
                 <Ionicons name="create-outline" size={13} color="#f1f2f2" />
-                <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+                <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>
                   {t('highlights.editCues', 'Edit cues')}
                 </Text>
               </Pressable>
@@ -818,7 +820,7 @@ function HighlightsTab({
           }}
         >
           <Pressable onPress={toggleAll} hitSlop={6}>
-            <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '700' }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '700' }}>
               {allSelected
                 ? t('highlights.unselectAll', 'Unselect all')
                 : t('highlights.selectAll', 'Select all')}
@@ -853,11 +855,11 @@ function HighlightsTab({
             <Ionicons
               name="construct"
               size={14}
-              color={selectedCount === 0 ? '#a1a1aa' : '#fff'}
+              color={selectedCount === 0 ? colors.text.secondary : '#fff'}
             />
             <Text
               style={{
-                color: selectedCount === 0 ? '#a1a1aa' : '#fff',
+                color: selectedCount === 0 ? colors.text.secondary : '#fff',
                 fontSize: 12,
                 fontWeight: '700',
               }}
@@ -902,7 +904,7 @@ function HighlightsTab({
             <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
               {t('highlights.aiHighlightsHeading', 'AI HIGHLIGHTS')} · {project.aiHighlights!.length}
             </Text>
-            <Text style={{ color: '#71717a', fontSize: 10 }}>· {t('highlights.aiTapHint', 'tap for actions')}</Text>
+            <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>· {t('highlights.aiTapHint', 'tap for actions')}</Text>
           </View>
           {project.aiHighlights!.map((h, idx) => {
             const isPreviewActive = previewingHighlightIdx === idx;
@@ -982,16 +984,16 @@ function HighlightsTab({
                 >
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-                      <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                      <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                         {h.label || `Highlight ${idx + 1}`}
                       </Text>
                     </View>
-                    <Text style={{ color: '#71717a', fontSize: 10 }}>
+                    <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
                       {formatTime(h.startSec)} – {formatTime(h.endSec)} · {Math.round((h.endSec - h.startSec))}s · {Math.round(h.score * 100)}%
                     </Text>
                   </View>
                   {h.reason && (
-                    <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }} numberOfLines={2}>
+                    <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 15 }} numberOfLines={2}>
                       {h.reason}
                     </Text>
                   )}
@@ -1197,6 +1199,7 @@ function SelectableClipRow({
   activeForPreview?: boolean;
   onToggle: () => void;
 }) {
+  const colors = useColors();
   const scorePct = Math.round(clip.score * 100);
   const len = clip.endSec - clip.startSec;
   // A3.6: aktive Source bekommt einen extra fiano-roten Border-Glow.
@@ -1272,10 +1275,10 @@ function SelectableClipRow({
         </Text>
       </View>
       <View style={{ flex: 1, gap: 4 }}>
-        <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+        <Text numberOfLines={1} style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
           {clip.label}
         </Text>
-        <Text style={{ color: '#71717a', fontSize: 11 }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
           {formatTimecode(clip.startSec)} → {formatTimecode(clip.endSec)} · {len}s
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -1298,7 +1301,7 @@ function SelectableClipRow({
           </View>
           <Text
             style={{
-              color: '#a1a1aa',
+              color: colors.text.secondary,
               fontSize: 10,
               fontWeight: '700',
               minWidth: 28,
@@ -1320,6 +1323,7 @@ function EmptyClips({
   project: DemoProject;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   return (
     <View
       style={{
@@ -1333,12 +1337,12 @@ function EmptyClips({
       }}
     >
       <Ionicons name="cut-outline" size={28} color="rgba(255,255,255,0.32)" />
-      <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+      <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
         {t('projectDetail.noClipsYet', 'No clips yet')}
       </Text>
       <Text
         style={{
-          color: '#a1a1aa',
+          color: colors.text.secondary,
           fontSize: 11,
           textAlign: 'center',
           lineHeight: 17,
@@ -1375,6 +1379,7 @@ function ProjectInfoCard({
   project: DemoProject;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   const modeMeta = project.mode ? MODE_LABELS[project.mode] : null;
   const modeText = modeMeta ? t(modeMeta.key, modeMeta.fallback) : '—';
   const sourceText = project.sourceType ? SOURCE_LABELS[project.sourceType] : 'File';
@@ -1415,26 +1420,26 @@ function ProjectInfoCard({
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Text style={infoLabelStyle}>{t('projectInfo.statusLabel', 'STATUS')}</Text>
+        <Text style={[infoLabelStyle, { color: colors.text.tertiary }]}>{t('projectInfo.statusLabel', 'STATUS')}</Text>
         <ProjectStatusBadge status={project.status} compact />
       </View>
 
       {project.videoType && (
         <View>
-          <Text style={infoLabelStyle}>{t('projectInfo.videoTypeLabel', 'VIDEO TYPE')}</Text>
-          <Text style={infoValueStyle}>
+          <Text style={[infoLabelStyle, { color: colors.text.tertiary }]}>{t('projectInfo.videoTypeLabel', 'VIDEO TYPE')}</Text>
+          <Text style={[infoValueStyle, { color: colors.text.primary }]}>
             {project.videoType.charAt(0).toUpperCase() + project.videoType.slice(1)}
           </Text>
         </View>
       )}
 
       <View>
-        <Text style={infoLabelStyle}>
+        <Text style={[infoLabelStyle, { color: colors.text.tertiary }]}>
           {project.sourceUrl
             ? t('projectInfo.urlLabel', 'URL')
             : t('projectInfo.nameLabel', 'NAME')}
         </Text>
-        <Text numberOfLines={1} style={infoValueStyle}>
+        <Text numberOfLines={1} style={[infoValueStyle, { color: colors.text.primary }]}>
           {nameOrUrl}
         </Text>
       </View>
@@ -1469,24 +1474,27 @@ function ProjectInfoCard({
   );
 }
 
+// Phase B3.5 (2026-05-18): color wurde aus diesen const-Styles entfernt,
+// damit static defs nicht hardcoded gegen Theme stehen. Color wird in jeder
+// Verwendung via Array-Style + theme-token injected (siehe InfoCell).
 const infoLabelStyle = {
-  color: '#71717a',
   fontSize: 10,
   fontWeight: '700' as const,
   letterSpacing: 0.6,
 };
 const infoValueStyle = {
-  color: '#f1f2f2',
   fontSize: 13,
   fontWeight: '600' as const,
   marginTop: 4,
 };
 
 function InfoCell({ label, value, flex }: { label: string; value: string; flex: number }) {
+  const colors = useColors();
   return (
     <View style={{ flex }}>
-      <Text style={infoLabelStyle}>{label}</Text>
-      <Text numberOfLines={1} style={infoValueStyle}>
+      <Text style={[infoLabelStyle, { color: colors.text.tertiary }]}>{label}</Text>
+      {/* Phase B3.5: theme-override für value-color (war hardcoded #f1f2f2). */}
+      <Text numberOfLines={1} style={[infoValueStyle, { color: colors.text.primary }]}>
         {value}
       </Text>
     </View>
@@ -1502,6 +1510,7 @@ function ManualTab({
   project: DemoProject;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   const updateProject = useProjectsStore((s) => s.updateProject);
   const [currentSec, setCurrentSec] = useState(0);
   const [markIn, setMarkIn] = useState<number | null>(null);
@@ -1565,12 +1574,12 @@ function ManualTab({
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }}>
         <Ionicons name="warning-outline" size={32} color="#fbbf24" />
-        <Text style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
+        <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
           {t('manualEditor.noSourceTitle', 'This project has no source video')}
         </Text>
         <Text
           style={{
-            color: '#a1a1aa',
+            color: colors.text.secondary,
             fontSize: 12,
             textAlign: 'center',
             maxWidth: 280,
@@ -1626,7 +1635,7 @@ function ManualTab({
                 })}
               >
                 {isActive && <Ionicons name="play" size={11} color="#fff" />}
-                <Text style={{ color: isActive ? '#fff' : '#a1a1aa', fontSize: 11, fontWeight: '700' }}>
+                <Text style={{ color: isActive ? '#fff' : colors.text.secondary, fontSize: 11, fontWeight: '700' }}>
                   {t('multiClip.clipShort', 'Clip {n}').replace('{n}', String(idx + 1))}
                 </Text>
               </Pressable>
@@ -1650,13 +1659,13 @@ function ManualTab({
           style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
         >
           <Text
-            style={{ color: '#71717a', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 }}
+            style={{ color: colors.text.tertiary, fontSize: 11, fontWeight: '700', letterSpacing: 0.4 }}
           >
             {t('manualEditor.currentLabel', 'CURRENT TIME')}
           </Text>
           <Text
             style={{
-              color: '#f1f2f2',
+              color: colors.text.primary,
               fontSize: 14,
               fontWeight: '700',
               fontVariant: ['tabular-nums'],
@@ -1715,9 +1724,9 @@ function ManualTab({
             opacity: canAddClip ? 1 : 0.55,
           })}
         >
-          <Ionicons name="add-circle" size={16} color={canAddClip ? '#fff' : '#a1a1aa'} />
+          <Ionicons name="add-circle" size={16} color={canAddClip ? '#fff' : colors.text.secondary} />
           <Text
-            style={{ color: canAddClip ? '#fff' : '#a1a1aa', fontSize: 13, fontWeight: '700' }}
+            style={{ color: canAddClip ? '#fff' : colors.text.secondary, fontSize: 13, fontWeight: '700' }}
           >
             {canAddClip
               ? `${t('manualEditor.addClip', 'Add highlight')} · ${formatDuration((markOut ?? 0) - (markIn ?? 0))}`
@@ -1728,7 +1737,7 @@ function ManualTab({
 
       {/* Clip Liste */}
       <View style={{ gap: 8 }}>
-        <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
+        <Text style={{ color: colors.text.secondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
           {t('manualEditor.clipsHeader', 'CLIPS').toUpperCase()} · {project.clips.length}
         </Text>
 
@@ -1744,7 +1753,7 @@ function ManualTab({
             }}
           >
             <Text
-              style={{ color: '#71717a', fontSize: 12, textAlign: 'center', lineHeight: 17 }}
+              style={{ color: colors.text.tertiary, fontSize: 12, textAlign: 'center', lineHeight: 17 }}
             >
               {t(
                 'manualEditor.emptyHint',
@@ -1786,12 +1795,12 @@ function ManualTab({
               <View style={{ flex: 1, gap: 2 }}>
                 <Text
                   numberOfLines={1}
-                  style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}
+                  style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}
                 >
                   {clip.label}
                 </Text>
                 <Text
-                  style={{ color: '#71717a', fontSize: 11, fontVariant: ['tabular-nums'] }}
+                  style={{ color: colors.text.tertiary, fontSize: 11, fontVariant: ['tabular-nums'] }}
                 >
                   {formatTimecode(clip.startSec)} → {formatTimecode(clip.endSec)} ·{' '}
                   {formatDuration(clip.endSec - clip.startSec)}
@@ -1827,6 +1836,7 @@ function MarkButton({
   onSeek: () => void;
   onClear: () => void;
 }) {
+  const colors = useColors();
   const set = value != null;
   return (
     <View style={{ flex: 1, gap: 6 }}>
@@ -1846,8 +1856,8 @@ function MarkButton({
           opacity: pressed ? 0.7 : 1,
         })}
       >
-        <Ionicons name={icon} size={14} color={set ? '#ff1039' : '#f1f2f2'} />
-        <Text style={{ color: set ? '#ff1039' : '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+        <Ionicons name={icon} size={14} color={set ? '#ff1039' : colors.text.primary} />
+        <Text style={{ color: set ? '#ff1039' : colors.text.primary, fontSize: 12, fontWeight: '700' }}>
           {label}
         </Text>
       </Pressable>
@@ -1905,6 +1915,7 @@ function TikTokTab({
   t: (k: string, f?: string) => string;
 }) {
   const nav = useNavigation<Nav>();
+  const colors = useColors();
   const updateProject = useProjectsStore((s) => s.updateProject);
   const defaultFacecam = useAppStore((s) => s.facecamRegion);
   const defaultGameplay = useAppStore((s) => s.gameplayRegion);
@@ -2181,7 +2192,7 @@ function TikTokTab({
       {showClipSelector && (
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 11, fontWeight: '700', letterSpacing: 0.6 }}>
               {t('tiktok.clipsHeader', 'CLIPS').toUpperCase()} · {clips.length}
               {selectedCount > 0 && (
                 <Text style={{ color: '#ff1039' }}>
@@ -2350,11 +2361,11 @@ function TikTokTab({
                   <View style={{ padding: 8 }}>
                     <Text
                       numberOfLines={1}
-                      style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}
+                      style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}
                     >
                       {c.label || `Clip ${i + 1}`}
                     </Text>
-                    <Text style={{ color: '#71717a', fontSize: 10, marginTop: 2 }}>
+                    <Text style={{ color: colors.text.tertiary, fontSize: 10, marginTop: 2 }}>
                       #{(i + 1).toString().padStart(2, '0')}
                     </Text>
                   </View>
@@ -2380,10 +2391,10 @@ function TikTokTab({
         }}
       >
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+          <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>
             {t('tiktok.overrideRegions', 'Override default regions')}
           </Text>
-          <Text style={{ color: '#71717a', fontSize: 10 }}>
+          <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
             {usingOverride
               ? t('tiktok.overrideOn', 'Using project-specific facecam + gameplay')
               : t('tiktok.overrideOff', 'Using settings defaults')}
@@ -2440,7 +2451,7 @@ function TikTokTab({
           >
             <Text
               style={{
-                color: usingOverride ? '#ff1039' : '#a1a1aa',
+                color: usingOverride ? '#ff1039' : colors.text.secondary,
                 fontSize: 11,
                 fontWeight: '700',
               }}
@@ -2508,12 +2519,12 @@ function TikTokTab({
               justifyContent: 'space-between',
             }}
           >
-            <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+            <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>
               {t('tiktok.fullOffsetX', 'Horizontal position')}
             </Text>
             <Text
               style={{
-                color: '#a1a1aa',
+                color: colors.text.secondary,
                 fontSize: 11,
                 fontWeight: '600',
                 fontVariant: ['tabular-nums'],
@@ -2567,12 +2578,12 @@ function TikTokTab({
               justifyContent: 'space-between',
             }}
           >
-            <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+            <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>
               {t('tiktok.facecamSize', 'Facecam size')}
             </Text>
             <Text
               style={{
-                color: '#a1a1aa',
+                color: colors.text.secondary,
                 fontSize: 11,
                 fontWeight: '600',
                 fontVariant: ['tabular-nums'],
@@ -2595,10 +2606,10 @@ function TikTokTab({
           <View
             style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: -4 }}
           >
-            <Text style={{ color: '#71717a', fontSize: 9 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 9 }}>
               {t('tiktok.facecamLabel', 'Facecam')}
             </Text>
-            <Text style={{ color: '#71717a', fontSize: 9 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 9 }}>
               {t('tiktok.gameplayLabel', 'Gameplay')}
             </Text>
           </View>
@@ -2802,7 +2813,7 @@ function TikTokTab({
           <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
             LIVE-PREVIEW APPLIES
           </Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 16 }}>
+          <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 16 }}>
             {[
               subtitles && t('tiktok.subtitles', 'Subtitles'),
               hasVoiceOvers && `${(project.voiceOvers ?? []).length} ${(project.voiceOvers ?? []).length === 1 ? 'TTS' : 'TTS tracks'}`,
@@ -2818,7 +2829,7 @@ function TikTokTab({
 
       <Text
         style={{
-          color: '#71717a',
+          color: colors.text.tertiary,
           fontSize: 11,
           textAlign: 'center',
           marginTop: 4,
@@ -4445,13 +4456,13 @@ function LayoutOption({
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Ionicons name={icon} size={20} color={active ? '#ff1039' : '#a1a1aa'} />
+      <Ionicons name={icon} size={20} color={active ? '#ff1039' : colors.text.secondary} />
       <Text
-        style={{ color: active ? '#ff1039' : '#f1f2f2', fontSize: 12, fontWeight: '700' }}
+        style={{ color: active ? '#ff1039' : colors.text.primary, fontSize: 12, fontWeight: '700' }}
       >
         {label}
       </Text>
-      <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>{desc}</Text>
+      <Text style={{ color: colors.text.tertiary, fontSize: 10, lineHeight: 14 }}>{desc}</Text>
     </Pressable>
   );
 }
@@ -4469,6 +4480,7 @@ function ToggleRow({
   value: boolean;
   onChange: (next: boolean) => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={() => {
@@ -4484,10 +4496,10 @@ function ToggleRow({
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Ionicons name={icon} size={18} color={value ? '#ff1039' : '#a1a1aa'} />
+      <Ionicons name={icon} size={18} color={value ? '#ff1039' : colors.text.secondary} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}>{label}</Text>
-        <Text style={{ color: '#71717a', fontSize: 11 }}>{desc}</Text>
+        <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+        <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>{desc}</Text>
       </View>
       <View
         style={{
@@ -4524,6 +4536,7 @@ function IntroModeChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -4538,10 +4551,10 @@ function IntroModeChip({
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Text style={{ color: active ? '#ff1039' : '#f1f2f2', fontSize: 11, fontWeight: '700' }}>
+      <Text style={{ color: active ? '#ff1039' : colors.text.primary, fontSize: 11, fontWeight: '700' }}>
         {label}
       </Text>
-      <Text style={{ color: '#71717a', fontSize: 9, lineHeight: 12 }}>{desc}</Text>
+      <Text style={{ color: colors.text.tertiary, fontSize: 9, lineHeight: 12 }}>{desc}</Text>
     </Pressable>
   );
 }
@@ -4590,6 +4603,7 @@ function AssetPickerRow({
   onPick: () => void;
   onClear: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPick}
@@ -4602,10 +4616,10 @@ function AssetPickerRow({
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Ionicons name={icon} size={18} color={assetName ? '#ff1039' : '#a1a1aa'} />
+      <Ionicons name={icon} size={18} color={assetName ? '#ff1039' : colors.text.secondary} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}>{label}</Text>
-        <Text numberOfLines={1} style={{ color: '#71717a', fontSize: 11 }}>
+        <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+        <Text numberOfLines={1} style={{ color: colors.text.tertiary, fontSize: 11 }}>
           {assetName ?? desc}
         </Text>
       </View>
@@ -4628,10 +4642,11 @@ function AssetPickerRow({
 }
 
 function SectionHeader({ children }: { children: string }) {
+  const colors = useColors();
   return (
     <Text
       style={{
-        color: '#a1a1aa',
+        color: colors.text.secondary,
         fontSize: 11,
         fontWeight: '700',
         letterSpacing: 0.6,
@@ -4744,7 +4759,7 @@ function IntroOverlayControls({
 
   return (
     <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 8 }}>
-      <Text style={{ color: '#71717a', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
+      <Text style={{ color: colors.text.tertiary, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
         {t('intro.positionHeader', 'POSITION')}
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -4769,7 +4784,7 @@ function IntroOverlayControls({
           >
             <Text
               style={{
-                color: activePreset === p ? '#ff1039' : '#f1f2f2',
+                color: activePreset === p ? '#ff1039' : colors.text.primary,
                 fontSize: 11,
                 fontWeight: '700',
                 textTransform: 'capitalize',
@@ -4832,7 +4847,7 @@ function IntroOverlayControls({
             verursachte "200% bei 110%" render-bug (StackedSplit cover-flip
             + RN-quirk). Now: scale=1.0 = full canvas, X/Y wirken erst <100%. */}
         {Math.abs(localScale - 1) < 0.01 && (
-          <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14, marginTop: 2 }}>
+          <Text style={{ color: colors.text.tertiary, fontSize: 10, lineHeight: 14, marginTop: 2 }}>
             {t(
               'intro.sliderHintFullScale',
               'At 100% the intro fills the canvas — move Scale below 100% to use Horizontal/Vertical sliders.',
@@ -4910,7 +4925,7 @@ function IntroOverlayControls({
               opacity: pressed ? 0.7 : 1,
             })}
           >
-            <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '600' }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 11, fontWeight: '600' }}>
               {t('intro.clearDefault', 'Clear')}
             </Text>
           </Pressable>
@@ -4998,18 +5013,18 @@ function ExtraTrimEditor({
         />
       )}
       {!knownDuration ? (
-        <Text style={{ color: '#71717a', fontSize: 10, fontStyle: 'italic' }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 10, fontStyle: 'italic' }}>
           {t('builder.probingDuration', 'Probing duration…')}
         </Text>
       ) : (
         <>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#a1a1aa', fontSize: 10, fontWeight: '600' }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 10, fontWeight: '600' }}>
               {t('builder.extraTrim', 'Trim')}
             </Text>
             <Text
               style={{
-                color: '#71717a',
+                color: colors.text.tertiary,
                 fontSize: 10,
                 fontVariant: ['tabular-nums'],
               }}
@@ -5050,12 +5065,13 @@ function ExtraTrimEditor({
 }
 
 function SliderLabelRow({ label, value }: { label: string; value: string }) {
+  const colors = useColors();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-      <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '600' }}>{label}</Text>
+      <Text style={{ color: colors.text.secondary, fontSize: 11, fontWeight: '600' }}>{label}</Text>
       <Text
         style={{
-          color: '#71717a',
+          color: colors.text.tertiary,
           fontSize: 10,
           fontWeight: '600',
           fontVariant: ['tabular-nums'],
@@ -5079,6 +5095,8 @@ function BuilderTab({
   t: (k: string, f?: string) => string;
 }) {
   const nav = useNavigation<Nav>();
+  // Phase B3.5 (2026-05-18): theme-aware Card-Surfaces + Text.
+  const colors = useColors();
   const updateProject = useProjectsStore((s) => s.updateProject);
 
   // Phase Builder-3: Builder-Items = selected Highlight-Clips + Extra-Videos
@@ -5266,12 +5284,12 @@ function BuilderTab({
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }}>
         <Ionicons name="construct-outline" size={32} color="rgba(255,255,255,0.32)" />
-        <Text style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
+        <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>
           {t('builder.emptyTitle', 'Pick clips first')}
         </Text>
         <Text
           style={{
-            color: '#a1a1aa',
+            color: colors.text.secondary,
             fontSize: 12,
             textAlign: 'center',
             maxWidth: 300,
@@ -5396,12 +5414,12 @@ function BuilderTab({
               />
             </View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+              <Text numberOfLines={1} style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
                 {item.kind === 'clip'
                   ? item.clip.label
                   : (item.extra.filename ?? t('builder.extraLabel', 'Extra video'))}
               </Text>
-              <Text style={{ color: '#71717a', fontSize: 11, fontVariant: ['tabular-nums'] }}>
+              <Text style={{ color: colors.text.tertiary, fontSize: 11, fontVariant: ['tabular-nums'] }}>
                 {item.kind === 'clip'
                   ? `${formatTimecode(item.clip.startSec)} → ${formatTimecode(item.clip.endSec)} · ${formatDuration(item.clip.endSec - item.clip.startSec)}`
                   : item.extra.durationSec
@@ -5510,10 +5528,10 @@ function BuilderTab({
       })()}
 
       <View style={{ gap: 4 }}>
-        <Text style={{ color: '#f1f2f2', fontSize: 22, fontWeight: '700', letterSpacing: -0.5 }}>
+        <Text style={{ color: colors.text.primary, fontSize: 22, fontWeight: '700', letterSpacing: -0.5 }}>
           {t('builder.title', 'YouTube Builder')}
         </Text>
-        <Text style={{ color: '#a1a1aa', fontSize: 12 }}>
+        <Text style={{ color: colors.text.secondary, fontSize: 12 }}>
           {selected.length} {t('builder.clipsSelected', 'clips')} · {formatDuration(totalDuration)}{' '}
           {t('builder.total', 'total')}
         </Text>
@@ -5609,10 +5627,10 @@ function BuilderTab({
               >
                 <Ionicons name="add-circle-outline" size={16} color={disabled ? '#52525b' : '#ff1039'} />
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+                  <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
                     {h.label || `Highlight ${idx + 1}`}
                   </Text>
-                  <Text style={{ color: '#71717a', fontSize: 10 }}>
+                  <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
                     {formatTime(h.startSec)}–{formatTime(h.endSec)} · {Math.round((h.endSec - h.startSec))}s · {Math.round(h.score * 100)}%
                     {disabled && ` · ${t('builder.aiCrossClipShort', 'cross-clip')}`}
                   </Text>
@@ -5766,7 +5784,7 @@ function BuilderTab({
           <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
             LIVE-PREVIEW APPLIES
           </Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 16 }}>
+          <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 16 }}>
             {[
               subtitles && t('builder.subtitles', 'Subtitles'),
               hasVoiceOvers && `${(project.voiceOvers ?? []).length} ${(project.voiceOvers ?? []).length === 1 ? 'TTS' : 'TTS tracks'}`,
@@ -5817,7 +5835,7 @@ function BuilderTab({
 
       <Text
         style={{
-          color: '#71717a',
+          color: colors.text.tertiary,
           fontSize: 11,
           textAlign: 'center',
           marginTop: 4,

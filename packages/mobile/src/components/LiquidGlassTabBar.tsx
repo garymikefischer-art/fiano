@@ -23,6 +23,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
+import { useResolvedMode } from '../lib/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -48,6 +49,11 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const t = useT();
+  // Phase B3.5 (2026-05-18): theme-aware tab-bar (dark→schwarz mit glass,
+  // light→weiß mit glass). User-Wunsch revised von "bleibt schwarz" auf
+  // "auch im light mode hell".
+  const mode = useResolvedMode();
+  const isLight = mode === 'light';
   const horizontalMargin = 12;
   const innerHorizontalPadding = 6;
   const barWidth = width - horizontalMargin * 2;
@@ -75,15 +81,18 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
       }}
     >
       <View style={{ borderRadius: 28, overflow: 'hidden' }}>
-        <BlurView intensity={100} tint="dark" style={{ flex: 1 }}>
+        <BlurView intensity={100} tint={isLight ? 'light' : 'dark'} style={{ flex: 1 }}>
           {/* Background-Tint — sehr leicht, lässt blur durchscheinen für
-              echten frosted-glass-Look. */}
+              echten frosted-glass-Look. User-Wunsch B3.5 (2026-05-18): dark
+              mode soll noch glaser sein → opacity weiter runter auf 0.18. */}
           <View
             style={{
               flexDirection: 'row',
               paddingVertical: 7,
               paddingHorizontal: 6,
-              backgroundColor: 'rgba(10,10,14,0.25)',
+              backgroundColor: isLight
+                ? 'rgba(250,250,250,0.55)'
+                : 'rgba(10,10,14,0.18)',
               borderRadius: 28,
             }}
           >
@@ -129,11 +138,21 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
                   <Ionicons
                     name={focused ? icons.active : icons.inactive}
                     size={20}
-                    color={focused ? '#ff1039' : 'rgba(255,255,255,0.72)'}
+                    color={
+                      focused
+                        ? '#ff1039'
+                        : isLight
+                          ? 'rgba(20,20,25,0.65)'
+                          : 'rgba(255,255,255,0.72)'
+                    }
                   />
                   <Text
                     style={{
-                      color: focused ? '#ff1039' : 'rgba(255,255,255,0.72)',
+                      color: focused
+                        ? '#ff1039'
+                        : isLight
+                          ? 'rgba(20,20,25,0.72)'
+                          : 'rgba(255,255,255,0.72)',
                       fontSize: 10,
                       fontWeight: focused ? '700' : '500',
                       letterSpacing: 0.2,
@@ -156,13 +175,13 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
               left: 0,
               right: 0,
               height: 1,
-              backgroundColor: 'rgba(255,255,255,0.35)',
+              backgroundColor: isLight ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.35)',
             }}
           />
 
           {/* Subtle iridescent rim — LinearGradient horizontal mit drei
-              versetzten Stops. In dark-mode kaum sichtbar, gibt aber den
-              "Reflexions"-Schimmer des Apple-Beispiels. */}
+              versetzten Stops. Gibt den "Reflexions"-Schimmer des Apple-
+              Beispiels. */}
           <LinearGradient
             pointerEvents="none"
             colors={[
@@ -197,7 +216,7 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
           bottom: 0,
           borderRadius: 28,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.22)',
+          borderColor: isLight ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.22)',
         }}
       />
     </View>
