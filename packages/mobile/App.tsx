@@ -12,7 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
 
-import { Platform } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/stores/authStore';
@@ -26,6 +26,15 @@ import { UpgradeModal } from './src/components/UpgradeModal';
 import { AppAlertHost } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
 import { useColors, useResolvedMode } from './src/lib/theme';
+
+// Phase B1.4 (2026-05-18): known-harmless Reanimated v3 + RN-Modal warning,
+// triggert bei NestableDraggableFlatList + TrimModal open. Reanimated wrapped
+// manche refs als Animated-components, RN's measureLayout-call schlägt
+// dann auf den non-native ref fehl. App funktioniert trotzdem normal.
+// Silencen vermeidet Console-Spam beim Build/Test.
+LogBox.ignoreLogs([
+  'ref.measureLayout must be called with a ref to a native component',
+]);
 
 /**
  * Setzt die Android-Navigation-Bar-Farbe zur Laufzeit. Macht den schwarzen
