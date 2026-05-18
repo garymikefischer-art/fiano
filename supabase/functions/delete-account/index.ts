@@ -26,13 +26,45 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
   httpClient: Stripe.createFetchHttpClient(),
 });
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// Phase A6.6 (2026-05-18): CORS Origin-Whitelist statt '*' (P1-4 Audit).
+// '*' erlaubt jeden Browser → CSRF-Amplification mit gestohlenem JWT
+// möglich. Whitelist: fiano custom-scheme + Expo dev + production-Domain.
+const ALLOWED_ORIGINS = [
+  'app://fiano',
+  'fiano://',
+  'https://fiano.app',
+  'https://www.fiano.app',
+  // Expo dev environments:
+  // (regex match unten für *.expo.dev / exp:// scheme)
+];
+function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin') ?? '';
+  let allowed = '';
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    allowed = origin;
+  } else if (origin.endsWith('.expo.dev') || origin.startsWith('exp://')) {
+    allowed = origin;
+  } else if (origin.startsWith('http://127.0.0.1:') || origin.startsWith('http://localhost:')) {
+    // Desktop Electron loopback (auth-callback uses dynamic port).
+    allowed = origin;
+  }
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  };
+}
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  // Helper inside serve um corsHeaders zu schließen.
+  function jsonResp(body: unknown, status: number) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResp({ error: 'Method not allowed' }, 405);
 
@@ -93,9 +125,4 @@ serve(async (req) => {
   }
 });
 
-function jsonResp(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+// (jsonResp moved inside serve handler to scope corsHeaders correctly.)

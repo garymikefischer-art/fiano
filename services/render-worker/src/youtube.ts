@@ -33,10 +33,16 @@ export interface YtDownloadResult {
   sizeBytes: number;
 }
 
+// Phase A6.7 (2026-05-18): Engere Path-Regex (P1-5 Audit). Vorher war
+// jede URL innerhalb dieser Hosts akzeptiert — Attacker könnte z.B.
+// /apiinternal/ Paths probieren. Jetzt nur watch/shorts/videos/clip-Paths.
 const ALLOWED_HOST_RX = /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be|twitch\.tv)\//i;
+const ALLOWED_PATH_RX =
+  /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/|twitch\.tv\/(?:videos\/|[A-Za-z0-9_]+\/clip\/|clips\/))/i;
 
 export function isAllowedUrl(url: string): boolean {
-  return ALLOWED_HOST_RX.test(url.trim());
+  const trimmed = url.trim();
+  return ALLOWED_HOST_RX.test(trimmed) && ALLOWED_PATH_RX.test(trimmed);
 }
 
 export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadResult> {
@@ -81,7 +87,10 @@ export async function downloadVideo(opts: YtDownloadOpts): Promise<YtDownloadRes
     '--max-filesize', '500M',
     '--no-playlist',
     '--no-warnings',
-    '--no-check-certificates',
+    // Phase A6.7 (2026-05-18): --no-check-certificates entfernt (P1-5).
+    // MITM-Window + hostile yt-dlp plugin updates → certificate validation
+    // muss bleiben. Wenn ein Host das wirklich nicht kann (rare), explicit
+    // CA cert bundling besser als blanket-disable.
     '--extractor-args', 'youtube:player_client=tv_embedded,web,default',
     '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     ...(cookieFile ? ['--cookies', cookieFile] : []),

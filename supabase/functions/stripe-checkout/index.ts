@@ -39,13 +39,30 @@ const PLAN_MODE: Record<string, 'subscription' | 'payment'> = {
   studio_lifetime: 'payment',
 };
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// Phase A6.6 (2026-05-18): CORS Origin-Whitelist (P1-4).
+function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin') ?? '';
+  let allowed = '';
+  const ALLOWED = ['app://fiano', 'fiano://', 'https://fiano.app', 'https://www.fiano.app'];
+  if (origin && ALLOWED.includes(origin)) allowed = origin;
+  else if (origin.endsWith('.expo.dev') || origin.startsWith('exp://')) allowed = origin;
+  else if (origin.startsWith('http://127.0.0.1:') || origin.startsWith('http://localhost:')) allowed = origin;
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  };
+}
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  function jsonResp(body: unknown, status: number) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return jsonResp({ error: 'Method not allowed' }, 405);
 
@@ -123,9 +140,4 @@ serve(async (req) => {
   }
 });
 
-function jsonResp(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
+// jsonResp moved inside serve handler to scope corsHeaders correctly (A6.6).

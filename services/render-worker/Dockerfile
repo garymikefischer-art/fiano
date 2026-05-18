@@ -19,8 +19,11 @@ WORKDIR /app
 # den one-time binary-pull.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl python3 \
-    && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    && curl -L https://github.com/yt-dlp/yt-dlp/releases/download/2025.01.15/yt-dlp \
        -o /usr/local/bin/yt-dlp \
+    # Phase A6.7 (2026-05-18): pinned version statt latest (P1-5 Audit).
+    # Hostile yt-dlp plugin-update kann sonst arbitrary code ausführen.
+    # Update manuell: Tag oben anpassen (github.com/yt-dlp/yt-dlp/releases). \
     && chmod a+rx /usr/local/bin/yt-dlp \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*

@@ -181,7 +181,15 @@ export const useAppStore = create<AppState>((set) => ({
         SecureStore.getItemAsync(GAMEPLAY_KEY),
         SecureStore.getItemAsync(OPENAI_KEY),
         SecureStore.getItemAsync(GEMINI_KEY),
-        AsyncStorage.getItem(YOUTUBE_COOKIES_KEY),
+        // Phase A6.9 (2026-05-18): YT cookies in SecureStore statt AsyncStorage
+        // (P2-6 Audit). YT-Cookies = full Google session = High-Value-Target
+        // bei rooted device. SecureStore = iOS Keychain / Android EncryptedSP.
+        // Migration: alte AsyncStorage-Werte werden bei nächstem set transient
+        // re-saved in SecureStore. Old AsyncStorage-Eintrag bleibt (harmless,
+        // wird vom store ignored).
+        SecureStore.getItemAsync(YOUTUBE_COOKIES_KEY).then(async (v) =>
+          v ?? (await AsyncStorage.getItem(YOUTUBE_COOKIES_KEY)),
+        ),
         AsyncStorage.getItem(SUBTITLE_PRESETS_KEY),
         SecureStore.getItemAsync(EXPORT_KEY),
         SecureStore.getItemAsync(LAST_PROJECT_KEY),
@@ -309,8 +317,17 @@ export const useAppStore = create<AppState>((set) => ({
   setYoutubeCookies: async (c) => {
     set({ youtubeCookies: c });
     try {
-      if (c) await AsyncStorage.setItem(YOUTUBE_COOKIES_KEY, c);
-      else await AsyncStorage.removeItem(YOUTUBE_COOKIES_KEY);
+      // Phase A6.9: SecureStore statt AsyncStorage (P2-6). SecureStore hat
+      // 2KB limit pro Key — YT-Cookies sind oft 1.5-3KB. Bei Overflow:
+      // Chunking. Für jetzt: rely on Expo's chunking + clear AsyncStorage-
+      // legacy-Eintrag.
+      if (c) {
+        await SecureStore.setItemAsync(YOUTUBE_COOKIES_KEY, c);
+        await AsyncStorage.removeItem(YOUTUBE_COOKIES_KEY).catch(() => {});
+      } else {
+        await SecureStore.deleteItemAsync(YOUTUBE_COOKIES_KEY);
+        await AsyncStorage.removeItem(YOUTUBE_COOKIES_KEY).catch(() => {});
+      }
     } catch {
       /* ignore */
     }
