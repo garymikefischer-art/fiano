@@ -70,6 +70,7 @@ import { VoiceOversSection } from '../components/VoiceOversSection';
 import { CueEditorModal } from '../components/CueEditorModal';
 import { ActionSheet, type ActionSheetItem } from '../components/ActionSheet';
 import { RegionPickerModal } from '../components/RegionPickerModal';
+import { TrimModal } from '../components/TrimModal';
 import { extractVideoThumbnail } from '../lib/thumbnails';
 import { transcribeVideo, transcribeMultiSource } from '../lib/whisper';
 import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
@@ -1961,6 +1962,8 @@ function TikTokTab({
   // selectedClipIdx wählt den aktiven Clip; effective-sourceUri/trim werden in
   // LayoutPreview UND Export-Navigation genutzt.
   const [selectedClipIdx, setSelectedClipIdx] = useState(0);
+  // Phase B5 (2026-05-18): TrimModal-State. null = closed.
+  const [editingClipIdx, setEditingClipIdx] = useState<number | null>(null);
   const clips = project.clips ?? [];
   const showClipSelector = clips.length >= 2;
   const safeIdx = Math.min(selectedClipIdx, Math.max(0, clips.length - 1));
@@ -2194,6 +2197,32 @@ function TikTokTab({
                         <Ionicons name="checkmark" size={14} color="#fff" />
                       </View>
                     )}
+                    {/* Phase B5 (2026-05-18): Trim/Edit-Button. Öffnet TrimModal
+                        für diesen Clip. stopPropagation damit der Card-Tap
+                        (selectClip) nicht zusätzlich feuert. */}
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        haptic.selection();
+                        setEditingClipIdx(i);
+                      }}
+                      hitSlop={6}
+                      style={{
+                        position: 'absolute',
+                        bottom: 6,
+                        right: 6,
+                        width: 26,
+                        height: 26,
+                        borderRadius: 13,
+                        backgroundColor: 'rgba(0,0,0,0.75)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,255,255,0.18)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="cut-outline" size={13} color="#fff" />
+                    </Pressable>
                   </View>
                   <View style={{ padding: 8 }}>
                     <Text
@@ -2786,6 +2815,88 @@ function TikTokTab({
           setRegionModalOpen(false);
         }}
       />
+
+      {/* Phase B5 (2026-05-18): TrimModal pro Clip. Save = update startSec/
+          endSec. Split = clip wird in 2 Clips am Playhead aufgeteilt (gleiche
+          sourceIdx, neue IDs). */}
+      {editingClipIdx !== null && clips[editingClipIdx] && (() => {
+        const editClip = clips[editingClipIdx];
+        // Source-Resolution analog effectiveSourceUri-Logik.
+        const explicitSrcIdx = editClip.sourceIdx;
+        const trimSourceUri =
+          explicitSrcIdx !== undefined && projectSourceUris[explicitSrcIdx] !== undefined
+            ? projectSourceUris[explicitSrcIdx]
+            : isMultiSource
+              ? projectSourceUris[Math.min(editingClipIdx, projectSourceUris.length - 1)]
+              : project.sourceUri;
+        if (!trimSourceUri) return null;
+        return (
+          <TrimModal
+            visible={true}
+            sourceUri={trimSourceUri}
+            initialStartSec={editClip.startSec}
+            initialEndSec={editClip.endSec}
+            sourceDuration={
+              project.perClipDurations?.[
+                explicitSrcIdx ?? editingClipIdx
+              ] ?? undefined
+            }
+            clipLabel={editClip.label || `Clip ${editingClipIdx + 1}`}
+            t={t}
+            onClose={() => setEditingClipIdx(null)}
+            onSave={(s, e) => {
+              const idx = editingClipIdx;
+              setEditingClipIdx(null);
+              const latest = useProjectsStore.getState().projects.find(
+                (p) => p.id === project.id,
+              );
+              if (!latest) return;
+              const nextClips = (latest.clips ?? []).map((cc, i) =>
+                i === idx ? { ...cc, startSec: s, endSec: e } : cc,
+              );
+              updateProject(project.id, { clips: nextClips });
+            }}
+            onSplit={(atSec) => {
+              const idx = editingClipIdx;
+              setEditingClipIdx(null);
+              const latest = useProjectsStore.getState().projects.find(
+                (p) => p.id === project.id,
+              );
+              if (!latest) return;
+              const original = (latest.clips ?? [])[idx];
+              if (!original) return;
+              // Split: original wird zu zwei Clips. ID-Generierung analog
+              // projectsStore.generateId.
+              const newIdLeft = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+              const newIdRight = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}a`;
+              const left: DemoClip = {
+                ...original,
+                id: newIdLeft,
+                startSec: original.startSec,
+                endSec: atSec,
+                label: original.label
+                  ? `${original.label} (1)`
+                  : `Clip ${idx + 1}.1`,
+              };
+              const right: DemoClip = {
+                ...original,
+                id: newIdRight,
+                startSec: atSec,
+                endSec: original.endSec,
+                label: original.label
+                  ? `${original.label} (2)`
+                  : `Clip ${idx + 1}.2`,
+                // Neuer Clip braucht eigenes Thumb — wird via thumb-auto-gen
+                // useEffect (Phase 9.5.8.3) ergänzt.
+                thumbUri: undefined,
+              };
+              const nextClips = [...(latest.clips ?? [])];
+              nextClips.splice(idx, 1, left, right);
+              updateProject(project.id, { clips: nextClips });
+            }}
+          />
+        );
+      })()}
 
       {/* Export-Settings-Modal vor Export-Click. */}
       {exportModalOpen && effectiveSourceUri && (
