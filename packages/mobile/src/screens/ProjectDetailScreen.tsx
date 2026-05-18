@@ -91,6 +91,7 @@ import {
   ScaleDecorator,
   type RenderItemParams,
 } from 'react-native-draggable-flatlist';
+import { useColors, useResolvedMode } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ProjectDetail'>;
@@ -100,6 +101,9 @@ type TabId = 'highlights' | 'manual' | 'tiktok' | 'builder';
 export function ProjectDetailScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
+  // Phase B3 (2026-05-18): theme-aware top-level + status bar.
+  const colors = useColors();
+  const mode = useResolvedMode();
   const { params } = useRoute<R>();
   const project = useProject(params.projectId);
   const removeProject = useProjectsStore((s) => s.removeProject);
@@ -154,9 +158,9 @@ export function ProjectDetailScreen() {
 
   if (!project) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 16 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 16 }}>
             {t('projectDetail.notFound', 'Project not found')}
           </Text>
           <Pressable
@@ -166,10 +170,10 @@ export function ProjectDetailScreen() {
               paddingVertical: 10,
               paddingHorizontal: 18,
               borderRadius: 12,
-              backgroundColor: '#ff1039',
+              backgroundColor: colors.accent.base,
             }}
           >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>
+            <Text style={{ color: colors.text.onAccent, fontWeight: '700' }}>
               {t('projectDetail.goBack', 'Go back')}
             </Text>
           </Pressable>
@@ -179,8 +183,11 @@ export function ProjectDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
-      <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
+      <RNStatusBar
+        barStyle={mode === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bg.secondary}
+      />
       <BackgroundGlow />
 
       {/* Header */}
@@ -196,7 +203,7 @@ export function ProjectDetailScreen() {
       >
         <IconButton icon="chevron-back" onPress={() => nav.goBack()} />
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '700' }}>
+          <Text numberOfLines={1} style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700' }}>
             {project.title}
           </Text>
         </View>
@@ -255,6 +262,7 @@ function IconButton({
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -263,15 +271,15 @@ function IconButton({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: pressed ? 0.6 : 1,
       })}
     >
-      <Ionicons name={icon} size={18} color="#f1f2f2" />
+      <Ionicons name={icon} size={18} color={colors.text.primary} />
     </Pressable>
   );
 }
@@ -294,6 +302,7 @@ function TabBar({
   onChange: (tab: TabId) => void;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   return (
     <View
       style={{
@@ -301,7 +310,7 @@ function TabBar({
         paddingHorizontal: 20,
         gap: 24,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.06)',
+        borderBottomColor: colors.border.subtle,
       }}
     >
       {TABS.map((tab) => {
@@ -317,7 +326,7 @@ function TabBar({
           >
             <Text
               style={{
-                color: focused ? '#f1f2f2' : '#71717a',
+                color: focused ? colors.text.primary : colors.text.tertiary,
                 fontSize: 13,
                 fontWeight: focused ? '700' : '600',
               }}

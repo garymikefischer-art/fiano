@@ -24,6 +24,7 @@ import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
 import { transcribeVideo } from '../lib/whisper';
 import { DEFAULT_SUBTITLES } from '../data/demoProjects';
+import { useColors, useResolvedMode } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -31,6 +32,8 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export function LibraryScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
+  const colors = useColors();
+  const mode = useResolvedMode();
   const user = useAuthStore((s) => s.user);
   const projects = useProjects();
   const removeProject = useProjectsStore((s) => s.removeProject);
@@ -146,8 +149,11 @@ export function LibraryScreen() {
   const totalClips = projects.reduce((s, p) => s + p.clips.length, 0);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
-      <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
+      <RNStatusBar
+        barStyle={mode === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.bg.secondary}
+      />
       <BackgroundGlow />
 
       {/* Header — paddingHorizontal=20 ident mit body. marginLeft=-9 gleicht
