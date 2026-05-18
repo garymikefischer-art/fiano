@@ -29,7 +29,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Video, { type VideoRef, type OnLoadData, type OnProgressData } from 'react-native-video';
 
-import { BackgroundGlow } from './BackgroundGlow';
 import { haptic } from '../lib/haptics';
 import { useColors } from '../lib/theme';
 
@@ -247,7 +246,9 @@ export function TrimModal({
       }}
     >
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
-        <BackgroundGlow />
+        {/* Phase B1.4 (2026-05-18): BackgroundGlow entfernt — SVG-Component
+            verursachte measureLayout-Warning + verlangsamte Modal-Open. Modal
+            ist eh focused-UI, der Hintergrund-Glow lenkt nur ab. */}
 
         {/* Header */}
         <View style={styles.header}>
@@ -288,12 +289,19 @@ export function TrimModal({
                 bufferForPlaybackAfterRebufferMs: 1500,
               }}
             />
+            {/* Phase B1.4 (2026-05-18): Pressable mit explizitem
+                pointerEvents + haptic feedback. Vorher absoluteFill ohne
+                feedback → User dachte tap geht nicht. */}
             <Pressable
               style={StyleSheet.absoluteFill}
-              onPress={() => setPaused((p) => !p)}
+              onPress={() => {
+                haptic.light();
+                setPaused((p) => !p);
+              }}
+              pointerEvents="auto"
             >
               {paused && (
-                <View style={styles.playOverlay}>
+                <View style={styles.playOverlay} pointerEvents="none">
                   <Ionicons name="play" size={48} color="rgba(255,255,255,0.85)" />
                 </View>
               )}
