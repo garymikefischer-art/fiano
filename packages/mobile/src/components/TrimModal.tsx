@@ -18,7 +18,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Modal,
+  BackHandler,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -76,6 +76,20 @@ export function TrimModal({
   const videoRef = useRef<VideoRef>(null);
   // Phase B3 (2026-05-18): theme-aware modal-surface.
   const colors = useColors();
+
+  // Phase B1.3 (2026-05-18): RN-<Modal> hat measureLayout-Konflikt mit
+  // Reanimated v3 (verursacht "ref.measureLayout must be called with a ref
+  // to a native component"-Warning + Modal opens nicht). Render stattdessen
+  // als absolute-positioned full-screen-View — bleibt im gleichen
+  // Render-Tree + Reanimated-Context.
+  useEffect(() => {
+    if (!visible) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, onClose]);
 
   // Source-Duration: wird via onLoad ermittelt, falls nicht via Prop gegeben.
   const [sourceDuration, setSourceDuration] = useState<number>(sourceDurationProp ?? 0);
@@ -218,8 +232,20 @@ export function TrimModal({
   const splitAllowed =
     currentSec > startSec + 0.1 && currentSec < endSec - 0.1 && sourceDuration > 0;
 
+  if (!visible) return null;
   return (
-    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
+    <View
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: colors.bg.primary,
+        zIndex: 1000,
+        elevation: 24,
+      }}
+    >
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
         <BackgroundGlow />
 
@@ -390,7 +416,7 @@ export function TrimModal({
           </Text>
         </View>
       </SafeAreaView>
-    </Modal>
+    </View>
   );
 }
 
