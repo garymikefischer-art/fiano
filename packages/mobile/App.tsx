@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import * as Linking from 'expo-linking';
 
 import { Platform } from 'react-native';
 
@@ -18,6 +19,7 @@ import { useAuthStore } from './src/stores/authStore';
 import { useAppStore } from './src/stores/appStore';
 import { useNotificationsStore } from './src/stores/notificationsStore';
 import { useProjectsStore } from './src/stores/projectsStore';
+import { supabase } from './src/lib/supabase';
 import { initLanguage } from './src/lib/i18n';
 import { initSounds, appStart as playAppStart } from './src/lib/sounds';
 import { UpgradeModal } from './src/components/UpgradeModal';
@@ -68,11 +70,53 @@ export default function App() {
     initAuth();
     void initSounds().then(() => playAppStart());
     // Phase A2: Thumbnail-Backfill für alte Library-Cards ohne thumbUri.
-    // Sequentielle Queue (Vivo HEVC 1-Decoder), self-deduping, läuft im
-    // Hintergrund. Return-Callback wird beim App-Root-Unmount aufgerufen
-    // (normalerweise nie, aber sauberer code).
     const unsubBackfill = initThumbnailBackfill();
-    return () => unsubBackfill();
+
+    // Phase A6.3.3 (2026-05-18): Deep-Link-Handler für email-confirm Callback.
+    // Wenn User auf Confirm-Link in Bestätigungs-Email klickt → OS öffnet App
+    // via fiano://auth-callback?... → wir parsen Tokens/Code, setzen Session.
+    // Unterstützt beide Supabase-Flows:
+    //   - Token-Flow (hash):  #access_token=...&refresh_token=...
+    //   - PKCE-Flow (query):  ?code=...
+    const handleAuthUrl = async (urlEvent: { url: string } | string) => {
+      const url = typeof urlEvent === 'string' ? urlEvent : urlEvent.url;
+      if (!url || !url.includes('auth-callback')) return;
+      try {
+        // Token-Flow: hash-fragment
+        const hashIdx = url.indexOf('#');
+        if (hashIdx >= 0) {
+          const params = new URLSearchParams(url.slice(hashIdx + 1));
+          const access_token = params.get('access_token');
+          const refresh_token = params.get('refresh_token');
+          if (access_token && refresh_token) {
+            await supabase.auth.setSession({ access_token, refresh_token });
+            return;
+          }
+        }
+        // PKCE-Flow: ?code=...
+        const queryIdx = url.indexOf('?');
+        if (queryIdx >= 0) {
+          const queryEnd = hashIdx >= 0 ? hashIdx : url.length;
+          const params = new URLSearchParams(url.slice(queryIdx + 1, queryEnd));
+          const code = params.get('code');
+          if (code) {
+            await supabase.auth.exchangeCodeForSession(code);
+          }
+        }
+      } catch (e) {
+        console.warn('[App] auth-callback URL parse failed:', e);
+      }
+    };
+    // App started via deep link (cold start):
+    void Linking.getInitialURL().then((url) => {
+      if (url) void handleAuthUrl(url);
+    });
+    // App already running, deep link arrives:
+    const sub = Linking.addEventListener('url', handleAuthUrl);
+    return () => {
+      unsubBackfill();
+      sub.remove();
+    };
   }, [initAuth, initApp, initNotifications, initProjects]);
 
   return (
