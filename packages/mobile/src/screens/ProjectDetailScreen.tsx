@@ -116,6 +116,21 @@ export function ProjectDetailScreen() {
     }
   }, [params.projectId, setLastOpenedProjectId]);
 
+  // Phase B1.1 (2026-05-18): Highlight-Selection ist State-local (geht beim
+  // Unmount verloren). Nach Project-Reopen war Builder-Tab leer obwohl
+  // clipOrder persistiert war. Fix: Selection aus clipOrder rekonstruieren,
+  // einmalig pro project-mount, nur wenn keine Selection da ist.
+  useEffect(() => {
+    if (!project) return;
+    if (selectedClipIds.size > 0) return;
+    const order = project.clipOrder ?? [];
+    if (order.length === 0) return;
+    const validIds = new Set(project.clips.map((c) => c.id));
+    const restored = new Set(order.filter((id) => validIds.has(id)));
+    if (restored.size > 0) setSelectedClipIds(restored);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.id]);
+
   const onDelete = () => {
     if (!project) return;
     haptic.warning();
@@ -5309,14 +5324,12 @@ function BuilderTab({
     const isLast = idx === orderedItems.length - 1;
     return (
       <ScaleDecorator>
-        <Pressable
-          onLongPress={() => {
-            haptic.selection();
-            drag();
-          }}
-          delayLongPress={180}
-          disabled={isActive}
-          style={({ pressed }) => ({
+        {/* Phase B1.1 (2026-05-18): outer als View (kein Pressable). Long-press
+            isoliert auf einen separaten Drag-Handle links, damit der
+            Scissors/Close/Up/Down-Pressable nicht gleichzeitig pressed-state
+            cyclen und das TrimModal-Layout zerschießen. */}
+        <View
+          style={{
             gap: 8,
             padding: 12,
             marginBottom: 8,
@@ -5324,10 +5337,27 @@ function BuilderTab({
             backgroundColor: isExtra ? 'rgba(255,16,57,0.06)' : 'rgba(255,255,255,0.04)',
             borderWidth: 1,
             borderColor: isExtra ? 'rgba(255,16,57,0.25)' : 'rgba(255,255,255,0.08)',
-            opacity: isActive ? 0.92 : pressed ? 0.94 : 1,
-          })}
+            opacity: isActive ? 0.92 : 1,
+          }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Drag-Handle: long-press startet Drag-Reorder. Tap macht nichts. */}
+            <Pressable
+              onLongPress={() => {
+                haptic.selection();
+                drag();
+              }}
+              delayLongPress={180}
+              disabled={isActive}
+              hitSlop={6}
+              style={({ pressed }) => ({
+                paddingHorizontal: 2,
+                paddingVertical: 4,
+                opacity: pressed ? 0.55 : 0.75,
+              })}
+            >
+              <Ionicons name="reorder-three" size={22} color="rgba(255,255,255,0.55)" />
+            </Pressable>
             <View style={{ gap: 4 }}>
               <ReorderArrow
                 icon="chevron-up"
@@ -5395,7 +5425,7 @@ function BuilderTab({
           {isExtra && (
             <ExtraTrimEditor projectId={project.id} extra={item.extra} t={t} />
           )}
-        </Pressable>
+        </View>
       </ScaleDecorator>
     );
   };
