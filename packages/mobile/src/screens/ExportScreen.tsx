@@ -18,8 +18,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { ensureLocalCopy, saveToCameraRoll } from '../lib/mediaPicker';
 import { runRenderJob } from '../lib/renderJob';
-import { buildTikTokExportArgs } from '@fiano/shared/ffmpegArgs';
+// Phase A6.4 (2026-05-18): buildTikTokExportArgs nicht mehr im Mobile-flow
+// genutzt — Worker baut args[] selber via shared/ffmpegArgs.ts (verhindert
+// FFmpeg-Argument-Injection). Mobile bleibt buildAssSubtitle für lokales
+// .ass-Bauen + Upload.
 import { buildAssSubtitle } from '@fiano/shared/assBuilder';
+import type { ClientRenderSpec } from '../lib/renderJob';
 import { useAppStore } from '../stores/appStore';
 import { useProject } from '../stores/projectsStore';
 import { DEFAULT_SPLIT_RATIO } from '../data/demoProjects';
@@ -349,35 +353,13 @@ export function ExportScreen() {
         );
       }
       const subEnabled = subSettings?.enabled === true && chunkedCues.length > 0;
-      // Optional override für ass: standardmäßig libass an wenn cues + enabled.
+      // Default: libass via .ass-File. drawtext-fallback nur für legacy/no-cues.
       const useAss = subEnabled;
-      // Legacy-Fallback-Args (drawtext) für hasAss=false-Fall (z.B. wenn user
-      // settings nur `text` ohne cues haben — heute nicht vorhanden, aber für
-      // Vorwärts-Compat).
       const fontColor = subSettings?.useGradient
         ? subSettings.gradientFrom ?? subSettings.textColor ?? '#ffffff'
         : subSettings?.textColor ?? '#ffffff';
-      const subtitleArg = subEnabled
-        ? useAss
-          ? {
-              text: '',
-              assPath: '{ASS}',
-            }
-          : {
-              text: '',
-              cues: chunkedCues.map((c) => ({
-                startSec: c.startSec,
-                endSec: c.endSec,
-                text: subSettings!.uppercase ? c.text.toUpperCase() : c.text,
-              })),
-              fontSize: subSettings!.fontSize ?? 64,
-              color: fontColor,
-              strokeColor: subSettings!.strokeColor ?? '#000000',
-              strokeWidth: subSettings!.strokeEnabled === true ? subSettings!.strokeWidth ?? 4 : 0,
-              position: subSettings!.position as 'top' | 'center' | 'bottom' | undefined,
-              uppercase: false,
-            }
-        : undefined;
+      // Phase A6.4: subtitle in spec eingebaut (siehe unten), kein subtitleArg
+      // mehr für args-build. fontColor wird für drawtext-fallback genutzt.
 
       // 4. Add-Ons: Music + Voice-Overs + Intro vom Project ablesen.
       const musicTracks = project?.musicTracks ?? [];
@@ -407,59 +389,67 @@ export function ExportScreen() {
           })
         : undefined;
 
-      // 6. FFmpeg-Args mit ALLEN Platzhaltern ({SRC}, {DST}, {INTRO}, {MUSIC_N}, {VO_N}).
-      //    Builder-Mode: clips[] hat Vorrang ggü. trimStart/trimEnd — per-clip
-      //    trim+concat im filter_complex (siehe ffmpegArgs.ts).
-      // Builder-Mode: builderUniqueSourceUris[] → {SRC_0}, {SRC_1}, ... Platzhalter.
-      // Single-source-builder mit 1 unique → {SRC_0} (server lädt 1 file mit SRC_0).
-      // 9:16-Mode: legacy {SRC} Platzhalter (kein srcs[]).
-      const srcPlaceholders =
-        builderUniqueSourceUris.length > 0
-          ? builderUniqueSourceUris.map((_, i) => `{SRC_${i}}`)
-          : undefined;
-      const args = buildTikTokExportArgs(
-        {
-          src: srcPlaceholders ? srcPlaceholders[0] : '{SRC}',
-          srcs: srcPlaceholders,
-          dst: '{DST}',
-          trimStart: params.trimStart,
-          trimEnd: params.trimEnd,
-          width: w,
-          height: h,
-          fps: exportSettings.fps,
-          bitrate: exportSettings.bitrate,
-          encoder: 'software',
-          layout,
-          facecamRegion: { x: facecamRegion.x, y: facecamRegion.y, w: facecamRegion.w, h: facecamRegion.h },
-          gameplayRegion: { x: gameplayRegion.x, y: gameplayRegion.y, w: gameplayRegion.w, h: gameplayRegion.h },
-          splitRatio,
-          fullOffsetX: project?.fullOffsetX,
-          subtitle: subtitleArg,
-          music: musicTracks.map((m, i) => ({ path: `{MUSIC_${i}}`, volume: m.volume })),
-          voiceOvers: voiceOvers.map((vo, i) => ({
-            path: `{VO_${i}}`,
-            startSec: vo.startSec,
-            volume: vo.volume,
-          })),
-          intro: intro
-            ? {
-                path: '{INTRO}',
-                mode: intro.mode ?? 'before',
-                scale: intro.scale,
-                x: intro.x,
-                y: intro.y,
-                durationSec: intro.durationSec,
-              }
-            : undefined,
-          clips: builderClips.length > 0 ? builderClips : undefined,
-        },
-        'other',
-      );
+      // 6. Phase A6.4 (2026-05-18): typed RenderSpec statt args[].
+      //    Worker validiert + baut args[] selber → keine Command-Injection
+      //    mehr möglich. Mobile-side wird buildTikTokExportArgs nicht mehr
+      //    aufgerufen für /v1/render. Pre-Build wäre nur für lokale Preview
+      //    oder local-FFmpeg-Tests sinnvoll.
+      const spec: ClientRenderSpec = {
+        width: w,
+        height: h,
+        fps: exportSettings.fps,
+        bitrate: exportSettings.bitrate,
+        encoder: 'software',
+        layout,
+        facecamRegion: { x: facecamRegion.x, y: facecamRegion.y, w: facecamRegion.w, h: facecamRegion.h },
+        gameplayRegion: { x: gameplayRegion.x, y: gameplayRegion.y, w: gameplayRegion.w, h: gameplayRegion.h },
+        splitRatio,
+        fullOffsetX: project?.fullOffsetX,
+        trimStart: params.trimStart,
+        trimEnd: params.trimEnd,
+        subtitle: subEnabled
+          ? {
+              useAss,
+              text: '',
+              cues: useAss
+                ? undefined
+                : chunkedCues.map((c) => ({
+                    startSec: c.startSec,
+                    endSec: c.endSec,
+                    text: subSettings!.uppercase ? c.text.toUpperCase() : c.text,
+                  })),
+              fontSize: useAss ? undefined : subSettings!.fontSize ?? 64,
+              color: useAss ? undefined : fontColor,
+              strokeColor: useAss ? undefined : subSettings!.strokeColor ?? '#000000',
+              strokeWidth: useAss
+                ? undefined
+                : subSettings!.strokeEnabled === true
+                  ? subSettings!.strokeWidth ?? 4
+                  : 0,
+              position: useAss
+                ? undefined
+                : (subSettings!.position as 'top' | 'center' | 'bottom' | undefined),
+              uppercase: false,
+            }
+          : undefined,
+        music: musicTracks.map((m) => ({ volume: m.volume })),
+        voiceOvers: voiceOvers.map((vo) => ({
+          startSec: vo.startSec,
+          volume: vo.volume,
+        })),
+        intro: intro
+          ? {
+              mode: intro.mode ?? 'before',
+              scale: intro.scale,
+              x: intro.x,
+              y: intro.y,
+              durationSec: intro.durationSec,
+            }
+          : undefined,
+        clips: builderClips.length > 0 ? builderClips : undefined,
+      };
 
       // 7. Cloud-Render: Multi-Input Upload → Render → Download.
-      // Builder-Mode (Phase Builder-3): sourceUris[] = unique localSrcUris,
-      // Server konkatiert per Trim aus jeder einzelnen Source.
-      // 9:16-Mode: single sourceUri.
       const result = await runRenderJob({
         inputs: {
           // A3.4: bei Multi-Tiktok auch sourceUris[] schicken (wie Builder).
@@ -470,7 +460,7 @@ export function ExportScreen() {
           voiceOverUris: voiceOvers.map((vo) => vo.path),
           assContent,
         },
-        args,
+        spec,
         projectId: params.projectId ?? 'no-project',
         outputName,
         onUploadProgress: (frac) => {

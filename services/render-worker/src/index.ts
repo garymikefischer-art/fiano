@@ -29,6 +29,8 @@ import { authMiddleware, type AuthedRequest } from './auth.js';
 import { runFFmpeg } from './render.js';
 import { validateAssContent } from './assValidator.js';
 import { checkAndIncrementRenderQuota } from './planCheck.js';
+import { buildTikTokExportArgs } from './ffmpegArgs.js';
+import { validateRenderSpec, specToTikTokOpts } from './renderSpec.js';
 import {
   createOutputDownloadUrl,
   createUploadUrlForKey,
@@ -192,7 +194,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
   const userId = req.userId!;
 
   try {
-    const { inputs, args, projectId, outputName } = req.body as {
+    const { inputs, args, spec, projectId, outputName } = req.body as {
       inputs?: {
         source?: string;
         /** Phase 9.5.8: Multi-Clip-Sources (alternative zu `source`). */
@@ -203,7 +205,11 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
         /** Phase 9.6.7h: ASS-Subtitle-File (libass burn-in). */
         subtitle?: string;
       };
+      /** Legacy (deprecated): pre-built FFmpeg args. */
       args?: string[];
+      /** Phase A6.4 (2026-05-18): typed RenderSpec. Worker baut args[]
+       *  selber → keine Command-Injection via args[] möglich. */
+      spec?: unknown;
       projectId?: string;
       outputName?: string;
     };
@@ -216,13 +222,23 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
           ? [inputs.source]
           : [];
 
-    if (sources.length === 0 || !args || !projectId) {
+    if (sources.length === 0 || !projectId) {
       return res.status(400).json({
         ok: false,
-        error: 'inputs.source or inputs.sources + args + projectId required',
+        error: 'inputs.source or inputs.sources + projectId required',
       });
     }
-    if (!Array.isArray(args) || args.length > 400) {
+    // Phase A6.4: entweder spec ODER args muss vorhanden sein. Beide
+    // optional, aber genau einer. Neue Clients nutzen spec (typed +
+    // sicher), legacy clients dürfen weiterhin args[] schicken
+    // (deprecated, wird in einer späteren Phase entfernt).
+    if (!spec && !args) {
+      return res.status(400).json({
+        ok: false,
+        error: 'spec (typed) or args[] required',
+      });
+    }
+    if (args && (!Array.isArray(args) || args.length > 400)) {
       return res.status(400).json({ ok: false, error: 'args invalid' });
     }
     // Ownership-Check: alle keys müssen mit `sources/${userId}/` starten.
@@ -355,21 +371,63 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     const outputTmp = path.join(tmpdir(), `${jobId}-out.mp4`);
     replaceMap['{DST}'] = outputTmp;
 
-    // ── 2. Args mit Platzhaltern ersetzen ─────────────────────────────
-    // Zwei-Stufen: erst exakter Match (für -i {SRC} etc. wo der ganze arg
-    // der Platzhalter ist), sonst Substring-Replace (für inline-Platzhalter
-    // wie {ASS} im filter_complex-String).
-    const finalArgs = args.map((a) => {
-      const s = String(a);
-      if (replaceMap[s]) return replaceMap[s];
-      let out = s;
-      for (const [token, real] of Object.entries(replaceMap)) {
-        if (out.includes(token)) {
-          out = out.split(token).join(real);
+    // ── 2. Args bauen — Phase A6.4: spec-Pfad oder legacy args-Pfad ──
+    // Spec-Pfad: validiere RenderSpec, baue args[] selber → keine FFmpeg-
+    // Argument-Injection möglich (Worker hat volle Kontrolle).
+    // Args-Pfad (deprecated): legacy clients schicken pre-built args mit
+    // Platzhaltern, Worker substituiert sie.
+    let finalArgs: string[];
+    if (spec) {
+      const v = validateRenderSpec(spec);
+      if (!v.ok) {
+        console.warn(`[${jobId}] spec validation failed: ${v.error}`);
+        return res.status(400).json({
+          ok: false,
+          jobId,
+          error: `spec invalid: ${v.error}`,
+        });
+      }
+      // Sammle resolved-Pfade in derselben Reihenfolge wie das spec sie
+      // erwartet (sources[]-Index → /tmp/jobId-src-N.mp4).
+      const sourcePaths: string[] = [];
+      if (sources.length === 1) {
+        sourcePaths.push(replaceMap['{SRC_0}']!);
+      } else {
+        for (let i = 0; i < sources.length; i++) {
+          sourcePaths.push(replaceMap[`{SRC_${i}}`]!);
         }
       }
-      return out;
-    });
+      const musicPaths: string[] = [];
+      for (let i = 0; i < (inputs?.music?.length ?? 0); i++) {
+        musicPaths.push(replaceMap[`{MUSIC_${i}}`]!);
+      }
+      const voPaths: string[] = [];
+      for (let i = 0; i < (inputs?.voiceOvers?.length ?? 0); i++) {
+        voPaths.push(replaceMap[`{VO_${i}}`]!);
+      }
+      const opts = specToTikTokOpts(v.spec, {
+        sources: sourcePaths,
+        dst: outputTmp,
+        intro: replaceMap['{INTRO}'],
+        music: musicPaths,
+        voiceOvers: voPaths,
+        assPath: replaceMap['{ASS}'],
+      });
+      finalArgs = buildTikTokExportArgs(opts, 'other');
+    } else {
+      // Legacy args[]-Pfad (deprecated): substitute placeholders.
+      finalArgs = args!.map((a) => {
+        const s = String(a);
+        if (replaceMap[s]) return replaceMap[s];
+        let out = s;
+        for (const [token, real] of Object.entries(replaceMap)) {
+          if (out.includes(token)) {
+            out = out.split(token).join(real);
+          }
+        }
+        return out;
+      });
+    }
 
     console.log(`[${jobId}] ffmpeg args: ${finalArgs.join(' ')}`);
 

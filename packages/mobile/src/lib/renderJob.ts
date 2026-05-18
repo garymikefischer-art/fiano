@@ -32,10 +32,54 @@ export interface RenderJobInputs {
 
 export interface RenderJobOpts {
   inputs: RenderJobInputs;
-  args: string[];
+  /** Phase A6.4 (2026-05-18): typed RenderSpec — Worker baut args[] selber.
+   *  Alle Felder sicher validiert + geclampt → keine FFmpeg-Argument-Injection
+   *  mehr möglich (SECURITY_AUDIT P0-3 fix). */
+  spec: ClientRenderSpec;
   projectId: string;
   outputName?: string;
   onUploadProgress?: (frac: number) => void;
+}
+
+/**
+ * ClientRenderSpec — was Mobile an Worker schickt. Worker validiert
+ * + baut args[] intern via shared/ffmpegArgs.ts.
+ */
+export interface ClientRenderSpec {
+  width: number;
+  height: number;
+  fps: number;
+  bitrate: string;
+  encoder: 'software' | 'hardware';
+  layout: 'stacked' | 'split' | 'full';
+  facecamRegion: { x: number; y: number; w: number; h: number };
+  gameplayRegion: { x: number; y: number; w: number; h: number };
+  splitRatio?: number;
+  fullOffsetX?: number;
+  trimStart?: number;
+  trimEnd?: number;
+  sourceAudioVolume?: number;
+  music?: { volume: number }[];
+  voiceOvers?: { startSec: number; volume: number }[];
+  subtitle?: {
+    useAss: boolean;
+    text?: string;
+    cues?: { startSec: number; endSec: number; text: string }[];
+    fontSize?: number;
+    color?: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    position?: 'top' | 'center' | 'bottom' | number;
+    uppercase?: boolean;
+  };
+  intro?: {
+    mode?: 'before' | 'overlay';
+    scale?: number;
+    x?: number;
+    y?: number;
+    durationSec?: number;
+  };
+  clips?: { src?: number; startSec: number; endSec: number }[];
 }
 
 export interface RenderJobResult {
@@ -176,6 +220,8 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   opts.onUploadProgress?.(1);
 
   // ─── Render-Request ──────────────────────────────────────────────────
+  // Phase A6.4 (2026-05-18): spec statt args. Worker validiert + baut
+  // args[] selber. Kein client-controlled FFmpeg-flag mehr.
   const renderRes = await fetch(`${base}/v1/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -190,7 +236,7 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
         voiceOvers: voKeys.length > 0 ? voKeys : undefined,
         subtitle: subtitleKey,
       },
-      args: opts.args,
+      spec: opts.spec,
       projectId: opts.projectId,
       outputName: opts.outputName ?? `${Date.now()}.mp4`,
     }),
