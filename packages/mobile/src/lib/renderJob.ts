@@ -14,6 +14,7 @@
 import * as FileSystem from 'expo-file-system';
 import { supabase } from './supabase';
 import { ENV } from './env';
+import { validateAssContent } from '@fiano/shared';
 
 export interface RenderJobInputs {
   /** Single-Source (legacy / Single-File-Import / URL-Import). */
@@ -153,10 +154,18 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   }
 
   // Phase 9.6.7h: .ass-Text in temp-Datei schreiben + als 'subtitle'-kind uploaden.
+  // Phase A6.2 (2026-05-18): validateAssContent VOR dem Upload — verhindert
+  // dass libass-DoS-Inputs (oversized, embedded fonts, drawing-mode, capped
+  // override-values) je den Worker erreichen. Defense-in-depth: Worker
+  // validiert auch nach Download, aber Mobile-side fail-fast spart Roundtrip.
   let subtitleKey: string | undefined;
   if (hasAss) {
+    const validation = validateAssContent(opts.inputs.assContent!);
+    if (!validation.ok) {
+      throw new Error(`Subtitle (.ass) validation failed: ${validation.reason}`);
+    }
     const assTmp = `${FileSystem.cacheDirectory}render-${Date.now()}.ass`;
-    await FileSystem.writeAsStringAsync(assTmp, opts.inputs.assContent!, {
+    await FileSystem.writeAsStringAsync(assTmp, validation.sanitized, {
       encoding: FileSystem.EncodingType.UTF8,
     });
     subtitleKey = await uploadOne(assTmp, 'subtitle');

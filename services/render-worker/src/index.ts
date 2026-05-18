@@ -21,12 +21,13 @@ import { createClient } from '@supabase/supabase-js';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'node:crypto';
-import { unlink } from 'node:fs/promises';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { authMiddleware, type AuthedRequest } from './auth.js';
 import { runFFmpeg } from './render.js';
+import { validateAssContent } from './assValidator.js';
 import {
   createOutputDownloadUrl,
   createUploadUrlForKey,
@@ -294,6 +295,22 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // wird im filter-arg ass=${path}:original_size=WxH ersetzt.
       const assTmp = path.join(tmpdir(), `${jobId}-subs.ass`);
       await downloadToFile(inputs.subtitle, assTmp);
+      // Phase A6.2 (2026-05-18): Server-side .ass content-validation gegen
+      // libass DoS / fontconfig path-traversal. Defense-in-depth: Mobile
+      // validiert auch vor Upload, aber Worker re-validates da R2-content
+      // by-client-controlled ist und JWT-Replay-Risk besteht.
+      const assContent = await readFile(assTmp, 'utf-8');
+      const validation = validateAssContent(assContent);
+      if (!validation.ok) {
+        console.warn(`[${jobId}] .ass validation rejected: ${validation.reason}`);
+        return res.status(400).json({
+          ok: false,
+          jobId,
+          error: `Subtitle (.ass) rejected: ${validation.reason}`,
+        });
+      }
+      // Sanitized-Version zurückschreiben — Override-values sind capped.
+      await writeFile(assTmp, validation.sanitized, 'utf-8');
       replaceMap['{ASS}'] = assTmp;
       tmpFiles.push(assTmp);
     }
