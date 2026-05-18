@@ -115,21 +115,24 @@ const limitTranscribe = makeLimiter(60_000, 5, 'transcribe');
 const limitDownload   = makeLimiter(60_000, 3, 'download');
 
 app.get('/health', (_req, res) => {
-  const accountId = process.env.R2_ACCOUNT_ID ?? '';
-  res.json({
-    ok: true,
-    version: '0.3.0',
-    storage: 'r2',
-    env: {
-      supabaseUrl: SUPABASE_URL ? `${SUPABASE_URL.slice(0, 30)}...` : 'NOT_SET',
-      supabaseKey: SUPABASE_SERVICE_ROLE_KEY ? `len=${SUPABASE_SERVICE_ROLE_KEY.length}` : 'NOT_SET',
-      r2AccountId: accountId ? `${accountId.slice(0, 8)}...` : 'NOT_SET',
-      r2AccessKey: process.env.R2_ACCESS_KEY_ID ? `len=${(process.env.R2_ACCESS_KEY_ID ?? '').length}` : 'NOT_SET',
-      r2Secret: process.env.R2_SECRET_ACCESS_KEY ? `len=${(process.env.R2_SECRET_ACCESS_KEY ?? '').length}` : 'NOT_SET',
-      r2Bucket: process.env.R2_BUCKET ?? 'fiano-renders (default)',
-    },
-  });
+  // Phase A6.5 (2026-05-18): env-Fingerprint entfernt (P1-2 Audit). Vorher
+  // exposed /health die Lengths + Prefixes von Secrets — useful für
+  // Recon-Attacks. Jetzt nur ok + version.
+  res.json({ ok: true, version: '0.3.0' });
 });
+
+/**
+ * Phase A6.5 (2026-05-18): R2-Key-Ownership + path-traversal-Validation.
+ * Prevents P1-1: prefix-only `startsWith` matcht `sources/<id>/../<other>/x.mp4`.
+ * Allow-list: a-zA-Z0-9._-/ Zeichen, kein `..`, kein `//`, kein `\\`.
+ */
+function isOwnedSafeKey(key: string, userId: string): boolean {
+  if (typeof key !== 'string' || key.length > 512) return false;
+  if (!key.startsWith(`sources/${userId}/`)) return false;
+  if (key.includes('..') || key.includes('//') || key.includes('\\')) return false;
+  if (!/^sources\/[A-Za-z0-9-]+\/[A-Za-z0-9._/-]+$/.test(key)) return false;
+  return true;
+}
 
 type UploadKind = 'source' | 'intro' | 'music' | 'voice-over' | 'subtitle';
 
@@ -250,8 +253,12 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       ...(inputs?.subtitle ? [inputs.subtitle] : []),
     ];
     for (const k of allKeys) {
-      if (!k.startsWith(`sources/${userId}/`)) {
-        return res.status(403).json({ ok: false, error: `input key not owned: ${k}` });
+      // Phase A6.5 (2026-05-18): Strict regex statt prefix-only-check.
+      // Prevents path-traversal wie `sources/<id>/../<other>/foo.mp4` (P1-1).
+      // Erlaubt nur a-z A-Z 0-9 . _ - / Zeichen + muss mit
+      // `sources/<userId>/` starten + darf kein `..` enthalten.
+      if (!isOwnedSafeKey(k, userId)) {
+        return res.status(403).json({ ok: false, error: `input key invalid: ${k.slice(0, 40)}` });
       }
     }
 
@@ -435,7 +442,9 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       });
     }
 
-    console.log(`[${jobId}] ffmpeg args: ${finalArgs.join(' ')}`);
+    // Phase A6.5 (2026-05-18): finalArgs nicht mehr loggen — enthielt
+    // user file paths + filter strings (PII-Risk in Cloud Logging).
+    console.log(`[${jobId}] ffmpeg start (${finalArgs.length} args)`);
 
     // ── 3. FFmpeg ausführen ───────────────────────────────────────────
     await runFFmpeg(finalArgs, { maxDurationSec: MAX_DURATION_SEC, jobId });
@@ -493,7 +502,10 @@ app.post('/v1/download', authMiddleware(supabase), limitDownload, async (req: Au
   const tmpPath = path.join(tmpdir(), `${jobId}-yt.mp4`);
 
   try {
-    console.log(`[${jobId}] download user=${userId} url=${url}${cookies ? ' (with user cookies)' : ''}`);
+    // Phase A6.5: URL nicht mehr loggen (P1-2 Audit). Nur Host für Diagnostik.
+    let urlHost = 'unknown';
+    try { urlHost = new URL(url).host; } catch { /* ignore */ }
+    console.log(`[${jobId}] download user=${userId} host=${urlHost}${cookies ? ' (with user cookies)' : ''}`);
     const meta = await downloadVideo({
       url,
       outputPath: tmpPath,
@@ -549,15 +561,22 @@ app.post('/v1/transcribe', authMiddleware(supabase), limitTranscribe, async (req
   if (!openaiApiKey || typeof openaiApiKey !== 'string') {
     return res.status(400).json({ ok: false, error: 'openaiApiKey required (set in Settings → API Keys)' });
   }
-  if (!sourceKey.startsWith(`sources/${userId}/`)) {
-    return res.status(403).json({ ok: false, error: 'source key not owned' });
+  // Phase A6.5 (2026-05-18): Strict ownership-check via regex + path-traversal-
+  // guard. Phase A6.9 (2026-05-18): sourceKey-Extension whitelist gegen
+  // zip-bomb-via-.ass-File (P2-4 Audit).
+  if (!isOwnedSafeKey(sourceKey, userId)) {
+    return res.status(403).json({ ok: false, error: 'source key invalid' });
+  }
+  if (!/\.(mp4|mov|mkv|webm|m4a|mp3|wav)$/i.test(sourceKey)) {
+    return res.status(400).json({ ok: false, error: 'unsupported source format for transcribe' });
   }
   const mode = videoType === 'gaming' || videoType === 'podcast' ? videoType : 'auto';
 
   const sourceTmp = path.join(tmpdir(), `${jobId}-transcribe-src.mp4`);
 
   try {
-    console.log(`[${jobId}] transcribe user=${userId} mode=${mode} sourceKey=${sourceKey}`);
+    // Phase A6.5: sourceKey enthält user-uuid; nur hash für log.
+    console.log(`[${jobId}] transcribe user=${userId} mode=${mode}`);
     await downloadToFile(sourceKey, sourceTmp);
     const result = await transcribeAudio({
       sourcePath: sourceTmp,

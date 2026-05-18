@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View, StatusBar as RNStatusBar } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -96,7 +97,7 @@ export function SettingsScreen() {
   const currentLangName = LANGUAGES.find((l) => l.code === currentLangCode)?.nativeName ?? 'English';
 
   const onSignOut = () => {
-    Alert.alert(
+    appAlert(
       t('settings.account.signOutTitle'),
       t('settings.account.signOutBody'),
       [
@@ -107,7 +108,7 @@ export function SettingsScreen() {
   };
 
   const onDelete = () => {
-    Alert.alert(
+    appAlert(
       t('settings.account.deleteConfirmTitle'),
       t('settings.account.deleteConfirmBody'),
       [
@@ -120,7 +121,7 @@ export function SettingsScreen() {
               await deleteAccount();
               // Auth-State-Change im Root-Navigator routet automatisch zur LoginScreen.
             } catch (err: any) {
-              Alert.alert(
+              appAlert(
                 t('settings.account.deleteFailedTitle', 'Deletion failed'),
                 err?.message ?? String(err),
               );
@@ -262,7 +263,7 @@ export function SettingsScreen() {
                       setNotifEnabled(true);
                     } else {
                       setNotifEnabled(false);
-                      Alert.alert(
+                      appAlert(
                         t('settings.notifsBlockedTitle', 'Notifications blocked'),
                         t(
                           'settings.notifsBlockedBody',
@@ -307,7 +308,7 @@ export function SettingsScreen() {
                 delaySec: 2,
               });
               if (!id) {
-                Alert.alert(
+                appAlert(
                   t('settings.notifsBlockedTitle', 'Notifications blocked'),
                   t(
                     'settings.notifsBlockedBody',

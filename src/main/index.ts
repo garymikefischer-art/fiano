@@ -120,6 +120,32 @@ function registerMediaProtocol() {
         return new Response('Bad Request', { status: 400 });
       }
 
+      // Phase A6.8 (2026-05-18): Path-Allow-List + path.resolve gegen
+      // Renderer-XSS-pivot (P2-7 Audit). Erlaubt nur userData/, app.getPath
+      // 'movies' / 'videos' / 'desktop' / 'documents' / 'downloads' / 'temp'.
+      // Vorher konnte Renderer-XSS via media://local/etc/passwd beliebige
+      // System-Files lesen.
+      const { resolve, normalize } = await import('node:path');
+      const resolved = resolve(normalize(filePath));
+      const allowedRoots = [
+        resolve(app.getPath('userData')),
+        resolve(app.getPath('movies')),
+        resolve(app.getPath('videos')),
+        resolve(app.getPath('documents')),
+        resolve(app.getPath('downloads')),
+        resolve(app.getPath('desktop')),
+        resolve(app.getPath('home')),
+        resolve(app.getPath('temp')),
+      ];
+      const inAllowedRoot = allowedRoots.some(
+        (root) => resolved === root || resolved.startsWith(root + '/') || resolved.startsWith(root + '\\'),
+      );
+      if (!inAllowedRoot) {
+        console.warn(`[media protocol] denied: ${resolved.slice(0, 60)}...`);
+        return new Response('Forbidden', { status: 403 });
+      }
+      filePath = resolved;
+
       const stats = statSync(filePath);
       if (!stats.isFile()) {
         return new Response('Not Found', { status: 404 });
@@ -223,8 +249,14 @@ function createWindow() {
     icon, // Win/Linux nutzen das aus dem BrowserWindow
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      // Phase A6.8 (2026-05-18): sandbox=true + webSecurity=true (P1-8).
+      // sandbox=true = Renderer-Process läuft in OS-Sandbox, kein direkter
+      //   Node-API-Zugang. Preload-Script verbindet contextBridge.
+      // webSecurity=true = enforce same-origin-policy (default seit Electron
+      //   12 aber explicit für Klarheit).
+      sandbox: true,
       contextIsolation: true,
+      webSecurity: true,
       // Production: DevTools komplett aus. Dev-Mode (npm run dev): an für Debug.
       devTools: !isProd,
     },
@@ -300,6 +332,37 @@ app.whenReady().then(async () => {
 
   registerMediaProtocol();
   registerIpc();
+
+  // Phase A6.8 (2026-05-18): Content-Security-Policy via session headers (P1-8).
+  // Defense-in-depth gegen Renderer-XSS. Cleartext-Listing aller erlaubten
+  // Origins für API-Calls + Inline-Styles (Tailwind generated).
+  const { session } = await import('electron');
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const csp = [
+      "default-src 'self'",
+      // Tailwind hat inline styles + CSS dynamic; unsafe-inline für styles ist
+      // notwendig. Für scripts NUR 'self' (kein unsafe-inline).
+      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self'",
+      // Images: self + data: (icons) + media:// (videos/thumbs) + https für
+      // remote thumbs etc.
+      "img-src 'self' data: media: https:",
+      "media-src 'self' media: https: blob:",
+      "font-src 'self' data:",
+      // API-Calls: Supabase, Stripe, fiano-Worker.
+      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.openai.com https://*.run.app https://api.youtube.com https://www.googleapis.com https://generativelanguage.googleapis.com",
+      "frame-src 'self' https://js.stripe.com https://*.stripe.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ');
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    });
+  });
 
   // Falls App durch fiano://-URL gestartet wurde (Win/Linux), URL ist im argv
   const initialAuthUrl = process.argv.find((a) => a.startsWith('fiano://'));

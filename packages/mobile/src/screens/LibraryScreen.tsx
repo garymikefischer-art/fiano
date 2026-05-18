@@ -6,6 +6,7 @@
 
 import { useMemo, useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, Text, View, StatusBar as RNStatusBar } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -39,7 +40,7 @@ export function LibraryScreen() {
 
   const onLongPressProject = (p: Project) => {
     haptic.warning();
-    Alert.alert(
+    appAlert(
       p.title,
       t('projectCard.deleteConfirmHint', 'This removes all clips and highlights.'),
       [
@@ -60,20 +61,20 @@ export function LibraryScreen() {
   // aus der Library-Card. Bei done: project.clips + project.subtitles.cues.
   const onReAnalyzeProject = (p: Project) => {
     if (!p.sourceUri) {
-      Alert.alert(
+      appAlert(
         t('library.noSourceTitle', 'No source video'),
         t('library.noSourceBody', 'This project has no source video to analyze.'),
       );
       return;
     }
     if (analyzingProjectId) {
-      Alert.alert(
+      appAlert(
         t('library.busyTitle', 'Already analyzing'),
         t('library.busyBody', 'Wait for the current analysis to finish.'),
       );
       return;
     }
-    Alert.alert(
+    appAlert(
       t('library.reAnalyzeTitle', 'Re-analyze with AI'),
       t(
         'library.reAnalyzeBody',
@@ -112,7 +113,7 @@ export function LibraryScreen() {
               });
               await flushProjectsNow();
               haptic.success();
-              Alert.alert(
+              appAlert(
                 t('library.analyzeDoneTitle', 'AI analysis complete'),
                 `${result.cues.length} cues · ${result.highlights.length} highlight clips`,
               );
@@ -122,7 +123,7 @@ export function LibraryScreen() {
                 status: 'failed',
                 errorMessage: err?.message ?? String(err),
               });
-              Alert.alert(
+              appAlert(
                 t('library.analyzeFailed', 'Analysis failed'),
                 err?.message ?? String(err),
               );

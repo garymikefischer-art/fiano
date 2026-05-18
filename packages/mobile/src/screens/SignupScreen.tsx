@@ -14,6 +14,7 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,7 +46,7 @@ export function SignupScreen() {
     setError(null);
     try {
       await signUp(email.trim(), password);
-      Alert.alert(
+      appAlert(
         t('auth.checkEmailTitle'),
         t('auth.checkEmailBody').replace('{email}', email.trim()),
       );

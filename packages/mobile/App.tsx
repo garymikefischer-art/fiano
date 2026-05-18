@@ -23,6 +23,7 @@ import { supabase } from './src/lib/supabase';
 import { initLanguage } from './src/lib/i18n';
 import { initSounds, appStart as playAppStart } from './src/lib/sounds';
 import { UpgradeModal } from './src/components/UpgradeModal';
+import { AppAlertHost } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
 
 /**
@@ -128,6 +129,9 @@ export default function App() {
           {/* Phase A5: globaler Upgrade-Modal für Feature-Locks. Liest
               useUpgradeModal-Store, unmounts wenn featureId === null. */}
           <UpgradeModal />
+          {/* Phase A6.3.7 (2026-05-18): custom-styled Alert. Drop-in für
+              RN's Alert.alert(), aber in fiano-Design. */}
+          <AppAlertHost />
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>

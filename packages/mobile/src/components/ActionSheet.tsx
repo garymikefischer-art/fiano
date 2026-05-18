@@ -26,6 +26,7 @@
  */
 
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from './AppAlert';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 

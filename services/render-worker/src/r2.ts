@@ -44,22 +44,56 @@ function requireR2(): S3Client {
 }
 
 /** Pre-Signed PUT-URL für einen Server-bestimmten Key (verhindert Mobile-side
- *  arbitrary uploads außerhalb der user-eigenen Folder). 1h Gültigkeit. */
+ *  arbitrary uploads außerhalb der user-eigenen Folder). 1h Gültigkeit.
+ *
+ * Phase A6.9 (2026-05-18): Body-Size-Validation passiert nach Download (im
+ * Worker — siehe `downloadToFile`). R2-default 5 GB pro PUT bleibt, aber
+ * worker rejects oversized files BEVOR sie in /tmp/ landen (kein FFmpeg-
+ * Aufruf mit Riesen-Files, kein storage-balloon).
+ *
+ * P2-1 Audit-Fix erweitert: lifecycle-rule für sources/* > 7d auto-delete
+ * MUSS noch im Cloudflare-R2-Dashboard konfiguriert werden (kann nicht via
+ * SDK ohne Bucket-Permissions). User-Task — note im PROJECT_SUMMARY.
+ */
+export const MAX_UPLOAD_BYTES: Record<string, number> = {
+  source: 500 * 1024 * 1024,      // 500 MB sources
+  intro: 100 * 1024 * 1024,       // 100 MB intros
+  music: 50 * 1024 * 1024,        // 50 MB music
+  'voice-over': 20 * 1024 * 1024, // 20 MB VOs
+  subtitle: 256 * 1024,           // 256 KB ASS (validator capped at 64KB but slack)
+};
+
 export async function createUploadUrlForKey(key: string): Promise<{ uploadUrl: string; key: string }> {
   const cmd = new PutObjectCommand({ Bucket: BUCKET, Key: key });
   const uploadUrl = await getSignedUrl(requireR2(), cmd, { expiresIn: 60 * 60 });
   return { uploadUrl, key };
 }
 
-/** Download object aus R2 → local /tmp/file. */
-export async function downloadToFile(key: string, destPath: string): Promise<number> {
+/** Download object aus R2 → local /tmp/file.
+ *
+ * Phase A6.9 (2026-05-18): maxBytes-Check während Stream-Read (P2-1 Audit).
+ * Verhindert oversized-uploads → /tmp/-fill + Cloud Run OOM. Default 1 GB
+ * — pro Kind individuell setzbar via opts.maxBytes.
+ */
+export async function downloadToFile(
+  key: string,
+  destPath: string,
+  opts: { maxBytes?: number } = {},
+): Promise<number> {
+  const maxBytes = opts.maxBytes ?? 1024 * 1024 * 1024; // 1 GB default
   const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
   const res = await requireR2().send(cmd);
   if (!res.Body) throw new Error(`R2 object empty: ${key}`);
   const stream = res.Body as NodeJS.ReadableStream;
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of stream) {
-    chunks.push(chunk instanceof Buffer ? chunk : Buffer.from(chunk));
+    const b = chunk instanceof Buffer ? chunk : Buffer.from(chunk);
+    total += b.byteLength;
+    if (total > maxBytes) {
+      throw new Error(`R2 download too large: ${total} bytes > ${maxBytes} for ${key.slice(0, 40)}`);
+    }
+    chunks.push(b);
   }
   const buf = Buffer.concat(chunks);
   await writeFile(destPath, buf);

@@ -53,7 +53,33 @@ serve(async (req) => {
     return new Response(`Invalid signature: ${(err as Error).message}`, { status: 400 });
   }
 
-  console.log(`[stripe-webhook] ${event.type}`);
+  console.log(`[stripe-webhook] ${event.type} id=${event.id}`);
+
+  // Phase A6.6 (2026-05-18): Replay-protection via event-id dedupe (P1-3
+  // Audit). Stripe-Webhook-Signature ist 5min-TTL — innerhalb des Windows
+  // könnte ein Attacker mit captured event-body replay senden + z.B.
+  // cancelled subscription reaktivieren.
+  // Tabelle stripe_events_processed (event_id PK) wird via migration 003
+  // angelegt. Hier insertieren wir vor dem handle — bei duplicate primary-
+  // key error: 200 mit dedupe-Notiz returnen (skip).
+  {
+    const { error: dedupeErr } = await supabase
+      .from('stripe_events_processed')
+      .insert({ event_id: event.id, event_type: event.type });
+    if (dedupeErr) {
+      const msg = dedupeErr.message ?? '';
+      if (msg.includes('duplicate key') || dedupeErr.code === '23505') {
+        console.log(`[stripe-webhook] DEDUPED ${event.type} id=${event.id}`);
+        return new Response(JSON.stringify({ received: true, deduped: true }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+      console.warn(`[stripe-webhook] dedupe insert failed: ${msg}`);
+      // Bei anderem Fehler: weitermachen (Tabelle existiert vielleicht
+      // noch nicht in dev) — defense-in-depth, signature-check schützt eh.
+    }
+  }
 
   try {
     switch (event.type) {

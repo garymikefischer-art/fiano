@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View, StatusBar as RNStatusBar } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -174,7 +175,7 @@ export function PricingScreen() {
         }
         // Fallback: webhook noch nicht durch — User soll manuell continue
         // probieren oder paar Sekunden warten.
-        Alert.alert(
+        appAlert(
           t('pricing.checkoutPendingTitle', 'Payment received'),
           t(
             'pricing.checkoutPending',
@@ -184,7 +185,7 @@ export function PricingScreen() {
       }
       // cancel oder dismiss: User landet wieder auf PricingScreen, kein Error.
     } catch (err: any) {
-      Alert.alert(
+      appAlert(
         t('pricing.checkoutErrorTitle', 'Checkout failed'),
         err?.message ?? String(err),
       );
@@ -205,7 +206,7 @@ export function PricingScreen() {
         (latest?.status !== 'active' && latest?.status !== 'trialing') ||
         (latest?.plan !== 'creator' && latest?.plan !== 'pro')
       ) {
-        Alert.alert(
+        appAlert(
           t('pricing.stillPendingTitle', 'Still pending'),
           t(
             'pricing.stillPendingBody',
@@ -239,7 +240,7 @@ export function PricingScreen() {
           // User MUSS subscriben oder ausloggen — kein Bypass.
           <Pressable
             onPress={() => {
-              Alert.alert(
+              appAlert(
                 t('pricing.signOutTitle', 'Sign out'),
                 t(
                   'pricing.signOutMsg',
