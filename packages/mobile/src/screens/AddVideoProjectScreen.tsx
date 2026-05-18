@@ -23,6 +23,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -101,7 +102,7 @@ export function AddVideoProjectScreen() {
   const ensureCanCreate = (): boolean => {
     if (canCreate) return true;
     const limitStr = Number.isFinite(limit) ? String(limit) : '∞';
-    Alert.alert(
+    appAlert(
       t('projectLimit.reachedShort', 'Limit reached') + ` (${limitStr})`,
       t(
         'projectLimit.reachedHint',
@@ -120,7 +121,7 @@ export function AddVideoProjectScreen() {
 
   const askSource = (): Promise<'gallery' | 'files' | null> => {
     return new Promise((resolve) => {
-      Alert.alert(
+      appAlert(
         t('addProject.sourceSheetTitle', 'Pick a source'),
         t('addProject.sourceSheetBody', 'Where is the video you want to import?'),
         [
@@ -182,7 +183,7 @@ export function AddVideoProjectScreen() {
       });
     } catch (err: any) {
       haptic.error();
-      Alert.alert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
+      appAlert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
     } finally {
       setBusy(null);
     }
@@ -198,7 +199,7 @@ export function AddVideoProjectScreen() {
     for (const u of lines) {
       if (!isYoutubeOrTwitchUrl(u)) {
         haptic.error();
-        Alert.alert(
+        appAlert(
           t('addProject.urlInvalidTitle', 'Invalid URL'),
           `${u.slice(0, 80)}\n\n${t('addProject.urlInvalidBody', 'Please enter a YouTube or Twitch URL.')}`,
         );
@@ -299,7 +300,7 @@ export function AddVideoProjectScreen() {
       }
     } catch (err: any) {
       haptic.error();
-      Alert.alert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
+      appAlert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
     } finally {
       setBusy(null);
       setUrlPhase(null);
@@ -320,7 +321,7 @@ export function AddVideoProjectScreen() {
       const picked = await picker({ maxDurationSec: MAX_DURATION_SEC });
       if (picked.length === 0) return;
       if (picked.length < 2) {
-        Alert.alert(
+        appAlert(
           t('addProject.multiTooFewTitle', 'Pick at least 2 clips'),
           t('addProject.multiTooFewBody', 'Multi-clip mode needs 2 or more videos to concatenate.'),
         );
@@ -368,7 +369,7 @@ export function AddVideoProjectScreen() {
       nav.replace('ProjectDetail', { projectId: project.id, initialTab: 'highlights' });
     } catch (err: any) {
       haptic.error();
-      Alert.alert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
+      appAlert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
     } finally {
       setBusy(null);
     }

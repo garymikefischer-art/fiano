@@ -27,6 +27,7 @@ import {
   View,
   ActivityIndicator,
 } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -202,7 +203,7 @@ export function LoginScreen() {
           {/* Forgot password */}
           <Pressable
             onPress={() =>
-              Alert.alert(
+              appAlert(
                 t('auth.forgotPasswordTitle', 'Reset password'),
                 t('auth.forgotPasswordBodyMobile', 'Reset password flow follows in Phase 9.4.x.'),
               )
@@ -263,7 +264,7 @@ export function LoginScreen() {
             <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Pressable
                 onPress={() =>
-                  Alert.alert(label, 'Web-View Folgt in Phase 9.4.x.\n\nDesktop hat alle Pages unter /legal/.')
+                  appAlert(label, 'Web-View Folgt in Phase 9.4.x.\n\nDesktop hat alle Pages unter /legal/.')
                 }
               >
                 <Text style={{ color: '#52525b', fontSize: 10 }}>{label}</Text>

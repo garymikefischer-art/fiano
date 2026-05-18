@@ -23,6 +23,7 @@ import {
   View,
   StatusBar as RNStatusBar,
 } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import Video, {
   type OnLoadData,
   type OnProgressData,
@@ -110,7 +111,7 @@ export function ProjectDetailScreen() {
   const onDelete = () => {
     if (!project) return;
     haptic.warning();
-    Alert.alert(
+    appAlert(
       project.title,
       t('projectCard.deleteConfirmHint', 'This removes all clips and highlights.'),
       [
@@ -386,7 +387,7 @@ function HighlightsTab({
   const onAnalyzeAllClips = () => {
     const sourceUris = project.sourceUris ?? [];
     if (sourceUris.length <= 1 || analysisBusy) return;
-    Alert.alert(
+    appAlert(
       t('highlights.analyzeAllTitle', 'Analyze all clips'),
       t(
         'highlights.analyzeAllBody',
@@ -452,7 +453,7 @@ function HighlightsTab({
       });
       await flushProjectsNow();
       haptic.success();
-      Alert.alert(
+      appAlert(
         t('highlights.analyzeAllDoneTitle', 'Multi-clip analysis done'),
         t(
           'highlights.analyzeAllDoneBody',
@@ -469,7 +470,7 @@ function HighlightsTab({
             .replace('{n}', String((multiProgress.current ?? 0) + 1))
             .replace('{total}', String(multiProgress.total))}: `
         : '';
-      Alert.alert(
+      appAlert(
         t('highlights.analyzeFailed', 'Analysis failed'),
         `${failedAt}${err?.message ?? String(err)}`,
       );
@@ -522,13 +523,13 @@ function HighlightsTab({
       // App-Kill verloren gehen (User-Report 9.6.7g: Highlights weg nach Neustart).
       await flushProjectsNow();
       haptic.success();
-      Alert.alert(
+      appAlert(
         t('highlights.analyzeDoneTitle', 'AI analysis complete'),
         `${result.cues.length} cues · ${result.highlights.length} highlight clips detected. Tap 'Edit cues' to refine subtitles.`,
       );
     } catch (err: any) {
       haptic.error();
-      Alert.alert(
+      appAlert(
         t('highlights.analyzeFailed', 'Analysis failed'),
         err?.message ?? String(err),
       );
@@ -894,7 +895,7 @@ function HighlightsTab({
                     haptic.light();
                     const resolved = resolveHighlightSource(h, project);
                     if (!resolved) {
-                      Alert.alert(
+                      appAlert(
                         t('highlights.aiCrossClipTitle', 'Cross-clip highlight'),
                         t(
                           'highlights.aiCrossClipBody',
@@ -1502,7 +1503,7 @@ function ManualTab({
     }
     if (markOut <= markIn) {
       haptic.error();
-      Alert.alert(
+      appAlert(
         t('manualEditor.invalidRangeTitle', 'Invalid range'),
         t('manualEditor.invalidRangeBody', 'Set Out after In.'),
       );
@@ -2802,7 +2803,7 @@ function TikTokTab({
         onPress={() => {
           if (!project.sourceUri) {
             haptic.warning();
-            Alert.alert(
+            appAlert(
               t('tiktok.exportTitle', 'Export 9:16'),
               t('tiktok.exportNoSource', 'Dieses Projekt hat noch kein Source-Video. Erst Video importieren.'),
             );
@@ -5611,7 +5612,7 @@ function BuilderTab({
             hasExtras;
           if (!hasAnySource) {
             haptic.warning();
-            Alert.alert(
+            appAlert(
               t('builder.exportTitle', 'Export 16:9'),
               t('builder.exportNoSource', 'Dieses Projekt hat noch kein Source-Video. Erst Video importieren.'),
             );

@@ -26,6 +26,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -299,7 +300,7 @@ export function ThumbnailGeneratorScreen() {
   const pickReferenceImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
-      Alert.alert('Permission required', 'Allow photo library access to pick a reference image.');
+      appAlert('Permission required', 'Allow photo library access to pick a reference image.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -321,7 +322,7 @@ export function ThumbnailGeneratorScreen() {
   const onGenerate = async () => {
     if (!project) return;
     if (!geminiKey?.trim()) {
-      Alert.alert(
+      appAlert(
         'Gemini API key required',
         'Set your Gemini API key in Settings → API Keys first.',
       );
@@ -361,22 +362,22 @@ export function ThumbnailGeneratorScreen() {
     try {
       const perm = await MediaLibrary.requestPermissionsAsync();
       if (perm.status !== 'granted') {
-        Alert.alert('Permission required', 'Allow photo library access to save thumbnails.');
+        appAlert('Permission required', 'Allow photo library access to save thumbnails.');
         return;
       }
       await MediaLibrary.createAssetAsync(uri);
       haptic.success();
-      Alert.alert('Saved', 'Thumbnail saved to gallery.');
+      appAlert('Saved', 'Thumbnail saved to gallery.');
     } catch (e: any) {
       haptic.error();
-      Alert.alert('Save failed', e?.message ?? String(e));
+      appAlert('Save failed', e?.message ?? String(e));
     }
   };
 
   const deleteFromHistory = (uri: string) => {
     if (!project) return;
     haptic.warning();
-    Alert.alert('Delete thumbnail', 'Remove this thumbnail from history?', [
+    appAlert('Delete thumbnail', 'Remove this thumbnail from history?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

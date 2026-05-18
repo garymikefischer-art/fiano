@@ -11,6 +11,7 @@
 
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from './AppAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { TtsModal } from './TtsModal';
 import { SimpleSlider } from './SimpleSlider';
@@ -44,7 +45,7 @@ export function VoiceOversSection({
 
   const onConfirmDelete = (idx: number) => {
     haptic.warning();
-    Alert.alert(
+    appAlert(
       'Delete voice-over?',
       'This removes the audio file from the project (cannot be undone).',
       [

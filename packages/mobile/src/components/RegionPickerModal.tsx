@@ -19,6 +19,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { appAlert } from './AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -77,7 +78,7 @@ export function RegionPickerModal({
       }
     } catch (e: any) {
       haptic.error();
-      Alert.alert('Test clip', e?.message ?? String(e));
+      appAlert('Test clip', e?.message ?? String(e));
     } finally {
       setBusy(false);
     }

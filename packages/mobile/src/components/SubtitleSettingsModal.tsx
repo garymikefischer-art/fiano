@@ -30,6 +30,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { appAlert } from './AppAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { ColorPickerButton } from './ColorPickerModal';
 import { SimpleSlider } from './SimpleSlider';
@@ -297,7 +298,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                         }}
                         onLongPress={() => {
                           haptic.warning();
-                          Alert.alert(
+                          appAlert(
                             'Delete preset',
                             `Remove "${p.name}"?`,
                             [

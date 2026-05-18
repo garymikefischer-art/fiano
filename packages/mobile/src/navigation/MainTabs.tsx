@@ -9,6 +9,7 @@
  */
 
 import { Alert } from 'react-native';
+import { appAlert } from '../components/AppAlert';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CommonActions } from '@react-navigation/native';
 
@@ -38,7 +39,7 @@ function quickOpenProject(
 ) {
   const target = pickProject();
   if (!target) {
-    Alert.alert(
+    appAlert(
       'Noch kein Projekt',
       'Erstelle erst ein Projekt, dann öffnet sich hier dein zuletzt bearbeitetes.',
       [
@@ -66,7 +67,7 @@ function quickOpenThumbs(
 ) {
   const target = pickProject();
   if (!target) {
-    Alert.alert(
+    appAlert(
       'Noch kein Projekt',
       'Erstelle erst ein Projekt — Thumbnails werden pro Projekt generiert.',
       [

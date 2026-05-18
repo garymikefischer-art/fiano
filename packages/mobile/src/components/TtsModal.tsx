@@ -28,6 +28,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { appAlert } from './AppAlert';
 import { Ionicons } from '@expo/vector-icons';
 import {
   TTS_LANGUAGES,
@@ -96,7 +97,7 @@ export function TtsModal({
   const onGenerate = async () => {
     if (!canGenerate) return;
     if (!apiKey) {
-      Alert.alert(
+      appAlert(
         'OpenAI key missing',
         'Add your OpenAI API key in Settings → API Keys before generating speech.',
       );
