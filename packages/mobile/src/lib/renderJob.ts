@@ -197,6 +197,30 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   });
   if (!renderRes.ok) {
     const body = await renderRes.json().catch(() => ({}));
+    // Phase A6.3 (2026-05-18): 402 = Plan-Limit erreicht (Server-Enforcement).
+    // ExportScreen erkennt PlanLimitError und zeigt UpgradeModal statt
+    // generischer Fehlermeldung.
+    if (renderRes.status === 402) {
+      const err = new Error(body.error ?? 'plan_limit_reached') as Error & {
+        isPlanLimit: true;
+        planLimit: {
+          reason: string;
+          plan: string | null;
+          renderCount?: number;
+          monthlyLimit?: number;
+          requestedResolution?: string;
+        };
+      };
+      err.isPlanLimit = true;
+      err.planLimit = {
+        reason: body.reason ?? 'unknown',
+        plan: body.plan ?? null,
+        renderCount: body.renderCount,
+        monthlyLimit: body.monthlyLimit,
+        requestedResolution: body.requestedResolution,
+      };
+      throw err;
+    }
     throw new Error(`render failed: ${body.error ?? `HTTP ${renderRes.status}`}`);
   }
   const renderBody = (await renderRes.json()) as {

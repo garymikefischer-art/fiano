@@ -124,6 +124,14 @@ export function ExportScreen() {
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Phase A6.3 (2026-05-18): Plan-Limit-Info wenn Worker 402 zurückgibt.
+  const [planLimit, setPlanLimit] = useState<{
+    reason: string;
+    plan: string | null;
+    renderCount?: number;
+    monthlyLimit?: number;
+    requestedResolution?: string;
+  } | null>(null);
   const [savedAssetUri, setSavedAssetUri] = useState<string | null>(null);
   const startedRef = useRef(false);
 
@@ -526,6 +534,19 @@ export function ExportScreen() {
       if (msg === 'aborted') {
         setPhase('canceled');
         if (params.projectId) updateProject(params.projectId, { status: 'failed', errorMessage: 'Canceled' });
+      } else if (err?.isPlanLimit) {
+        // Phase A6.3 (2026-05-18): Server-side Plan-Limit (Worker 402).
+        // UI zeigt spezifische Plan-Hinweise + Upgrade-Button statt
+        // generischen Error.
+        setPlanLimit(err.planLimit);
+        setError(msg);
+        setPhase('failed');
+        sounds.error();
+        if (params.projectId)
+          updateProject(params.projectId, {
+            status: 'failed',
+            errorMessage: `Plan-Limit: ${err.planLimit.reason}`,
+          });
       } else {
         setError(msg);
         setPhase('failed');
@@ -651,7 +672,47 @@ export function ExportScreen() {
         </View>
 
         {/* Failure-Detail */}
-        {phase === 'failed' && (
+        {phase === 'failed' && planLimit && (
+          <View
+            style={{
+              backgroundColor: 'rgba(255,16,57,0.08)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,16,57,0.35)',
+              borderRadius: 14,
+              padding: 16,
+              gap: 10,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="lock-closed" size={16} color="#ff1039" />
+              <Text style={{ color: '#ff1039', fontSize: 13, fontWeight: '700' }}>
+                {t('export.planLimitTitle', 'Plan limit reached')}
+              </Text>
+            </View>
+            <Text style={{ color: '#f1f2f2', fontSize: 13, lineHeight: 19 }}>
+              {planLimit.reason === 'subscription_required'
+                ? t(
+                    'export.planLimitSubscription',
+                    'Cloud Render requires an active subscription. Subscribe to Creator, Pro or Studio Lifetime to start exporting.',
+                  )
+                : planLimit.reason === 'resolution_locked'
+                  ? t(
+                      'export.planLimitResolution',
+                      '4K export requires Pro plan or higher. Choose 1080p or upgrade your plan.',
+                    )
+                  : planLimit.reason === 'monthly_limit_exceeded'
+                    ? t(
+                        'export.planLimitMonthly',
+                        'You\'ve used {n}/{m} renders this month on the {plan} plan. Upgrade for more renders.',
+                      )
+                        .replace('{n}', String(planLimit.renderCount ?? '?'))
+                        .replace('{m}', String(planLimit.monthlyLimit ?? '?'))
+                        .replace('{plan}', planLimit.plan ?? 'inactive')
+                    : t('export.planLimitGeneric', 'Render blocked by plan limit.')}
+            </Text>
+          </View>
+        )}
+        {phase === 'failed' && !planLimit && (
           <View
             style={{
               backgroundColor: 'rgba(255,16,57,0.06)',
@@ -700,6 +761,14 @@ export function ExportScreen() {
               variant="secondary"
               onPress={() => nav.goBack()}
               icon={<Ionicons name="arrow-back" size={16} color="#f1f2f2" />}
+            />
+          )}
+
+          {phase === 'failed' && planLimit && (
+            <BrandButton
+              title={t('export.upgradeBtn', 'Upgrade plan')}
+              onPress={() => nav.navigate('Pricing' as never)}
+              icon={<Ionicons name="rocket" size={16} color="#fff" />}
             />
           )}
 
