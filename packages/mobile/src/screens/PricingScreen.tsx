@@ -16,9 +16,13 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
+import { supabase } from '../lib/supabase';
+import { ENV } from '../lib/env';
 import { useT } from '../lib/i18n';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -97,6 +101,7 @@ export function PricingScreen() {
   const user = useAuthStore((s) => s.user);
   const subscription = useAuthStore((s) => s.subscription);
   const signOut = useAuthStore((s) => s.signOut);
+  const fetchSubscription = useAuthStore((s) => s.fetchSubscription);
   const [busy, setBusy] = useState<PlanId | null>(null);
 
   // Lifetime ist nicht mehr im Mobile PLANS array, aber wir lesen die DB-
@@ -107,16 +112,63 @@ export function PricingScreen() {
       ? (subscription.plan as PlanId)
       : null;
 
-  const onCheckout = (plan: PlanDef) => {
+  // Phase A6.3.5 (2026-05-18): Stripe Checkout für Mobile via WebBrowser.
+  // Flow: Edge-Function /functions/v1/stripe-checkout returnt eine
+  // Checkout-URL. Mobile öffnet die in einem ASWebAuthSession (in-app
+  // browser), Stripe redirected nach Bezahlung zu fiano://stripe-success.
+  // Webhook (existing) updated parallel die subscriptions-Tabelle.
+  // Nach success: fetchSubscription → Paywall-Gate öffnet automatisch.
+  //
+  // ⚠️ Für iOS App-Store-Submit später (Phase D3): Apple verlangt IAP
+  //   für digitale Subs. Stripe-Checkout-Web ist nur Android-tauglich +
+  //   für TestFlight/Sideload. RevenueCat IAP folgt in D3.
+  const onCheckout = async (plan: PlanDef) => {
     setBusy(plan.id);
-    Alert.alert(
-      t('pricing.checkoutTitle', 'Checkout'),
-      t(
-        'pricing.mobileCheckoutSoon',
-        'Stripe checkout for mobile uses RevenueCat IAP — wired up in Phase 9.4.x post-MVP.',
-      ),
-      [{ text: t('common.ok', 'OK'), onPress: () => setBusy(null) }],
-    );
+    try {
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+      if (!accessToken) {
+        throw new Error('Not authenticated');
+      }
+      const successUrl = Linking.createURL('stripe-success');
+      const cancelUrl = Linking.createURL('stripe-cancel');
+      const res = await fetch(
+        `${ENV.SUPABASE_URL}/functions/v1/stripe-checkout`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            plan: plan.id,
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as {
+        url?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+      const result = await WebBrowser.openAuthSessionAsync(data.url, successUrl);
+      if (result.type === 'success') {
+        // Stripe webhook hat parallel die subscriptions-Table updated.
+        // Wir refetchen + Paywall öffnet sich beim nächsten Render.
+        await fetchSubscription();
+      }
+      // cancel oder dismiss: User landet wieder auf PricingScreen, kein Error.
+    } catch (err: any) {
+      Alert.alert(
+        t('pricing.checkoutErrorTitle', 'Checkout failed'),
+        err?.message ?? String(err),
+      );
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
