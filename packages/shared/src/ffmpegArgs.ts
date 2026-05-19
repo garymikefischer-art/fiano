@@ -12,6 +12,54 @@
 
 export type Encoder = 'hardware' | 'software';
 
+// ─── Phase C1 (2026-05-19): Effects Filter-Chain Builder ──────────────────
+// User-konfigurierbare Color-Grade Werte → FFmpeg eq + unsharp filter-string.
+// Wird in args[] eingehängt VOR scale/encode, NACH trim. Worker whitelistet
+// die Filter (eq, unsharp).
+
+export interface ClipEffectsValues {
+  /** -1.0 .. 1.0 (default 0). */
+  brightness?: number;
+  /** 0.5 .. 2.0 (default 1.0). */
+  contrast?: number;
+  /** 0.0 .. 2.0 (default 1.0). */
+  saturation?: number;
+  /** 0.0 .. 5.0 (default 0 = off). */
+  sharpen?: number;
+}
+
+/**
+ * Generiert einen FFmpeg-vfilter-String aus Effects-Werten. Returns leeren
+ * String wenn keine Effekte aktiv (alle bei Default).
+ *
+ * Beispiel-Output: "eq=brightness=0.1:contrast=1.2:saturation=1.1,unsharp=5:5:1.5:5:5:0.0"
+ */
+export function buildEffectsFilter(e?: ClipEffectsValues | null): string {
+  if (!e) return '';
+  const eqParts: string[] = [];
+  if (e.brightness != null && Math.abs(e.brightness) > 0.001) {
+    // FFmpeg eq=brightness range: -1.0 .. 1.0 ✓ matches our slider.
+    eqParts.push(`brightness=${clampedFx(e.brightness, -1, 1).toFixed(3)}`);
+  }
+  if (e.contrast != null && Math.abs(e.contrast - 1) > 0.001) {
+    eqParts.push(`contrast=${clampedFx(e.contrast, 0.5, 2.0).toFixed(3)}`);
+  }
+  if (e.saturation != null && Math.abs(e.saturation - 1) > 0.001) {
+    eqParts.push(`saturation=${clampedFx(e.saturation, 0.0, 2.0).toFixed(3)}`);
+  }
+  const parts: string[] = [];
+  if (eqParts.length > 0) parts.push(`eq=${eqParts.join(':')}`);
+  if (e.sharpen != null && e.sharpen > 0.001) {
+    // unsharp=lx:ly:la:cx:cy:ca — luma matrix 5x5, amount=sharpen, chroma off.
+    parts.push(`unsharp=5:5:${clampedFx(e.sharpen, 0, 5).toFixed(2)}:5:5:0.0`);
+  }
+  return parts.join(',');
+}
+
+function clampedFx(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
 export interface MobileExportOpts {
   /** Quell-Video-Pfad. */
   src: string;

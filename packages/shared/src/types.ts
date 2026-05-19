@@ -139,6 +139,16 @@ export type FilterPreset = 'none' | 'vivid' | 'dark' | 'warm' | 'cold' | 'gaming
 export interface ClipEffects {
   motionBlur?: MotionBlur;
   filter?: FilterPreset;
+  // Phase C1 (2026-05-19): per-clip color-grading sliders. Werte = FFmpeg-
+  // `eq` und `unsharp` Filter-Parameter (siehe ffmpegArgs.ts).
+  /** Brightness offset -1.0 .. 1.0 (default 0). FFmpeg eq=brightness. */
+  brightness?: number;
+  /** Contrast multiplier 0.5 .. 2.0 (default 1.0). FFmpeg eq=contrast. */
+  contrast?: number;
+  /** Saturation multiplier 0.0 .. 2.0 (default 1.0). FFmpeg eq=saturation. */
+  saturation?: number;
+  /** Sharpen amount 0.0 .. 5.0 (default 0 = off). FFmpeg unsharp=amount. */
+  sharpen?: number;
 }
 
 // ─── Gameplay-Region (analog zu FacecamRegion, frei positionierbarer Crop) ──

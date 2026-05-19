@@ -27,6 +27,44 @@ export interface DemoClip {
   kind?: 'source' | 'highlight';
   /** Phase A3.11: AI-Highlight-Reason ("short: 2 kill-phrase, 3 audio-peak"). */
   reason?: string;
+  /** Phase C1 (2026-05-19): per-clip color-grading effects. Override
+   *  optional (sonst project.effectsAll). Werte werden direkt als FFmpeg
+   *  eq/unsharp-Parameter genutzt. */
+  effects?: ClipEffects;
+}
+
+/** Phase C1 (2026-05-19): per-clip color-grading. Werte = FFmpeg `eq` +
+ *  `unsharp` Filter-Parameter. Mirror von shared/types.ts ClipEffects (ohne
+ *  motionBlur/filter Preset weil die jetzt noch nicht in Mobile gebraucht
+ *  sind). */
+export interface ClipEffects {
+  /** Brightness offset -1.0 .. 1.0 (default 0). */
+  brightness?: number;
+  /** Contrast multiplier 0.5 .. 2.0 (default 1.0). */
+  contrast?: number;
+  /** Saturation multiplier 0.0 .. 2.0 (default 1.0). */
+  saturation?: number;
+  /** Sharpen amount 0.0 .. 5.0 (default 0 = off). */
+  sharpen?: number;
+}
+
+/** Default-Effects ("identität" — kein Filter aktiv). */
+export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
+  brightness: 0,
+  contrast: 1,
+  saturation: 1,
+  sharpen: 0,
+};
+
+/** Helper: hat der Effect-Block irgendwelche aktiven Werte? */
+export function hasActiveEffects(e?: ClipEffects | null): boolean {
+  if (!e) return false;
+  return (
+    (e.brightness != null && Math.abs(e.brightness) > 0.001) ||
+    (e.contrast != null && Math.abs(e.contrast - 1) > 0.001) ||
+    (e.saturation != null && Math.abs(e.saturation - 1) > 0.001) ||
+    (e.sharpen != null && e.sharpen > 0.001)
+  );
 }
 
 export type ProjectMode = 'highlights' | 'manual' | 'tiktok' | 'builder';
@@ -86,6 +124,9 @@ export interface DemoProject {
    *  YouTube-Cut-Reihenfolge zwischen die Highlight-Clips eingefügt werden.
    *  IDs sind 'extra-<uuid>' und werden in `clipOrder` referenziert. */
   builderExtras?: ProjectExtraVideo[];
+  /** Phase C1 (2026-05-19): "Applies to all clips" Default-Effects. Per-Clip-
+   *  effects in clip.effects haben Vorrang. */
+  effectsAll?: ClipEffects;
   /** Letzte Fehlermeldung wenn status === 'failed'. */
   errorMessage?: string;
   /** Generated Thumbnail-URIs aus Phase 9.8 Gemini-Thumbs. Persistent in
