@@ -424,7 +424,7 @@ export function AddVideoProjectScreen() {
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Ionicons name="close" size={18} color="#f1f2f2" />
+            <Ionicons name="close" size={18} color={colors.text.primary} />
           </Pressable>
         </View>
 
