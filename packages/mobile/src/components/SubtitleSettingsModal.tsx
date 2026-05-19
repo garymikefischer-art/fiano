@@ -134,7 +134,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={onClose}
       statusBarTranslucent
