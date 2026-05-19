@@ -170,7 +170,7 @@ export function SettingsScreen() {
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
+          <Ionicons name="chevron-back" size={18} color={colors.text.primary} />
         </Pressable>
         <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>{t('settings.title')}</Text>
         <View style={{ width: 40 }} />

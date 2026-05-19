@@ -752,7 +752,7 @@ export function ExportScreen() {
               title={t('common.back', 'Back')}
               variant="secondary"
               onPress={() => nav.goBack()}
-              icon={<Ionicons name="arrow-back" size={16} color="#f1f2f2" />}
+              icon={<Ionicons name="arrow-back" size={16} color={colors.text.primary} />}
             />
           )}
 
@@ -769,7 +769,7 @@ export function ExportScreen() {
               title={t('common.back', 'Back')}
               variant="secondary"
               onPress={() => nav.goBack()}
-              icon={<Ionicons name="arrow-back" size={16} color="#f1f2f2" />}
+              icon={<Ionicons name="arrow-back" size={16} color={colors.text.primary} />}
             />
           )}
         </View>

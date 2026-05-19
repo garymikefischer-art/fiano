@@ -567,10 +567,10 @@ export function ThumbnailGeneratorScreen() {
                     borderColor: active ? 'rgba(255,16,57,0.45)' : colors.border.subtle,
                   })}
                 >
-                  <Ionicons name={g.icon} size={14} color={active ? '#ff1039' : '#a1a1aa'} />
+                  <Ionicons name={g.icon} size={14} color={active ? colors.accent.base : colors.text.secondary} />
                   <Text
                     style={{
-                      color: active ? '#ff1039' : '#f1f2f2',
+                      color: active ? colors.accent.base : colors.text.primary,
                       fontSize: 12,
                       fontWeight: '700',
                     }}
