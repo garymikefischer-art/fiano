@@ -631,11 +631,11 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange, is
                   />
                   <SliderRow
                     label="Size scale"
-                    value={local.highlightFontScale ?? 1.4}
+                    value={local.highlightFontScale ?? 1.8}
                     min={1.0}
                     max={3.0}
                     step={0.05}
-                    display={`${(local.highlightFontScale ?? 1.4).toFixed(2)}×`}
+                    display={`${(local.highlightFontScale ?? 1.8).toFixed(2)}×`}
                     onChange={(v) => patch({ highlightFontScale: v })}
                   />
                   <SliderRow

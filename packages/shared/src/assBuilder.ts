@@ -261,11 +261,11 @@ function isHighlightWord(word: string, hwords: SubtitleHighlightWord[] | undefin
  * Big-word hinten (Layer 0), small-words vorne (Layer 1) — der small-Text
  * überlappt die untere Hälfte des big-words ("layered" = überlappende Ebenen).
  *
- * 1:1 Desktop-Parität mit `renderLayeredSubtitleToPng` (subtitleCanvas.ts):
- *   bigFs   = styleFontSize × highlightFontScale
+ * Geometrie (Desktop-nah, R9-getuned für stärkere Überlappung):
+ *   bigFs   = styleFontSize × highlightFontScale   (default 1.8×)
  *   smallFs = styleFontSize × 0.7
  *   yBig    = cy − smallFs/4         (big-word leicht über Cue-Center)
- *   ySmall  = yBig + bigFs × 0.42    (small überlappt big's untere ~42%)
+ *   ySmall  = yBig + bigFs × 0.20    (small steht tief im big-word drin)
  *
  * Phase R9-bugfix2 (2026-05-20): Vorher \N-2-Zeilen-Layout — falsch. "Layered"
  * heißt überlappende Ebenen (roter big hinten, weißer small vorne), nicht zwei
@@ -287,7 +287,7 @@ function buildLayeredEvents(
   const highlightColor = settings.highlightUseGradient
     ? assColor(settings.highlightGradientFrom ?? settings.highlightColor ?? '#ff1039')
     : assColor(settings.highlightColor ?? '#ff1039');
-  const bigScale = settings.highlightFontScale ?? 1.4;
+  const bigScale = settings.highlightFontScale ?? 1.8;
   const bigFs = Math.round(styleFontSize * bigScale);
   const smallFs = Math.round(styleFontSize * 0.7);
 
@@ -309,9 +309,9 @@ function buildLayeredEvents(
     ];
   }
 
-  // Geometrie (Desktop-Parität): big leicht über center, small überlappt unten.
+  // Geometrie: big leicht über center, small steht tief im big-word drin.
   const yBig = Math.round(cy - smallFs / 4);
-  const ySmall = Math.round(yBig + bigFs * 0.42);
+  const ySmall = Math.round(yBig + bigFs * 0.20);
 
   // Big-Event (Layer 0 — hinten). highlight-Style + Zoom-Animation.
   let bigTags =

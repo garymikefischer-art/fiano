@@ -102,7 +102,7 @@ export function SubtitleOverlay({
           fontSize={fontSize}
           fontFamily={fontFamily}
           highlightColor={highlightColor}
-          highlightFontScale={settings.highlightFontScale ?? 1.4}
+          highlightFontScale={settings.highlightFontScale ?? 1.8}
           highlightGlow={settings.highlightGlow ?? false}
           highlightGlowColor={settings.highlightGlowColor ?? '#ffffff'}
           highlightGlowStrength={settings.highlightGlowStrength ?? 0.6}
@@ -415,7 +415,7 @@ function LayeredText({
           strokeApprox,
           {
             fontSize: smallSize,
-            marginTop: -Math.round(bigSize * 0.18 + smallSize * 0.6),
+            marginTop: -Math.round(bigSize * 0.4 + smallSize * 0.6),
           },
         ]}
       >
