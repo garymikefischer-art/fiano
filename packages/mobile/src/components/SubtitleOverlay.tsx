@@ -369,6 +369,9 @@ function LayeredText({
   upper: boolean;
 }) {
   const bigSize = Math.round(fontSize * highlightFontScale);
+  // Phase R9-bugfix2 (2026-05-20): small = 0.7× fontSize + überlappt big's
+  // untere Hälfte ("layered" = überlappende Ebenen, Desktop-Parität).
+  const smallSize = Math.round(fontSize * 0.7);
   const bigGlow: TextStyle | undefined = highlightGlow
     ? {
         textShadowColor: highlightGlowColor,
@@ -403,7 +406,19 @@ function LayeredText({
           {big}
         </Text>
       )}
-      <Text style={[baseTextStyle, shadowStyle, strokeApprox, { marginTop: -bigSize * 0.15 }]}>
+      {/* small-word überlappt big's untere Hälfte — späteres Sibling = VORNE
+          (roter big-Text hinten, weißer small-Text davor). */}
+      <Text
+        style={[
+          baseTextStyle,
+          shadowStyle,
+          strokeApprox,
+          {
+            fontSize: smallSize,
+            marginTop: -Math.round(bigSize * 0.18 + smallSize * 0.6),
+          },
+        ]}
+      >
         {small}
       </Text>
     </View>
