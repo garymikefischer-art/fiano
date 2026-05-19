@@ -155,17 +155,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchSubscription: async () => {
     const userId = get().user?.id;
     if (!userId) return;
+    // Phase C5.3.1 Bug-Fix (2026-05-19): render_count + monthly_limit sind
+    // NICHT in subscriptions table. render_count steckt in `render_usage`
+    // (pro month_key row), monthly_limit ist derived aus plan (creator=30,
+    // pro=200, sonst 0). User-Report nach Round-5: "column subscriptions.
+    // render_count does not exist".
     const { data, error } = await supabase
       .from('subscriptions')
-      .select(
-        'plan, status, lifetime, current_period_end, cancel_at_period_end, render_count, monthly_limit, render_count_reset_at',
-      )
+      .select('plan, status, lifetime, current_period_end, cancel_at_period_end')
       .eq('user_id', userId)
       .maybeSingle();
     if (error) {
       console.warn('[auth] fetchSubscription failed:', error.message);
       return;
     }
-    set({ subscription: data ?? null });
+    // Plan-Counter: separate query an render_usage für aktuellen Monat.
+    // Schema 'YYYY-MM' aus to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM') —
+    // siehe supabase/migrations/002_render_quota.sql.
+    const currentMonth = new Date().toISOString().slice(0, 7); // "2026-05"
+    let renderCount: number | null = null;
+    try {
+      const { data: usage, error: usageErr } = await supabase
+        .from('render_usage')
+        .select('render_count')
+        .eq('user_id', userId)
+        .eq('month_key', currentMonth)
+        .maybeSingle();
+      if (!usageErr) renderCount = usage?.render_count ?? 0;
+    } catch (e) {
+      // render_usage RLS könnte read-block-en — silent fail, UI zeigt dann
+      // einfach keinen counter.
+      console.warn('[auth] render_usage fetch failed', e);
+    }
+    // monthly_limit aus dem plan ableiten (sync mit planCheck.ts).
+    const plan = data?.plan ?? null;
+    const monthlyLimit =
+      plan === 'creator' ? 30 : plan === 'pro' ? 200 : 0;
+    set({
+      subscription: data
+        ? {
+            ...data,
+            render_count: renderCount,
+            monthly_limit: monthlyLimit,
+            render_count_reset_at: null,
+          }
+        : null,
+    });
   },
 }));
