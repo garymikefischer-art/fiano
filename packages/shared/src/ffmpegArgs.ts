@@ -262,8 +262,10 @@ export interface TikTokExportOpts {
   sourceAudioVolume?: number;
   /** Music-Tracks die parallel zum Source-Audio laufen. Mit volume je Track. */
   music?: { path: string; volume: number }[];
-  /** Voice-Over-Tracks mit position (startSec im Output) + volume. */
-  voiceOvers?: { path: string; startSec: number; volume: number }[];
+  /** Voice-Over-Tracks mit position (startSec im Output) + volume.
+   *  Phase C4 (2026-05-19): autoDuck dimmt Source-Audio via sidechain-
+   *  compressor während die VO spricht. */
+  voiceOvers?: { path: string; startSec: number; volume: number; autoDuck?: boolean }[];
 
   /* ─── Phase 9.6.5 / 9.6.7h: Subtitle Burn-In ─────────────────────
    * Drei Modi:
@@ -604,20 +606,63 @@ export function buildTikTokExportArgs(
   // Erzeugt [aMain] das Source-Audio + Music + VoiceOvers gemischt enthält.
   // Bei Multi-Clip: srcALabel = [srcA] (concat-Output), sonst [0:a].
   filters.push(`${srcALabel}volume=${sourceVol}[srcAv]`);
-  const audioMixInputs: string[] = ['[srcAv]'];
-  music.forEach((m, i) => {
-    const idx = musicInputIndices[i];
-    filters.push(`[${idx}:a]volume=${m.volume}[m${i}]`);
-    audioMixInputs.push(`[m${i}]`);
-  });
+
+  // Step 1: VOs vorbereiten — volume + adelay (offset zum startSec).
   voiceOvers.forEach((vo, i) => {
     const idx = voInputIndices[i];
     const delayMs = Math.max(0, Math.round(vo.startSec * 1000));
     filters.push(
       `[${idx}:a]volume=${vo.volume},adelay=${delayMs}|${delayMs}[vo${i}]`,
     );
-    audioMixInputs.push(`[vo${i}]`);
   });
+
+  // Phase C4 (2026-05-19): Audio-Ducking via sidechain-compressor.
+  // Voice-Overs mit autoDuck !== false (default true) triggern eine Kompression
+  // auf das Source-Audio, sodass Sprache klar hörbar bleibt während Source
+  // (Gaming/Background) gedämpft wird. threshold=0.05 → triggert ab leiser
+  // Sprache, ratio=8 → strong dimming (~-12dB), attack=20ms + release=250ms
+  // → smooth transitions ohne pumping.
+  const duckingIdx: number[] = [];
+  voiceOvers.forEach((vo, i) => {
+    if (vo.autoDuck !== false) duckingIdx.push(i);
+  });
+
+  let srcAudioLabel = '[srcAv]';
+  if (duckingIdx.length > 0) {
+    // Asplit jede ducking VO in eine "mix"-Kopie (geht in amix) und eine
+    // "sidechain"-Kopie (triggert sidechaincompress auf srcAv).
+    for (const i of duckingIdx) {
+      filters.push(`[vo${i}]asplit=2[vo${i}_mix][vo${i}_sc]`);
+    }
+    // Sidechain-Trigger: bei mehreren ducking-VOs → erst amix der sc-copies.
+    let scLabel: string;
+    if (duckingIdx.length === 1) {
+      scLabel = `[vo${duckingIdx[0]}_sc]`;
+    } else {
+      const scInputs = duckingIdx.map((i) => `[vo${i}_sc]`).join('');
+      filters.push(
+        `${scInputs}amix=inputs=${duckingIdx.length}:duration=longest:normalize=0[allDuckSc]`,
+      );
+      scLabel = '[allDuckSc]';
+    }
+    filters.push(
+      `[srcAv]${scLabel}sidechaincompress=threshold=0.05:ratio=8:attack=20:release=250[srcDucked]`,
+    );
+    srcAudioLabel = '[srcDucked]';
+  }
+
+  // Step 2: amix audio inputs. Ducking-VOs nutzen [vo${i}_mix] (asplit-Output),
+  // non-ducking nutzen [vo${i}] direkt.
+  const audioMixInputs: string[] = [srcAudioLabel];
+  music.forEach((m, i) => {
+    const idx = musicInputIndices[i];
+    filters.push(`[${idx}:a]volume=${m.volume}[m${i}]`);
+    audioMixInputs.push(`[m${i}]`);
+  });
+  voiceOvers.forEach((vo, i) => {
+    audioMixInputs.push(duckingIdx.includes(i) ? `[vo${i}_mix]` : `[vo${i}]`);
+  });
+
   if (audioMixInputs.length > 1) {
     // duration=first → amix-Output endet wenn Source-Audio endet. Sonst würde
     // eine 2-Min-Musik auf einem 20-Sek-Clip den Audio-Stream auf 2 Min strecken
@@ -628,7 +673,7 @@ export function buildTikTokExportArgs(
         `duration=first:normalize=0[aMain]`,
     );
   } else {
-    filters.push(`[srcAv]anull[aMain]`);
+    filters.push(`${srcAudioLabel}anull[aMain]`);
   }
 
   // ─── Intro: 'before' (concat) ODER 'overlay' (transparent über Anfang) ──

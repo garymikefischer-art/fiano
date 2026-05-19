@@ -251,7 +251,77 @@ export function ProjectDetailScreen() {
       {activeTab === 'builder' && (
         <BuilderTab project={project} selectedClipIds={selectedClipIds} t={t} />
       )}
+
+      {/* Phase C1.B+ Bug-Fix (2026-05-19): Async-Duration-Probe für neu via
+          Add-Video importierte Clips. DocumentPicker (Files) liefert keine
+          duration → Probe via hidden <Video> + onLoad-Callback nachträglich.
+          Single-Decoder-Constraint (Vivo HEVC) → max 1 Probe parallel. */}
+      <ClipDurationProbe project={project} />
     </SafeAreaView>
+  );
+}
+
+/* ─── ClipDurationProbe — Hidden-Video probe für unbekannte Clip/Extra-Dauer ── */
+
+function ClipDurationProbe({ project }: { project: DemoProject }) {
+  const projectSourceUris = project.sourceUris ?? [];
+  const updateProject = useProjectsStore((s) => s.updateProject);
+
+  // Sammle 1× pro render alle clips/extras die noch keine duration haben:
+  //   - kind='source' clip mit endSec <= 0.5 (sentinel-init bei Add-Video)
+  //   - builderExtra mit durationSec === undefined oder 0
+  const unprobed = useMemo(() => {
+    const list: Array<{ kind: 'clip' | 'extra'; id: string; uri: string }> = [];
+    for (const c of project.clips) {
+      if (c.kind === 'source' && c.endSec <= 0.5 && c.sourceIdx !== undefined) {
+        const uri = projectSourceUris[c.sourceIdx];
+        if (uri) list.push({ kind: 'clip', id: c.id, uri });
+      }
+    }
+    for (const e of project.builderExtras ?? []) {
+      if (!e.durationSec || e.durationSec <= 0) {
+        list.push({ kind: 'extra', id: e.id, uri: e.path });
+      }
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.clips, project.builderExtras, project.sourceUris]);
+
+  if (unprobed.length === 0) return null;
+  const target = unprobed[0]; // single-decoder constraint
+
+  return (
+    <Video
+      key={`probe-${target.id}`}
+      source={{ uri: target.uri }}
+      paused={true}
+      muted
+      onLoad={(d: OnLoadData) => {
+        const dur = d.duration;
+        if (!dur || dur <= 0) return;
+        const current = useProjectsStore.getState().projects.find((p) => p.id === project.id);
+        if (!current) return;
+        if (target.kind === 'clip') {
+          updateProject(project.id, {
+            clips: current.clips.map((c) =>
+              c.id === target.id ? { ...c, endSec: dur } : c,
+            ),
+          });
+        } else {
+          updateProject(project.id, {
+            builderExtras: (current.builderExtras ?? []).map((e) =>
+              e.id === target.id ? { ...e, durationSec: dur } : e,
+            ),
+          });
+        }
+      }}
+      onError={() => {
+        /* silent fail — clip bleibt mit endSec=0.1, User kann es trim-en */
+      }}
+      style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
+      ignoreSilentSwitch="ignore"
+      disableFocus
+    />
   );
 }
 
@@ -473,30 +543,58 @@ function HighlightsTab({
     const nextUris = [...existing, picked.uri];
     const newSourceIdx = nextUris.length - 1;
 
-    // Neuer 'source'-Clip damit das Video in allen Tab-Listen erscheint
-    // (HighlightsTab, TikTokTab, BuilderTab lesen project.clips).
-    const dur = Math.max(0.1, picked.durationSec ?? 0);
+    // Phase C1.B+ Bug-Fix (2026-05-19):
+    //  - picked.durationSec ist 0 wenn Files-Picker (DocumentPicker liefert keine
+    //    metadata). Probe deferred via ClipDurationProbe component (mountet
+    //    hidden Video, captured onLoad.duration, updated store).
+    //  - Initial 0.1s als sentinel-min damit Clip nicht degenerate ist; Probe
+    //    überschreibt das mit der echten Duration.
+    const dur = picked.durationSec > 0 ? picked.durationSec : 0;
+    const safeDur = Math.max(0.1, dur);
+    const clipId = `src-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+    // Source-Clip (für HighlightsTab + TikTokTab + BuilderTab Listen).
+    // Wir registrieren ihn NUR als clip (nicht zusätzlich als builderExtra)
+    // damit es im Builder bei Auswahl keinen Duplikat-Eintrag gibt.
     const newClip: DemoClip = {
-      id: `src-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      id: clipId,
       startSec: 0,
-      endSec: dur,
+      endSec: safeDur,
       label: picked.filename ?? t('highlights.addedClipDefault', 'Imported clip'),
       score: 0,
       kind: 'source',
       sourceIdx: newSourceIdx,
     };
 
+    // clipOrder: Clip-ID anhängen — sodass nach App-Restart der useEffect-
+    // restore (Line 130) den clip automatisch wieder selektiert + Builder ihn
+    // in derselben Reihenfolge rendert.
+    const currentOrder =
+      project.clipOrder && project.clipOrder.length > 0
+        ? project.clipOrder
+        : [
+            ...project.clips.map((c) => c.id),
+            ...(project.builderExtras ?? []).map((e) => e.id),
+          ];
+    const nextOrder = [...currentOrder, clipId];
+
     // perClipDurations synchron halten falls bereits gepflegt (Multi-Whisper).
     const newPerClipDurations = project.perClipDurations
-      ? [...project.perClipDurations, dur]
+      ? [...project.perClipDurations, safeDur]
       : undefined;
 
     useProjectsStore.getState().updateProject(project.id, {
       sourceUris: nextUris,
       sourceType: 'multi-clip',
       clips: [...project.clips, newClip],
+      clipOrder: nextOrder,
       ...(newPerClipDurations ? { perClipDurations: newPerClipDurations } : {}),
     });
+
+    // Auto-select damit der neue Clip sofort in TikTokTab + BuilderTab
+    // Preview erscheint (statt User explicit selektieren zu lassen).
+    setSelectedClipIds(new Set([...selectedClipIds, clipId]));
+
     haptic.success();
   };
 

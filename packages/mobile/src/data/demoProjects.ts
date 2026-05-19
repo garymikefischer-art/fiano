@@ -287,6 +287,10 @@ export interface ProjectVoiceOver {
   text?: string;
   /** OpenAI-Voice-ID (alloy/echo/fable/nova/onyx/shimmer). */
   voice?: string;
+  /** Phase C4 (2026-05-19): Auto-Duck Source-Audio während die VO spricht.
+   *  FFmpeg sidechaincompress=threshold=0.05:ratio=8. Default true (creator-
+   *  freundlich — Source-Audio bleibt im Hintergrund hörbar aber dimmt). */
+  autoDuck?: boolean;
 }
 
 /** Music-Track (Phase 9.6.4). */
