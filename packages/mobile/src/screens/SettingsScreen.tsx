@@ -378,7 +378,7 @@ export function SettingsScreen() {
               )}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#52525b" />
+          <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
         </Pressable>
 
         {/* API Keys */}
@@ -499,7 +499,7 @@ export function SettingsScreen() {
                   value={youtubeCookiesInput}
                   onChangeText={setYoutubeCookiesInput}
                   placeholder={'# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t…'}
-                  placeholderTextColor="#52525b"
+                  placeholderTextColor={colors.text.muted}
                   autoCapitalize="none"
                   autoCorrect={false}
                   multiline
@@ -630,7 +630,7 @@ export function SettingsScreen() {
           />
         </Group>
 
-        <Text style={{ color: '#52525b', fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+        <Text style={{ color: colors.text.muted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
           fiano · v{version}
         </Text>
       </ScrollView>
@@ -710,7 +710,7 @@ function ApiKeyRow({
           value={value}
           onChangeText={onChange}
           placeholder={placeholder}
-          placeholderTextColor="#52525b"
+          placeholderTextColor={colors.text.muted}
           autoCapitalize="none"
           autoCorrect={false}
           secureTextEntry={!visible && !multiline}

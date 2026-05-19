@@ -757,7 +757,7 @@ function BigOptionCard({
           justifyContent: 'center',
         }}
       >
-        <Ionicons name={icon} size={22} color={highlight ? '#ff1039' : '#f1f2f2'} />
+        <Ionicons name={icon} size={22} color={highlight ? '#ff1039' : colors.text.primary} />
       </View>
       <View style={{ flex: 1, gap: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -824,7 +824,7 @@ function TypeChip({
     >
       <Text
         style={{
-          color: active ? '#ff1039' : '#f1f2f2',
+          color: active ? '#ff1039' : colors.text.primary,
           fontSize: 13,
           fontWeight: '700',
           letterSpacing: -0.2,

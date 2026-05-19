@@ -596,7 +596,7 @@ export function ExportScreen() {
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Ionicons name="close" size={18} color="#f1f2f2" />
+          <Ionicons name="close" size={18} color={colors.text.primary} />
         </Pressable>
         <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>
           {t('export.title', 'Export')}
