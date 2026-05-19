@@ -36,6 +36,7 @@ import {
 } from '../stores/appStore';
 import { pickVideoFromFiles, pickVideoFromGallery } from '../lib/mediaPicker';
 import { haptic } from '../lib/haptics';
+import { useColors } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -54,6 +55,7 @@ export function RegionPickerModal({
   onClose,
   onSave,
 }: Props) {
+  const colors = useColors();
   const [facecam, setFacecam] = useState<Region | null>(initialFacecam);
   const [gameplay, setGameplay] = useState<Region>(initialGameplay);
   const [active, setActive] = useState<ActiveBox>('facecam');
@@ -131,7 +133,7 @@ export function RegionPickerModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top', 'bottom']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
         <BackgroundGlow />
 
         {/* Header */}
@@ -155,9 +157,9 @@ export function RegionPickerModal({
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Text style={{ color: '#a1a1aa', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
+            <Text style={{ color: colors.text.secondary, fontSize: 14, fontWeight: '600' }}>Cancel</Text>
           </Pressable>
-          <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700' }}>
+          <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>
             Capture regions
           </Text>
           <Pressable
@@ -201,9 +203,9 @@ export function RegionPickerModal({
                     flex: 1,
                     paddingVertical: 9,
                     borderRadius: 10,
-                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    backgroundColor: colors.bg.elevated,
                     borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.12)',
+                    borderColor: colors.border.strong,
                     alignItems: 'center',
                     flexDirection: 'row',
                     justifyContent: 'center',
@@ -212,7 +214,7 @@ export function RegionPickerModal({
                   })}
                 >
                   <Ionicons name="videocam-outline" size={14} color="#f1f2f2" />
-                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>
+                  <Text style={{ color: colors.text.primary, fontSize: 11, fontWeight: '700' }}>
                     Replace clip
                   </Text>
                 </Pressable>
@@ -222,9 +224,9 @@ export function RegionPickerModal({
                     flex: 1,
                     paddingVertical: 9,
                     borderRadius: 10,
-                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    backgroundColor: colors.bg.elevated,
                     borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.12)',
+                    borderColor: colors.border.strong,
                     alignItems: 'center',
                     flexDirection: 'row',
                     justifyContent: 'center',
@@ -233,7 +235,7 @@ export function RegionPickerModal({
                   })}
                 >
                   <Ionicons name="image-outline" size={14} color="#f1f2f2" />
-                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>
+                  <Text style={{ color: colors.text.primary, fontSize: 11, fontWeight: '700' }}>
                     Replace image
                   </Text>
                 </Pressable>
@@ -243,10 +245,10 @@ export function RegionPickerModal({
             <View
               style={{
                 aspectRatio: 16 / 9,
-                backgroundColor: 'rgba(255,255,255,0.04)',
+                backgroundColor: colors.bg.elevated,
                 borderRadius: 14,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.08)',
+                borderColor: colors.border.subtle,
                 borderStyle: 'dashed',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -255,12 +257,12 @@ export function RegionPickerModal({
               }}
             >
               <Ionicons name="images-outline" size={36} color="rgba(255,255,255,0.32)" />
-              <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
+              <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>
                 Upload a test clip or image
               </Text>
               <Text
                 style={{
-                  color: '#a1a1aa',
+                  color: colors.text.secondary,
                   fontSize: 11,
                   textAlign: 'center',
                   lineHeight: 16,
@@ -270,66 +272,63 @@ export function RegionPickerModal({
                 Pick any 16:9 video or screenshot to position the facecam (red) + gameplay
                 (blue) regions visually. Used for preview only.
               </Text>
-              {/* Phase B4.1 (2026-05-18): drei Upload-Buttons in einer Reihe
-                  via flex:1 + kürzere Labels. Vorher wrap'd auf zwei Zeilen. */}
-              <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'stretch' }}>
+              {/* Phase B4 (2026-05-18): drei Upload-Buttons (Gallery video / Files
+                  video / Image). Image-Upload für User die nur Screenshot haben. */}
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <Pressable
                   onPress={() => onUploadTestClip(false)}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    flex: 1,
+                    paddingHorizontal: 12,
                     paddingVertical: 9,
                     borderRadius: 10,
                     backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
                     flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'center',
                     gap: 6,
                     opacity: busy ? 0.6 : 1,
                   })}
                 >
                   <Ionicons name="videocam-outline" size={14} color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Gallery</Text>
+                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Gallery video</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => onUploadTestClip(true)}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    flex: 1,
+                    paddingHorizontal: 12,
                     paddingVertical: 9,
                     borderRadius: 10,
-                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    backgroundColor: colors.bg.elevated,
                     borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.12)',
+                    borderColor: colors.border.strong,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'center',
                     gap: 6,
                     opacity: pressed ? 0.6 : 1,
                   })}
                 >
                   <Ionicons name="folder-open-outline" size={14} color="#f1f2f2" />
-                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>Files</Text>
+                  <Text style={{ color: colors.text.primary, fontSize: 11, fontWeight: '700' }}>Files video</Text>
                 </Pressable>
                 <Pressable
                   onPress={onUploadTestImage}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    flex: 1,
+                    paddingHorizontal: 12,
                     paddingVertical: 9,
                     borderRadius: 10,
-                    backgroundColor: 'rgba(255,255,255,0.06)',
+                    backgroundColor: colors.bg.elevated,
                     borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.12)',
+                    borderColor: colors.border.strong,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'center',
                     gap: 6,
                     opacity: pressed ? 0.6 : 1,
                   })}
                 >
                   <Ionicons name="image-outline" size={14} color="#f1f2f2" />
-                  <Text style={{ color: '#f1f2f2', fontSize: 11, fontWeight: '700' }}>Image</Text>
+                  <Text style={{ color: colors.text.primary, fontSize: 11, fontWeight: '700' }}>Image</Text>
                 </Pressable>
               </View>
             </View>
@@ -341,9 +340,9 @@ export function RegionPickerModal({
               style={{
                 flexDirection: 'row',
                 padding: 4,
-                backgroundColor: 'rgba(255,255,255,0.04)',
+                backgroundColor: colors.bg.elevated,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.08)',
+                borderColor: colors.border.subtle,
                 borderRadius: 12,
               }}
             >
@@ -390,7 +389,7 @@ export function RegionPickerModal({
 
           <Text
             style={{
-              color: '#71717a',
+              color: colors.text.tertiary,
               fontSize: 11,
               textAlign: 'center',
               lineHeight: 16,
@@ -426,6 +425,7 @@ function RegionStage({
   onChangeFacecam: (r: Region) => void;
   onChangeGameplay: (r: Region) => void;
 }) {
+  const colors = useColors();
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
 
   return (
@@ -435,7 +435,7 @@ function RegionStage({
         borderRadius: 14,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
       }}
       onLayout={(e) =>
         setStageSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })
@@ -705,10 +705,11 @@ function ActiveTab({
 }
 
 function FieldLabel({ children }: { children: string }) {
+  const colors = useColors();
   return (
     <Text
       style={{
-        color: '#71717a',
+        color: colors.text.tertiary,
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 0.6,
@@ -725,6 +726,7 @@ function PresetRow({ children }: { children: React.ReactNode }) {
 }
 
 function PresetChip({ label, onPress }: { label: string; onPress: () => void }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -732,13 +734,13 @@ function PresetChip({ label, onPress }: { label: string; onPress: () => void }) 
         paddingHorizontal: 12,
         paddingVertical: 7,
         borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.10)',
+        borderColor: colors.border.subtle,
         opacity: pressed ? 0.6 : 1,
       })}
     >
-      <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>{label}</Text>
+      <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>{label}</Text>
     </Pressable>
   );
 }

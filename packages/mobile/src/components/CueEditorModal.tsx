@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { SubtitleCue } from '../data/demoProjects';
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
+import { useColors } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -51,6 +52,7 @@ function basenameOfUri(uri: string | undefined, fallback: string): string {
 
 export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: Props) {
   const t = useT();
+  const colors = useColors();
   const [localCues, setLocalCues] = useState<SubtitleCue[]>(cues);
 
   useEffect(() => {
@@ -97,7 +99,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
         <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
 
         {/* Header */}
@@ -108,7 +110,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
             gap: 10,
             paddingHorizontal: 12,
             paddingVertical: 8,
-            borderBottomColor: 'rgba(255,255,255,0.06)',
+            borderBottomColor: colors.bg.elevated,
             borderBottomWidth: 1,
           }}
         >
@@ -116,10 +118,10 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
             <Ionicons name="close" size={22} color="#f1f2f2" />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '700' }}>
+            <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700' }}>
               {t('cueEditor.title', 'Cue Editor')}
             </Text>
-            <Text style={{ color: '#71717a', fontSize: 11 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
               {localCues.length} {t('cueEditor.cuesLabel', 'cues')}
             </Text>
           </View>
@@ -145,7 +147,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
           {localCues.length === 0 ? (
             <View style={{ alignItems: 'center', padding: 40, gap: 8 }}>
               <Ionicons name="document-text-outline" size={32} color="#52525b" />
-              <Text style={{ color: '#71717a', fontSize: 12, textAlign: 'center' }}>
+              <Text style={{ color: colors.text.tertiary, fontSize: 12, textAlign: 'center' }}>
                 {t(
                   'cueEditor.empty',
                   'No cues yet — run AI Analysis in Highlights first.',
@@ -170,7 +172,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
                     <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
                       {t('cueEditor.clipHeading', 'CLIP {n}').replace('{n}', String(g.clipIndex + 1))}
                     </Text>
-                    <Text style={{ color: '#71717a', fontSize: 10 }} numberOfLines={1}>
+                    <Text style={{ color: colors.text.tertiary, fontSize: 10 }} numberOfLines={1}>
                       · {basenameOfUri(sourceUris?.[g.clipIndex], `Clip ${g.clipIndex + 1}`)}
                     </Text>
                   </View>
@@ -179,9 +181,9 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
                   <View
                     key={`cue-${absIdx}`}
                     style={{
-                      backgroundColor: 'rgba(255,255,255,0.04)',
+                      backgroundColor: colors.bg.elevated,
                       borderWidth: 1,
-                      borderColor: 'rgba(255,255,255,0.08)',
+                      borderColor: colors.border.subtle,
                       borderRadius: 12,
                       padding: 12,
                       gap: 8,
@@ -196,7 +198,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
                     >
                       <Text
                         style={{
-                          color: '#71717a',
+                          color: colors.text.tertiary,
                           fontSize: 10,
                           fontVariant: ['tabular-nums'],
                           fontWeight: '600',
@@ -215,7 +217,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
                       placeholder={t('cueEditor.placeholder', 'Cue text…')}
                       placeholderTextColor="#52525b"
                       style={{
-                        color: '#f1f2f2',
+                        color: colors.text.primary,
                         fontSize: 13,
                         lineHeight: 18,
                         backgroundColor: 'rgba(0,0,0,0.25)',

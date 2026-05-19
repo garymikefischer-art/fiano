@@ -11,6 +11,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { BackgroundGlow } from '../components/BackgroundGlow';
+import { useColors } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Legal'>;
@@ -18,10 +19,11 @@ type Tab = 'privacy' | 'terms';
 
 export function LegalScreen() {
   const nav = useNavigation<Nav>();
+  const colors = useColors();
   const [tab, setTab] = useState<Tab>('privacy');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -43,9 +45,9 @@ export function LegalScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: pressed ? 0.6 : 1,
@@ -53,7 +55,7 @@ export function LegalScreen() {
         >
           <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
         </Pressable>
-        <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700' }}>Privacy & Terms</Text>
+        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>Privacy & Terms</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -64,9 +66,9 @@ export function LegalScreen() {
           marginHorizontal: 20,
           marginTop: 8,
           padding: 4,
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          backgroundColor: colors.bg.elevated,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           borderRadius: 12,
         }}
       >
@@ -116,24 +118,27 @@ function TabButton({ label, active, onPress }: { label: string; active: boolean;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const colors = useColors();
   return (
     <View style={{ gap: 8 }}>
-      <Text style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '700' }}>{title}</Text>
+      <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700' }}>{title}</Text>
       {children}
     </View>
   );
 }
 
 function P({ children }: { children: React.ReactNode }) {
+  const colors = useColors();
   return (
-    <Text style={{ color: '#a1a1aa', fontSize: 12, lineHeight: 19 }}>{children}</Text>
+    <Text style={{ color: colors.text.secondary, fontSize: 12, lineHeight: 19 }}>{children}</Text>
   );
 }
 
 function PrivacyContent() {
+  const colors = useColors();
   return (
     <>
-      <Text style={{ color: '#f1f2f2', fontSize: 24, fontWeight: '700', letterSpacing: -0.5 }}>
+      <Text style={{ color: colors.text.primary, fontSize: 24, fontWeight: '700', letterSpacing: -0.5 }}>
         Privacy Policy
       </Text>
       <Section title="What we store">
@@ -169,9 +174,10 @@ function PrivacyContent() {
 }
 
 function TermsContent() {
+  const colors = useColors();
   return (
     <>
-      <Text style={{ color: '#f1f2f2', fontSize: 24, fontWeight: '700', letterSpacing: -0.5 }}>
+      <Text style={{ color: colors.text.primary, fontSize: 24, fontWeight: '700', letterSpacing: -0.5 }}>
         Terms of Service
       </Text>
       <Section title="Subscription">
