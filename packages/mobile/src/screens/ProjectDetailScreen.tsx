@@ -2619,20 +2619,12 @@ function TikTokTab({
 
   const pickIntro = async () => {
     haptic.medium();
-    // Phase C5.4 (2026-05-19): ActionSheet Gallery/Files analog Add-Video.
-    const source = await new Promise<'gallery' | 'files' | null>((resolve) => {
-      appAlert(
-        t('tiktok.introPickSheetTitle', 'Pick intro from?'),
-        t('tiktok.introPickSheetBody', 'Where is the intro video?'),
-        [
-          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
-          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
-          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
-        ],
-      );
-    });
-    if (!source) return;
-    const picker = source === 'gallery' ? pickVideoFromGallery : pickVideoFromFiles;
+    // Phase C5.5 Bug-Fix (2026-05-19): ActionSheet causes app-crash auf Android
+    // (NestableDraggableFlatList + Reanimated v3 + RN-Modal-Konflikt). Revert
+    // zu direct gallery-picker (häufigster use-case für intros). Files-Option
+    // entfernt für jetzt; falls user .mov file im Files-System hat → muss
+    // er via Sharing erst in Gallery laden.
+    const picker = pickVideoFromGallery;
     const picked = await picker({ maxDurationSec: 30 });
     if (picked) {
       // Phase C1.B+ (2026-05-19): .mov-Files mit HEVC-Alpha oder ProRes 4444
@@ -6043,20 +6035,12 @@ function BuilderTab({
 
   const pickIntro = async () => {
     haptic.medium();
-    // Phase C5.4 (2026-05-19): ActionSheet Gallery/Files analog Add-Video.
-    const source = await new Promise<'gallery' | 'files' | null>((resolve) => {
-      appAlert(
-        t('tiktok.introPickSheetTitle', 'Pick intro from?'),
-        t('tiktok.introPickSheetBody', 'Where is the intro video?'),
-        [
-          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
-          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
-          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
-        ],
-      );
-    });
-    if (!source) return;
-    const picker = source === 'gallery' ? pickVideoFromGallery : pickVideoFromFiles;
+    // Phase C5.5 Bug-Fix (2026-05-19): ActionSheet causes app-crash auf Android
+    // (NestableDraggableFlatList + Reanimated v3 + RN-Modal-Konflikt). Revert
+    // zu direct gallery-picker (häufigster use-case für intros). Files-Option
+    // entfernt für jetzt; falls user .mov file im Files-System hat → muss
+    // er via Sharing erst in Gallery laden.
+    const picker = pickVideoFromGallery;
     const picked = await picker({ maxDurationSec: 30 });
     if (picked) {
       // Phase Builder-5: appStore.introDefaults anwenden.

@@ -155,18 +155,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchSubscription: async () => {
     const userId = get().user?.id;
     if (!userId) return;
-    // Phase C5.3.1 Bug-Fix (2026-05-19): render_count + monthly_limit sind
-    // NICHT in subscriptions table. render_count steckt in `render_usage`
-    // (pro month_key row), monthly_limit ist derived aus plan (creator=30,
-    // pro=200, sonst 0). User-Report nach Round-5: "column subscriptions.
-    // render_count does not exist".
-    const { data, error } = await supabase
-      .from('subscriptions')
-      .select('plan, status, lifetime, current_period_end, cancel_at_period_end')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (error) {
-      console.warn('[auth] fetchSubscription failed:', error.message);
+    // Phase C5.5 Bug-Fix (2026-05-19): network-retry. Beim App-Start ist
+    // network ggf. noch nicht ready → "TypeError: Network request failed".
+    // Bis zu 3 retries mit 1s/2s/4s exponential backoff.
+    let data: any = null;
+    let lastError: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const result = await supabase
+          .from('subscriptions')
+          .select('plan, status, lifetime, current_period_end, cancel_at_period_end')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (result.error) {
+          lastError = result.error;
+          break; // non-network error → don't retry
+        }
+        data = result.data;
+        lastError = null;
+        break;
+      } catch (e) {
+        lastError = e;
+        if (attempt < 2) {
+          await new Promise((r) => setTimeout(r, Math.pow(2, attempt) * 1000));
+        }
+      }
+    }
+    if (lastError) {
+      console.warn(
+        '[auth] fetchSubscription failed:',
+        lastError instanceof Error ? lastError.message : String(lastError),
+      );
       return;
     }
     // Plan-Counter: separate query an render_usage für aktuellen Monat.
