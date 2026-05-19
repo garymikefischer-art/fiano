@@ -438,6 +438,29 @@ function HighlightsTab({
     );
   };
 
+  // Phase C1.B+ (2026-05-19): Highlights-Tab — User kann zusätzliche Source-
+  // Videos vom Handy importieren. Hängt picked.uri ans project.sourceUris[]
+  // an → Multi-Source-Concat-Pipeline beim 9:16-Export rendert alle hinter-
+  // einander. Sourcetype wird auf 'multi-clip' gesetzt damit Mobile-Pipeline
+  // den Multi-Concat-Pfad wählt (renderJob.ts `sourceUris` Vorrang).
+  const onAddSourceVideo = async () => {
+    haptic.medium();
+    const picked = await pickVideoFromFiles({});
+    if (!picked) return;
+    const existing =
+      project.sourceUris && project.sourceUris.length > 0
+        ? project.sourceUris
+        : project.sourceUri
+          ? [project.sourceUri]
+          : [];
+    const nextUris = [...existing, picked.uri];
+    useProjectsStore.getState().updateProject(project.id, {
+      sourceUris: nextUris,
+      sourceType: 'multi-clip',
+    });
+    haptic.success();
+  };
+
   const runMultiAnalyze = async (sourceUris: string[]) => {
     haptic.medium();
     setAnalysisBusy(true);
@@ -602,6 +625,7 @@ function HighlightsTab({
           uri={activeSourceUri}
           key={activeSourceUri}
           seekTo={heroSeekTo}
+          effects={project.effectsAll}
         />
       ) : (
         <PlaceholderHero project={project} />
@@ -614,6 +638,44 @@ function HighlightsTab({
             .replace('{total}', String(projectSourceUris.length))}
         </Text>
       )}
+
+      {/* Phase C1.B+ (2026-05-19): Add additional source video from device.
+          Hängt eine weitere Source ans project.sourceUris[] → Multi-Source-
+          Concat-Pipeline beim 9:16-Export rendert alle hintereinander. */}
+      <Pressable
+        onPress={onAddSourceVideo}
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          borderRadius: 12,
+          backgroundColor: colors.bg.elevated,
+          borderWidth: 1,
+          borderColor: colors.border.subtle,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Ionicons name="add-circle" size={20} color="#ff1039" />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
+            {t('highlights.addSourceTitle', 'Add Video')}
+          </Text>
+          <Text style={{ color: colors.text.tertiary, fontSize: 11, lineHeight: 14 }}>
+            {projectSourceUris.length > 0
+              ? t(
+                  'highlights.addSourceMultiHint',
+                  'Append another clip from device — renders sequentially on 9:16 export.',
+                )
+              : t(
+                  'highlights.addSourceHint',
+                  'Pick a video from device to add another source clip.',
+                )}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.text.tertiary} />
+      </Pressable>
 
       {/* Stats */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1611,6 +1673,7 @@ function ManualTab({
         uri={effectiveSourceUri}
         seekTo={seekTo}
         onProgress={(sec) => setCurrentSec(sec)}
+        effects={project.effectsAll}
       />
 
       {/* Phase A3.6: Multi-Source-Switcher — eine Reihe Pills pro Source. */}

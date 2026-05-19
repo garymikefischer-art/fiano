@@ -563,7 +563,7 @@ export function ExportScreen() {
     if (params.projectId) updateProject(params.projectId, { status: 'failed', errorMessage: 'Canceled by user' });
   };
 
-  const meta = phaseMeta(phase, t, params.mode === 'builder');
+  const meta = phaseMeta(phase, t, params.mode === 'builder', colors);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
@@ -795,7 +795,8 @@ export function ExportScreen() {
 function phaseMeta(
   phase: Phase,
   t: (k: string, f?: string) => string,
-  isBuilder = false,
+  isBuilder: boolean,
+  colors: ReturnType<typeof useColors>,
 ): {
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;
