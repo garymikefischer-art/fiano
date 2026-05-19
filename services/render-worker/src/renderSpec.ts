@@ -47,8 +47,8 @@ export interface ClientRenderSpec {
   sourceAudioVolume?: number;
   /** Music-Tracks. Order entspricht den hochgeladenen music-keys. */
   music?: { volume: number }[];
-  /** Voice-Over-Tracks. */
-  voiceOvers?: { startSec: number; volume: number }[];
+  /** Voice-Over-Tracks. Phase C4 (2026-05-19): autoDuck pro VO. */
+  voiceOvers?: { startSec: number; volume: number; autoDuck?: boolean }[];
 
   /** Subtitle. assPath wird vom Worker gesetzt wenn subtitle-key vorhanden. */
   subtitle?: {
@@ -184,6 +184,8 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     spec.voiceOvers = s.voiceOvers.map((vo: any) => ({
       startSec: clampPositive(vo?.startSec, 0, 86400),
       volume: clamp01(vo?.volume, 1, 0, 1.5),
+      // Phase C4: autoDuck default true. Explizit false → kein ducking.
+      autoDuck: vo?.autoDuck !== false,
     }));
   }
 
@@ -307,6 +309,7 @@ export function specToTikTokOpts(
       path: paths.voiceOvers[i] ?? '',
       startSec: vo.startSec,
       volume: vo.volume,
+      autoDuck: vo.autoDuck,
     })).filter((vo) => vo.path),
     intro: spec.intro && paths.intro ? {
       path: paths.intro,

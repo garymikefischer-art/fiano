@@ -210,6 +210,48 @@ function VoiceOverRow({
         </View>
         <Text style={styles.sliderValue}>{Math.round(vo.volume * 100)}%</Text>
       </View>
+
+      {/* Phase C4 (2026-05-19): Auto-Duck Toggle pro VO. Default ON →
+          Source-Audio wird während die VO spricht via Sidechain-Compressor
+          gedimmt (FFmpeg sidechaincompress). User kann pro Track abschalten. */}
+      <Pressable
+        onPress={() => {
+          haptic.light();
+          onPatch({ autoDuck: !(vo.autoDuck !== false) });
+        }}
+        style={({ pressed }) => [
+          styles.duckRow,
+          { opacity: pressed ? 0.7 : 1 },
+        ]}
+        hitSlop={4}
+      >
+        <Ionicons
+          name={vo.autoDuck !== false ? 'volume-low' : 'volume-high'}
+          size={14}
+          color={vo.autoDuck !== false ? '#ff1039' : '#71717a'}
+        />
+        <View style={{ flex: 1, gap: 1 }}>
+          <Text style={styles.duckLabel}>Auto-duck source audio</Text>
+          <Text style={styles.duckHint}>
+            {vo.autoDuck !== false
+              ? 'Source dimmt während TTS spricht (sidechain compressor)'
+              : 'Source bleibt auf voller Lautstärke'}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.duckSwitch,
+            vo.autoDuck !== false ? styles.duckSwitchOn : styles.duckSwitchOff,
+          ]}
+        >
+          <View
+            style={[
+              styles.duckSwitchKnob,
+              vo.autoDuck !== false ? styles.duckSwitchKnobOn : styles.duckSwitchKnobOff,
+            ]}
+          />
+        </View>
+      </Pressable>
     </View>
   );
 }
@@ -328,5 +370,52 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontStyle: 'italic',
     paddingHorizontal: 4,
+  },
+  duckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    marginTop: 2,
+  },
+  duckLabel: {
+    color: '#f1f2f2',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  duckHint: {
+    color: '#71717a',
+    fontSize: 9,
+    lineHeight: 12,
+  },
+  duckSwitch: {
+    width: 32,
+    height: 18,
+    borderRadius: 999,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  duckSwitchOn: {
+    backgroundColor: 'rgba(255,16,57,0.45)',
+  },
+  duckSwitchOff: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  duckSwitchKnob: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#fff',
+  },
+  duckSwitchKnobOn: {
+    alignSelf: 'flex-end',
+  },
+  duckSwitchKnobOff: {
+    alignSelf: 'flex-start',
   },
 });

@@ -438,6 +438,10 @@ export function ExportScreen() {
         voiceOvers: voiceOvers.map((vo) => ({
           startSec: vo.startSec,
           volume: vo.volume,
+          // Phase C4 (2026-05-19): autoDuck default true. Falls Project-VO
+          // explizit deaktiviert hat, durchreichen damit Worker den sidechain-
+          // compressor übergeht.
+          autoDuck: vo.autoDuck,
         })),
         intro: intro
           ? {

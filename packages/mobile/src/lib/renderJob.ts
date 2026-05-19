@@ -60,7 +60,7 @@ export interface ClientRenderSpec {
   trimEnd?: number;
   sourceAudioVolume?: number;
   music?: { volume: number }[];
-  voiceOvers?: { startSec: number; volume: number }[];
+  voiceOvers?: { startSec: number; volume: number; autoDuck?: boolean }[];
   subtitle?: {
     useAss: boolean;
     text?: string;
