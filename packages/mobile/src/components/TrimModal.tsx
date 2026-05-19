@@ -105,7 +105,11 @@ export function TrimModal({
   useEffect(() => {
     if (visible) {
       setStartSec(initialStartSec);
-      setEndSec(initialEndSec);
+      // Phase B1.7 (2026-05-19): wenn clip un-trimmed ist (endSec=0) und
+      // sourceDurationProp vorhanden → nutze die direkt. Sonst bleibt
+      // endSec=0 bis onLoad die echte duration liefert.
+      const initialEndOrFull = initialEndSec > 0 ? initialEndSec : (sourceDurationProp ?? 0);
+      setEndSec(initialEndOrFull);
       setCurrentSec(initialStartSec);
       setPaused(true);
       setSourceDuration(sourceDurationProp ?? 0);
@@ -122,15 +126,22 @@ export function TrimModal({
   const handleLoad = (d: OnLoadData) => {
     if (sourceDuration <= 0 && d.duration > 0) {
       setSourceDuration(d.duration);
-      // initial seek auf initialStartSec
       videoRef.current?.seek(initialStartSec);
+      // Phase B1.7 (2026-05-19): wenn endSec=0 (clips ohne probed duration
+      // — z.B. neu-test-render-2.mov: "00:00 → 00:00"), setze endSec auf
+      // die echte sourceDuration. Sonst pausiert handleProgress sofort weil
+      // currentTime=0 >= endSec=0.
+      if (endSec <= 0) {
+        setEndSec(d.duration);
+      }
     }
   };
 
   const handleProgress = (d: OnProgressData) => {
     setCurrentSec(d.currentTime);
-    // Auto-stop am end-Handle.
-    if (d.currentTime >= endSec && !paused) {
+    // Phase B1.7: Auto-stop am end-Handle NUR wenn endSec valid (>0).
+    // endSec=0 würde sofort pause auf currentTime=0 triggern.
+    if (endSec > 0 && d.currentTime >= endSec && !paused) {
       setPaused(true);
       videoRef.current?.seek(startSec);
     }
