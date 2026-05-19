@@ -98,21 +98,16 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
     }
   }
 
-  // Phase C1.A.5 (2026-05-19) — Motion-Blur via Optical-Flow (minterpolate).
-  // Performance-optimiert: me=ds (diamond-search) + reduzierter upscale damit
-  // Cloud-Run-600s-Timeout nicht gerissen wird.
+  // Phase C1.A.6 (2026-05-19) — Motion-Blur weiter optimiert (me=dia, fps*1.5
+  // für alle Stufen, parallele filter-chain via -filter_complex_threads 4).
   if (e.motionBlur && e.motionBlur !== 'off') {
-    const cfg =
-      e.motionBlur === 'low'
-        ? { upscale: 1.5, tmix: 2 }
-        : e.motionBlur === 'medium'
-          ? { upscale: 1.5, tmix: 3 }
-          : { upscale: 2, tmix: 3 };
-    const upscaleFps = Math.max(45, Math.round(fps * cfg.upscale));
+    const tmixFrames =
+      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 3 : 4;
+    const upscaleFps = Math.max(45, Math.round(fps * 1.5));
     parts.push(
-      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=ds`,
+      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=dia:mb_size=16`,
     );
-    parts.push(`tmix=frames=${cfg.tmix}`);
+    parts.push(`tmix=frames=${tmixFrames}`);
     parts.push(`fps=${fps}`);
   }
   return parts.join(',');

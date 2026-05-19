@@ -2619,7 +2619,21 @@ function TikTokTab({
 
   const pickIntro = async () => {
     haptic.medium();
-    const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
+    // Phase C5.4 (2026-05-19): ActionSheet Gallery/Files analog Add-Video.
+    const source = await new Promise<'gallery' | 'files' | null>((resolve) => {
+      appAlert(
+        t('tiktok.introPickSheetTitle', 'Pick intro from?'),
+        t('tiktok.introPickSheetBody', 'Where is the intro video?'),
+        [
+          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
+          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
+          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
+        ],
+      );
+    });
+    if (!source) return;
+    const picker = source === 'gallery' ? pickVideoFromGallery : pickVideoFromFiles;
+    const picked = await picker({ maxDurationSec: 30 });
     if (picked) {
       // Phase C1.B+ (2026-05-19): .mov-Files mit HEVC-Alpha oder ProRes 4444
       // werden auf Android ExoPlayer NICHT abgespielt (silent-fail). Pre-
@@ -3349,7 +3363,7 @@ function TikTokTab({
                 {project.intro?.chromakey
                   ? t(
                       'tiktok.introChromakeyOnHint',
-                      'Grüne Pixel werden transparent — Source-Video schaut durch.',
+                      'Grüne Pixel werden im EXPORT transparent. Live-Preview zeigt Intro unverändert (Effekt wirkt nur im Cloud-Render).',
                     )
                   : t(
                       'tiktok.introChromakeyOffHint',
@@ -6029,7 +6043,21 @@ function BuilderTab({
 
   const pickIntro = async () => {
     haptic.medium();
-    const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
+    // Phase C5.4 (2026-05-19): ActionSheet Gallery/Files analog Add-Video.
+    const source = await new Promise<'gallery' | 'files' | null>((resolve) => {
+      appAlert(
+        t('tiktok.introPickSheetTitle', 'Pick intro from?'),
+        t('tiktok.introPickSheetBody', 'Where is the intro video?'),
+        [
+          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
+          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
+          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
+        ],
+      );
+    });
+    if (!source) return;
+    const picker = source === 'gallery' ? pickVideoFromGallery : pickVideoFromFiles;
+    const picked = await picker({ maxDurationSec: 30 });
     if (picked) {
       // Phase Builder-5: appStore.introDefaults anwenden.
       const defaults = useAppStore.getState().introDefaults;
@@ -6211,45 +6239,23 @@ function BuilderTab({
                 <Ionicons name="cut-outline" size={16} color={colors.text.secondary} />
               </Pressable>
             )}
-            {/* Phase C5.2 (2026-05-19): Builder Clip-Delete — Trash für clips
-                analog Highlights. Bei kind='clip' deselect + remove. */}
+            {/* Phase C5.4 Bug-Fix (2026-05-19): Builder Clip-Delete — direct.
+                Vorher mit appAlert-Confirm → crash auf Android (RN-Modal +
+                Reanimated v3 + NestableDraggableFlatList Konflikt, gleich
+                wie B1.3-TrimModal-Bug). Jetzt: tap = sofort delete + haptic.
+                User kann re-toggle in HighlightsTab wenn falsch entfernt
+                (clip bleibt in project.clips). Analog zu removeExtra-Pattern. */}
             {item.kind === 'clip' && (
               <Pressable
                 onPress={() => {
                   haptic.warning();
-                  appAlert(
-                    t('builder.removeClipTitle', 'Remove from build?'),
-                    t(
-                      'builder.removeClipBody',
-                      'Removes this clip from the YouTube build (clip stays in project.clips).',
-                    ),
-                    [
-                      { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-                      {
-                        text: t('common.remove', 'Remove'),
-                        style: 'destructive',
-                        onPress: () => {
-                          haptic.success();
-                          // Phase C5.3 Bug-Fix (2026-05-19): Builder Clip-Delete.
-                          // - Clip aus clipOrder entfernen (=raus aus Builder)
-                          // - Clip aus selectedClipIds entfernen (=Highlights-
-                          //   Selektion + orderedItems-catchup verhindern)
-                          // - project.clips UNANGETASTET → HighlightsTab zeigt
-                          //   den Clip weiterhin in der Liste, User kann ihn
-                          //   später wieder via Highlights-tap selektieren.
-                          const nextOrder = (project.clipOrder ?? []).filter(
-                            (id) => id !== item.id,
-                          );
-                          const nextSel = new Set(selectedClipIds);
-                          nextSel.delete(item.id);
-                          setSelectedClipIds(nextSel);
-                          updateProject(project.id, {
-                            clipOrder: nextOrder,
-                          });
-                        },
-                      },
-                    ],
+                  const nextOrder = (project.clipOrder ?? []).filter(
+                    (id) => id !== item.id,
                   );
+                  const nextSel = new Set(selectedClipIds);
+                  nextSel.delete(item.id);
+                  setSelectedClipIds(nextSel);
+                  updateProject(project.id, { clipOrder: nextOrder });
                 }}
                 hitSlop={6}
                 style={({ pressed }) => ({
@@ -6625,7 +6631,7 @@ function BuilderTab({
                 {project.intro?.chromakey
                   ? t(
                       'tiktok.introChromakeyOnHint',
-                      'Grüne Pixel werden transparent — Source-Video schaut durch.',
+                      'Grüne Pixel werden im EXPORT transparent. Live-Preview zeigt Intro unverändert (Effekt wirkt nur im Cloud-Render).',
                     )
                   : t(
                       'tiktok.introChromakeyOffHint',
