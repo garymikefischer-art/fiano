@@ -257,17 +257,25 @@ function isHighlightWord(word: string, hwords: SubtitleHighlightWord[] | undefin
 }
 
 /**
- * Layered-Style baut einen Event-Text wo highlight-words inline mit größerer
- * fs + highlight-color formattiert werden. Beispiel:
- *   "I am BIG" mit highlightWords=[{text:'big',big:true}]
- *   → "I am {\fs60\1c<highlight>}BIG{\fs26\1c<normal>}"
+ * Layered-Style rendert TWO-LINE-LAYOUT: big-words oben, small-words darunter
+ * (analog Desktop's PNG-Pipeline `renderLayeredSubtitleToPng`). Beispiel:
+ *   "so ARSCH" mit highlightWords=[{text:'ARSCH',big:true}]
+ *   → "{\fs60\1c<highlight>}ARSCH\N{\fs26\1c<normal>}so"
+ *
+ * Phase R9-bugfix (2026-05-20): Vorher inline-fs-style-changes ("so {\fs60}ARSCH")
+ * → libass auto-wrapping war inkonsistent (User-Report: "so ARSCH" wrappt
+ * ungleichmäßig). Jetzt explicit \N → deterministisches 2-Zeilen-Layout
+ * unabhängig von libass-version/font-metrics.
+ *
+ * Phase C7 (2026-05-19): Big-Word-Zoom-Animation via libass \t() — startet bei
+ * 80% scale, animiert über 120ms zu 110% scale ("pop"-Effekt).
  */
 function buildLayeredText(
   cueText: string,
   settings: SubtitleSettings,
   styleFontSize: number,
 ): string {
-  const words = cueText.split(/(\s+)/); // keep whitespace between words
+  const words = cueText.split(/\s+/).filter(Boolean);
   const normalColor = assColor(settings.textColor ?? '#ffffff');
   const highlightColor = settings.highlightUseGradient
     ? assColor(settings.highlightGradientFrom ?? settings.highlightColor ?? '#ff1039')
@@ -275,41 +283,68 @@ function buildLayeredText(
   const bigScale = settings.highlightFontScale ?? 1.4;
   const bigFs = Math.round(styleFontSize * bigScale);
 
-  let inHighlight = false;
-  let out = '';
+  // Words splitten — Reihenfolge in jeder Gruppe erhalten (Desktop-Parität).
+  const bigWords: string[] = [];
+  const smallWords: string[] = [];
   for (const w of words) {
-    if (/^\s+$/.test(w)) {
-      out += escapeAss(w);
-      continue;
+    if (isHighlightWord(w, settings.highlightWords)) {
+      bigWords.push(w);
+    } else {
+      smallWords.push(w);
     }
-    const isBig = isHighlightWord(w, settings.highlightWords);
-    if (isBig && !inHighlight) {
-      // Phase C7 (2026-05-19): Big-Word-Zoom-Animation via libass \t() tag.
-      // Word startet bei 80% scale + animiert über 120ms zu 110% scale —
-      // erzeugt einen "pop"-Effekt auf jedes Highlight-Wort. Bias zur
-      // current frame: zoom-in ist schneller als zoom-out (kein zoom-out,
-      // bleibt auf 110% bis Wort-Ende = nächstes non-highlight token).
-      // Desktop hatte das via libass \t() — Mobile war vorher static.
-      out += `{\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx110\\fscy110)`;
-      // optional extra drop-shadow on highlight word
-      if ((settings.highlightDropShadow ?? 0) > 0) {
-        out += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
-      }
-      if (settings.highlightGlow === true) {
-        const hgStrength = settings.highlightGlowStrength ?? 0.7;
-        const hgColor = assColor(settings.highlightGlowColor ?? settings.highlightColor ?? '#ff1039');
-        out += `\\bord${Math.round(2 + hgStrength * 3)}\\3c${hgColor}\\blur6`;
-      }
-      out += '}';
-      inHighlight = true;
-    } else if (!isBig && inHighlight) {
-      // Phase C7: reset scale + style nach big-word.
-      out += `{\\fs${styleFontSize}\\1c${normalColor}\\xshad0\\yshad0\\fscx100\\fscy100}`;
-      inHighlight = false;
-    }
-    out += escapeAss(w);
   }
-  return out;
+
+  // Kein big-word → kein layered Effekt, einfacher Text.
+  if (bigWords.length === 0) {
+    return escapeAss(cueText);
+  }
+
+  // Big-Line: highlight-Style + Zoom-Animation.
+  let bigPart = `{\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx110\\fscy110)`;
+  if ((settings.highlightDropShadow ?? 0) > 0) {
+    bigPart += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
+  }
+  if (settings.highlightGlow === true) {
+    const hgStrength = settings.highlightGlowStrength ?? 0.7;
+    const hgColor = assColor(settings.highlightGlowColor ?? settings.highlightColor ?? '#ff1039');
+    bigPart += `\\bord${Math.round(2 + hgStrength * 3)}\\3c${hgColor}\\blur6`;
+  }
+  bigPart += '}';
+  bigPart += escapeAss(bigWords.join(' '));
+
+  // Nur big-words → kein newline, kein small-line.
+  if (smallWords.length === 0) {
+    return bigPart;
+  }
+
+  // Small-Line: reset zu cue-default-style (highlight-overrides explizit aufheben,
+  // dann cue-base re-applien damit glow/shadow auf small auch wirken).
+  let smallPart = `{\\fs${styleFontSize}\\1c${normalColor}\\fscx100\\fscy100`;
+  // Border/Stroke/Glow re-apply (matches buildCueOverrides logic for cue-base).
+  if (settings.glowEnabled === true) {
+    const glowBlur = Math.max(0, settings.glowBlur ?? 8);
+    const glowStrength = Math.max(0, Math.min(1, settings.glowStrength ?? 0.7));
+    const baseStroke = settings.strokeEnabled === true ? settings.strokeWidth ?? 3 : 0;
+    const glowWidth = Math.max(1, Math.round(baseStroke + glowStrength * 4));
+    const glowColor = settings.glowColor ?? '#ff1039';
+    smallPart += `\\bord${glowWidth}\\3c${assColor(glowColor)}\\blur${glowBlur}`;
+  } else if (settings.strokeEnabled === true) {
+    smallPart += `\\bord${settings.strokeWidth ?? 3}\\3c${assColor(settings.strokeColor ?? '#000000')}\\blur0`;
+  } else {
+    smallPart += `\\bord0\\blur0`;
+  }
+  // Shadow re-apply (matches cue-base shadow).
+  if (settings.shadowEnabled === true) {
+    const sx = Math.round(settings.shadowOffsetX ?? 0);
+    const sy = Math.round(settings.shadowOffsetY ?? 0);
+    smallPart += `\\xshad${sx}\\yshad${sy}\\4c${assColor(settings.shadowColor ?? '#000000')}`;
+  } else {
+    smallPart += `\\xshad0\\yshad0`;
+  }
+  smallPart += '}';
+  smallPart += escapeAss(smallWords.join(' '));
+
+  return `${bigPart}\\N${smallPart}`;
 }
 
 /* ─── Main Builder ─────────────────────────────────────────────────── */
