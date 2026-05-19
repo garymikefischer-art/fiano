@@ -280,9 +280,12 @@ export function LoginScreen() {
   );
 }
 
+// Phase B3.7 (2026-05-19): module-level const → color hardcoded auf '#71717a'
+// (mid-grey, lesbar in dark UND light mode). colors-token kann hier nicht
+// genutzt werden weil außerhalb function-scope.
 const LABEL = {
   fontSize: 10,
-  color: colors.text.tertiary,
+  color: '#71717a',
   letterSpacing: 1.6,
   marginBottom: 4,
 } as const;
