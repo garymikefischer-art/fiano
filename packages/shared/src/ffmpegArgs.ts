@@ -75,9 +75,14 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
     // unsharp=lx:ly:la:cx:cy:ca — luma matrix 5x5, amount=sharpen, chroma off.
     parts.push(`unsharp=5:5:${clampedFx(e.sharpen, 0, 5).toFixed(2)}:5:5:0.0`);
   }
-  // Phase C6 (2026-05-19): Color-Wheels (Lift/Gamma/Gain × R/G/B).
-  // colorlevels für Lift+Gain (output min/max per channel), eq=gamma_r/g/b
-  // für midtone-curve. Werte werden hier auf FFmpeg-Spezifikation gemappt.
+  // Phase C6.1 Bug-Fix (2026-05-19): Color-Wheels mit korrektem FFmpeg-Mapping.
+  // ROOT-CAUSE: colorlevels params haben range [0..1]. Vorher: gainR=1.39 →
+  // romax=1.39 → "out of range [0-1]" Error. Neue mapping:
+  //   - lift > 0 (heben): romin = lift           (output black-point lifted)
+  //   - lift < 0 (senken): rimin = |lift|        (input black darkened)
+  //   - gain > 1 (boost):  rimax = 1/gain        (compress input → stretch out)
+  //   - gain < 1 (dim):    romax = gain          (compress output)
+  // eq=gamma_r/g/b für midtone-curve (eq akzeptiert >1).
   if (e.colorWheels) {
     const cw = e.colorWheels;
     const lr = clampedFx(cw.liftR ?? 0, -0.3, 0.3);
@@ -95,11 +100,19 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
     const anyGamma =
       Math.abs(gmr - 1) > 0.001 || Math.abs(gmg - 1) > 0.001 || Math.abs(gmb - 1) > 0.001;
     if (anyLift || anyGain) {
-      // FFmpeg colorlevels: romin/gomin/bomin = output minimum (lift),
-      // romax/gomax/bomax = output maximum (gain). 0..1 range.
+      // Pro Channel: bei lift>0 → romin shift, lift<0 → rimin shift.
+      // Bei gain>1 → rimax compress (input white earlier), gain<1 → romax cap.
+      const liftOutMin = (l: number) => (l > 0 ? l : 0);
+      const liftInMin = (l: number) => (l < 0 ? -l : 0);
+      const gainInMax = (g: number) => (g > 1 ? 1 / g : 1);
+      const gainOutMax = (g: number) => (g < 1 ? g : 1);
+      const f = (v: number) => Math.max(0, Math.min(1, v)).toFixed(3);
       parts.push(
-        `colorlevels=romin=${lr.toFixed(3)}:gomin=${lg.toFixed(3)}:bomin=${lb.toFixed(3)}:` +
-          `romax=${gnr.toFixed(3)}:gomax=${gng.toFixed(3)}:bomax=${gnb.toFixed(3)}`,
+        `colorlevels=` +
+          `rimin=${f(liftInMin(lr))}:gimin=${f(liftInMin(lg))}:bimin=${f(liftInMin(lb))}:` +
+          `rimax=${f(gainInMax(gnr))}:gimax=${f(gainInMax(gng))}:bimax=${f(gainInMax(gnb))}:` +
+          `romin=${f(liftOutMin(lr))}:gomin=${f(liftOutMin(lg))}:bomin=${f(liftOutMin(lb))}:` +
+          `romax=${f(gainOutMax(gnr))}:gomax=${f(gainOutMax(gng))}:bomax=${f(gainOutMax(gnb))}`,
       );
     }
     if (anyGamma) {

@@ -408,36 +408,60 @@ export function WatermarkOverlay({
 }: {
   watermark?: Props['watermark'];
 }) {
-  if (!watermark || !watermark.path) return null;
-  const widthPct = `${Math.max(5, Math.min(30, watermark.scale * 100))}%` as const;
-  const padding = 10;
-  const positionStyle: {
-    position: 'absolute';
-    top?: number;
-    bottom?: number;
-    left?: number;
-    right?: number;
-  } = {
-    position: 'absolute',
-    ...(watermark.position === 'tl' || watermark.position === 'tr'
-      ? { top: padding }
-      : { bottom: padding }),
-    ...(watermark.position === 'tl' || watermark.position === 'bl'
-      ? { left: padding }
-      : { right: padding }),
-  };
-  return (
-    <View pointerEvents="none" style={positionStyle}>
-      <Image
-        source={{ uri: watermark.path }}
-        style={{
-          width: widthPct,
-          aspectRatio: 1,
-          opacity: watermark.opacity,
-          resizeMode: 'contain',
-        }}
+  // Phase C5.3.2 Bug-Fix (2026-05-19): RN Image mit "width: '15%'" rendert
+  // nicht reliably. Stattdessen: state-based parent-width via onLayout, dann
+  // berechne pixel-size für die Image. So funktioniert auch resizeMode=contain
+  // korrekt + image wird zuverlässig gerendert.
+  const [parentWidth, setParentWidth] = useState(0);
+  if (!watermark || !watermark.path) {
+    // Probe-View für parent-width auch wenn kein watermark — sonst zeigt es
+    // beim ersten setzen "scale=15% von 0" = unsichtbar.
+    return (
+      <View
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
+        onLayout={(e) => setParentWidth(e.nativeEvent.layout.width)}
       />
-    </View>
+    );
+  }
+  const padding = 10;
+  const wmScale = Math.max(0.05, Math.min(0.3, watermark.scale));
+  // Width in absolute pixels (zuverlässig in RN), aspectRatio:1 → square box,
+  // image resizeMode=contain → wird im rectangle gefitted.
+  const widthPx = parentWidth > 0 ? Math.max(20, parentWidth * wmScale) : 0;
+  return (
+    <>
+      {/* Layer 1: invisible measurer (always present) */}
+      <View
+        pointerEvents="none"
+        style={StyleSheet.absoluteFill}
+        onLayout={(e) => setParentWidth(e.nativeEvent.layout.width)}
+      />
+      {/* Layer 2: watermark image — only rendered once we have parent size */}
+      {widthPx > 0 && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            width: widthPx,
+            height: widthPx,
+            opacity: watermark.opacity,
+            ...(watermark.position === 'tl' || watermark.position === 'tr'
+              ? { top: padding }
+              : { bottom: padding }),
+            ...(watermark.position === 'tl' || watermark.position === 'bl'
+              ? { left: padding }
+              : { right: padding }),
+          }}
+        >
+          <Image
+            source={{ uri: watermark.path }}
+            resizeMode="contain"
+            style={{ width: '100%', height: '100%' }}
+          />
+        </View>
+      )}
+    </>
   );
 }
 
