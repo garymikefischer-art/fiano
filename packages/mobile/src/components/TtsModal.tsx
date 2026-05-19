@@ -126,7 +126,7 @@ export function TtsModal({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={onClose}
       statusBarTranslucent

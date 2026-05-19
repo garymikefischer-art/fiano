@@ -110,7 +110,7 @@ export function YouTubeLoginModal({ visible, onClose, onSaved }: Props) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
         {/* Header */}
         <View
