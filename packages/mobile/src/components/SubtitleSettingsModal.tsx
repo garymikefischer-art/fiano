@@ -20,6 +20,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -55,6 +56,12 @@ interface Props {
   settings: SubtitleSettings;
   onClose: () => void;
   onChange: (next: SubtitleSettings) => void;
+  /**
+   * Phase C5.X (2026-05-20): wenn true → render als absolute-positioned
+   * full-screen-View statt RN-Modal. Workaround für measureLayout-Crash mit
+   * NestableDraggableFlatList im BuilderTab. 9:16-Tab nutzt default Modal-Mode.
+   */
+  isInline?: boolean;
 }
 
 const STYLE_OPTIONS: { id: SubtitleStyle; label: string; desc: string }[] = [
@@ -102,7 +109,7 @@ const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = [
   { id: 'Roboto-Italic',       label: 'Roboto Italic' },
 ];
 
-export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: Props) {
+export function SubtitleSettingsModal({ visible, settings, onClose, onChange, isInline = false }: Props) {
   const colors = useColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [cueEditorOpen, setCueEditorOpen] = useState(false);
@@ -131,14 +138,21 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
     onChange(DEFAULT_SUBTITLES);
   };
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
+  // Phase C5.X (2026-05-20): isInline-mode hat keinen RN-Modal-onRequestClose.
+  // Hardware-back manuell handlen.
+  useEffect(() => {
+    if (!visible || !isInline) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => sub.remove();
+  }, [visible, isInline, onClose]);
+
+  if (isInline && !visible) return null;
+
+  const body = (
+    <>
       <View style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <KeyboardAvoidingView
@@ -804,6 +818,36 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
           </View>
         </View>
       </Modal>
+    </>
+  );
+
+  if (isInline) {
+    return (
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1000,
+          elevation: 24,
+        }}
+      >
+        {body}
+      </View>
+    );
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      {body}
     </Modal>
   );
 }
