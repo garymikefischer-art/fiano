@@ -26,6 +26,8 @@ export interface ClipEffectsValues {
   saturation?: number;
   /** 0.0 .. 5.0 (default 0 = off). */
   sharpen?: number;
+  /** Motion-Blur Preset für "240Hz look". tmix=frames=N. */
+  motionBlur?: 'off' | 'low' | 'medium' | 'high';
 }
 
 /**
@@ -52,6 +54,13 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null): string {
   if (e.sharpen != null && e.sharpen > 0.001) {
     // unsharp=lx:ly:la:cx:cy:ca — luma matrix 5x5, amount=sharpen, chroma off.
     parts.push(`unsharp=5:5:${clampedFx(e.sharpen, 0, 5).toFixed(2)}:5:5:0.0`);
+  }
+  // Phase C1.A.2 (2026-05-19): motion-blur via tmix (temporal-average).
+  // off=skip, low=2, medium=4, high=6 frames blended.
+  if (e.motionBlur && e.motionBlur !== 'off') {
+    const frames =
+      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 4 : 6;
+    parts.push(`tmix=frames=${frames}`);
   }
   return parts.join(',');
 }
