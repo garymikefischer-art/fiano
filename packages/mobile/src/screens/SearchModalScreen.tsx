@@ -31,6 +31,7 @@ import { useProjects } from '../stores/projectsStore';
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/types';
+import { useColors } from '../lib/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Search'>;
 
@@ -44,6 +45,7 @@ interface Hit {
 }
 
 export function SearchModalScreen() {
+  const colors = useColors();
   const nav = useNavigation<Nav>();
   const t = useT();
   const projects = useProjects();
@@ -167,7 +169,7 @@ export function SearchModalScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0d0509' }}
+      style={{ flex: 1, backgroundColor: colors.bg.primary }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -184,7 +186,7 @@ export function SearchModalScreen() {
             paddingTop: 6,
             paddingBottom: 10,
             borderBottomWidth: 1,
-            borderBottomColor: 'rgba(255,255,255,0.06)',
+            borderBottomColor: colors.bg.elevated,
           }}
         >
           <View
@@ -193,9 +195,9 @@ export function SearchModalScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               gap: 8,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: colors.border.subtle,
               borderRadius: 14,
               paddingHorizontal: 14,
               height: 40,
@@ -210,7 +212,7 @@ export function SearchModalScreen() {
               autoFocus
               autoCapitalize="none"
               autoCorrect={false}
-              style={{ flex: 1, color: '#f1f2f2', fontSize: 14, padding: 0 }}
+              style={{ flex: 1, color: colors.text.primary, fontSize: 14, padding: 0 }}
             />
             {query.length > 0 && (
               <Pressable onPress={() => setQuery('')} hitSlop={6}>
@@ -219,7 +221,7 @@ export function SearchModalScreen() {
             )}
           </View>
           <Pressable onPress={() => nav.goBack()} hitSlop={6}>
-            <Text style={{ color: '#a1a1aa', fontSize: 14, fontWeight: '600' }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 14, fontWeight: '600' }}>
               {t('common.cancel', 'Cancel')}
             </Text>
           </Pressable>
@@ -232,10 +234,10 @@ export function SearchModalScreen() {
           {filtered.length === 0 ? (
             <View style={{ alignItems: 'center', paddingTop: 60, gap: 10 }}>
               <Ionicons name="search-outline" size={32} color="rgba(255,255,255,0.32)" />
-              <Text style={{ color: '#a1a1aa', fontSize: 13, fontWeight: '600' }}>
+              <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '600' }}>
                 {t('search.noResults', 'No results')}
               </Text>
-              <Text style={{ color: '#71717a', fontSize: 11, textAlign: 'center', maxWidth: 240 }}>
+              <Text style={{ color: colors.text.tertiary, fontSize: 11, textAlign: 'center', maxWidth: 240 }}>
                 {t(
                   'search.noResultsHint',
                   'Try another keyword. Search runs across project titles, settings and quick navigation.',
@@ -285,15 +287,15 @@ function ResultGroup({
   return (
     <View style={{ gap: 8 }}>
       <Text
-        style={{ color: '#71717a', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}
+        style={{ color: colors.text.tertiary, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}
       >
         {label}
       </Text>
       <View
         style={{
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          backgroundColor: colors.bg.elevated,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           borderRadius: 14,
           overflow: 'hidden',
         }}
@@ -302,7 +304,7 @@ function ResultGroup({
           <View key={hit.id}>
             {idx > 0 && (
               <View
-                style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 50 }}
+                style={{ height: 1, backgroundColor: colors.bg.elevated, marginLeft: 50 }}
               />
             )}
             <Pressable
@@ -320,12 +322,12 @@ function ResultGroup({
               <View style={{ flex: 1, gap: 2 }}>
                 <Text
                   numberOfLines={1}
-                  style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}
+                  style={{ color: colors.text.primary, fontSize: 13, fontWeight: '600' }}
                 >
                   {hit.title}
                 </Text>
                 {hit.subtitle && (
-                  <Text numberOfLines={1} style={{ color: '#71717a', fontSize: 11 }}>
+                  <Text numberOfLines={1} style={{ color: colors.text.tertiary, fontSize: 11 }}>
                     {hit.subtitle}
                   </Text>
                 )}

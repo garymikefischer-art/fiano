@@ -14,7 +14,7 @@
  *     bekommt finalen text + voice
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -39,6 +39,7 @@ import {
 } from '../lib/tts';
 import { useAppStore } from '../stores/appStore';
 import { haptic } from '../lib/haptics';
+import { useColors, type ColorPalette } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -61,6 +62,8 @@ export function TtsModal({
   onGenerated,
 }: Props) {
   const apiKey = useAppStore((s) => s.openaiKey);
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [text, setText] = useState(initialText);
   const [lang, setLang] = useState('de');
@@ -315,218 +318,160 @@ export function TtsModal({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
-  sheetWrap: {
-    width: '100%',
-  },
-  sheet: {
-    backgroundColor: '#0d0509',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 28,
-    maxHeight: '92%',
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    marginBottom: 14,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,16,57,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,16,57,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    color: '#f1f2f2',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#71717a',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    color: '#71717a',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    marginBottom: 8,
-  },
-  pillRow: {
-    gap: 6,
-    paddingRight: 12,
-  },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  pillActive: {
-    backgroundColor: 'rgba(255,16,57,0.16)',
-    borderColor: 'rgba(255,16,57,0.5)',
-  },
-  pillText: {
-    color: '#a1a1aa',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  pillTextActive: {
-    color: '#ff1039',
-  },
-  genderBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  genderBtnActive: {
-    backgroundColor: 'rgba(255,16,57,0.12)',
-    borderColor: 'rgba(255,16,57,0.45)',
-  },
-  genderLabel: {
-    color: '#a1a1aa',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  voiceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  voiceRowActive: {
-    backgroundColor: 'rgba(255,16,57,0.10)',
-    borderColor: 'rgba(255,16,57,0.45)',
-  },
-  voiceRadio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  voiceRadioActive: {
-    borderColor: '#ff1039',
-  },
-  voiceRadioDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ff1039',
-  },
-  voiceName: {
-    color: '#f1f2f2',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  voiceHint: {
-    color: '#71717a',
-    fontSize: 11,
-    marginTop: 1,
-  },
-  textInput: {
-    minHeight: 92,
-    maxHeight: 200,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: '#f1f2f2',
-    fontSize: 14,
-    lineHeight: 20,
-    textAlignVertical: 'top',
-  },
-  charRow: {
-    alignItems: 'flex-end',
-    marginTop: 4,
-  },
-  charCount: {
-    color: '#52525b',
-    fontSize: 10,
-    fontVariant: ['tabular-nums'],
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: 'rgba(239,68,68,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.35)',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  errorText: {
-    color: '#fecaca',
-    fontSize: 12,
-    flex: 1,
-    lineHeight: 17,
-  },
-  generateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#ff1039',
-    borderRadius: 14,
-    paddingVertical: 14,
-    marginTop: 12,
-  },
-  generateLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});
+// Phase B3.9 (2026-05-19): theme-aware styles via makeStyles(colors).
+// useMemo cached die StyleSheet auf colors-Change.
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.bg.backdrop,
+      justifyContent: 'flex-end',
+    },
+    sheetWrap: { width: '100%' },
+    sheet: {
+      backgroundColor: colors.bg.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: colors.border.subtle,
+      paddingHorizontal: 18,
+      paddingTop: 8,
+      paddingBottom: 28,
+      maxHeight: '92%',
+    },
+    handle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border.strong,
+      marginBottom: 14,
+    },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,16,57,0.15)',
+      borderWidth: 1,
+      borderColor: colors.accent.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
+    subtitle: { color: colors.text.tertiary, fontSize: 11, marginTop: 2 },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.bg.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    label: {
+      color: colors.text.tertiary,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+      marginBottom: 8,
+    },
+    pillRow: { gap: 6, paddingRight: 12 },
+    pill: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    pillActive: { backgroundColor: colors.accent.subtle, borderColor: colors.accent.border },
+    pillText: { color: colors.text.secondary, fontSize: 12, fontWeight: '600' },
+    pillTextActive: { color: colors.accent.base },
+    genderBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    genderBtnActive: {
+      backgroundColor: colors.accent.subtle,
+      borderColor: colors.accent.border,
+    },
+    genderLabel: { color: colors.text.secondary, fontSize: 13, fontWeight: '600' },
+    voiceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderRadius: 12,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    voiceRowActive: {
+      backgroundColor: colors.accent.subtle,
+      borderColor: colors.accent.border,
+    },
+    voiceRadio: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 1.5,
+      borderColor: colors.border.strong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    voiceRadioActive: { borderColor: colors.accent.base },
+    voiceRadioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent.base },
+    voiceName: { color: colors.text.primary, fontSize: 13, fontWeight: '600' },
+    voiceHint: { color: colors.text.tertiary, fontSize: 11, marginTop: 1 },
+    textInput: {
+      minHeight: 92,
+      maxHeight: 200,
+      backgroundColor: colors.bg.elevated,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      color: colors.text.primary,
+      fontSize: 14,
+      lineHeight: 20,
+      textAlignVertical: 'top',
+    },
+    charRow: { alignItems: 'flex-end', marginTop: 4 },
+    charCount: { color: colors.text.muted, fontSize: 10, fontVariant: ['tabular-nums'] },
+    errorBox: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      backgroundColor: 'rgba(239,68,68,0.10)',
+      borderWidth: 1,
+      borderColor: 'rgba(239,68,68,0.35)',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    errorText: { color: '#fecaca', fontSize: 12, flex: 1, lineHeight: 17 },
+    generateBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.accent.base,
+      borderRadius: 14,
+      paddingVertical: 14,
+      marginTop: 12,
+    },
+    generateLabel: { color: colors.text.onAccent, fontSize: 14, fontWeight: '700' },
+  });
+}

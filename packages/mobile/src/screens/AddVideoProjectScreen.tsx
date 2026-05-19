@@ -51,6 +51,7 @@ import { downloadFromUrl, isYoutubeOrTwitchUrl } from '../lib/youtube';
 import { useProjectLimit } from '../lib/features';
 import { useUpgradeModal } from '../stores/upgradeModalStore';
 import type { RootStackParamList } from '../navigation/types';
+import { useColors } from '../lib/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'AddVideoProject'>;
 
@@ -64,6 +65,7 @@ const TAB_FOR_MODE: Record<ProjectMode, 'highlights' | 'manual' | 'tiktok' | 'bu
 };
 
 export function AddVideoProjectScreen() {
+  const colors = useColors();
   const nav = useNavigation<Nav>();
   const t = useT();
   const addProject = useProjectsStore((s) => s.addProject);
@@ -377,7 +379,7 @@ export function AddVideoProjectScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0d0509' }}
+      style={{ flex: 1, backgroundColor: colors.bg.primary }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -398,7 +400,7 @@ export function AddVideoProjectScreen() {
           <Text
             style={{
               flex: 1,
-              color: '#f1f2f2',
+              color: colors.text.primary,
               fontSize: 18,
               fontWeight: '700',
               paddingLeft: 12,
@@ -414,9 +416,9 @@ export function AddVideoProjectScreen() {
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: colors.border.subtle,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.6 : 1,
@@ -501,10 +503,10 @@ export function AddVideoProjectScreen() {
                 <View
                   style={{
                     flex: 1,
-                    backgroundColor: 'rgba(255,255,255,0.04)',
+                    backgroundColor: colors.bg.elevated,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: 'rgba(255,255,255,0.08)',
+                    borderColor: colors.border.subtle,
                     paddingHorizontal: 14,
                     justifyContent: 'center',
                   }}
@@ -517,7 +519,7 @@ export function AddVideoProjectScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                     editable={busy !== 'url'}
-                    style={{ color: '#f1f2f2', fontSize: 13, paddingVertical: 12 }}
+                    style={{ color: colors.text.primary, fontSize: 13, paddingVertical: 12 }}
                   />
                 </View>
                 {urls.length > 1 && (
@@ -551,9 +553,9 @@ export function AddVideoProjectScreen() {
                   flex: 1,
                   paddingVertical: 11,
                   borderRadius: 12,
-                  backgroundColor: pressed ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)',
+                  backgroundColor: pressed ? colors.border.subtle : colors.bg.elevated,
                   borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.10)',
+                  borderColor: colors.border.subtle,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -562,7 +564,7 @@ export function AddVideoProjectScreen() {
                 })}
               >
                 <Ionicons name="add" size={15} color="#a1a1aa" />
-                <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '700' }}>
+                <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '700' }}>
                   {t('addProject.urlAddRow', 'Add URL')}
                 </Text>
               </Pressable>
@@ -573,7 +575,7 @@ export function AddVideoProjectScreen() {
                   paddingHorizontal: 18,
                   borderRadius: 12,
                   backgroundColor: !canImportUrls
-                    ? 'rgba(255,255,255,0.06)'
+                    ? colors.bg.elevated
                     : pressed
                       ? '#cc0d2e'
                       : '#ff1039',
@@ -599,12 +601,12 @@ export function AddVideoProjectScreen() {
           </View>
           {busy === 'url' && (
             <View style={{ gap: 4 }}>
-              <Text style={{ color: '#71717a', fontSize: 11 }}>
+              <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
                 {urlPhase === 'requesting'
                   ? t('addProject.urlPhaseRequesting', 'Server downloading from YouTube/Twitch…')
                   : t('addProject.urlPhaseDownloading', `Downloading to phone… ${Math.round(urlProgress * 100)}%`)}
               </Text>
-              <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' }}>
+              <View style={{ height: 4, backgroundColor: colors.bg.elevated, borderRadius: 2, overflow: 'hidden' }}>
                 <View
                   style={{
                     height: '100%',
@@ -640,13 +642,13 @@ export function AddVideoProjectScreen() {
               padding: 12,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: colors.border.subtle,
               backgroundColor: 'rgba(255,255,255,0.03)',
               opacity: pressed ? 0.7 : 1,
             })}
           >
             <Ionicons name="cut-outline" size={16} color="#a1a1aa" />
-            <Text style={{ flex: 1, color: '#a1a1aa', fontSize: 12, fontWeight: '600' }}>
+            <Text style={{ flex: 1, color: colors.text.secondary, fontSize: 12, fontWeight: '600' }}>
               {t(
                 'addProject.manualSingleHint',
                 'Or pick a single video and mark highlights manually',
@@ -666,7 +668,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <Text
       style={{
-        color: '#a1a1aa',
+        color: colors.text.secondary,
         fontSize: 11,
         fontWeight: '700',
         letterSpacing: 0.6,
@@ -682,7 +684,7 @@ function FieldLabel({ children }: { children: string }) {
   return (
     <Text
       style={{
-        color: '#71717a',
+        color: colors.text.tertiary,
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 0.6,
@@ -697,11 +699,11 @@ function FieldLabel({ children }: { children: string }) {
 function OrDivider({ t }: { t: (k: string, f?: string) => string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 }}>
-      <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
-      <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 }}>
+      <View style={{ flex: 1, height: 1, backgroundColor: colors.bg.elevated }} />
+      <Text style={{ color: colors.text.muted, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 }}>
         {t('common.or', 'OR').toUpperCase()}
       </Text>
-      <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+      <View style={{ flex: 1, height: 1, backgroundColor: colors.bg.elevated }} />
     </View>
   );
 }
@@ -733,9 +735,9 @@ function BigOptionCard({
         gap: 14,
         padding: 16,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: highlight ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.08)',
+        borderColor: highlight ? 'rgba(255,16,57,0.4)' : colors.border.subtle,
         opacity: loading ? 0.55 : pressed ? 0.75 : 1,
       })}
     >
@@ -744,9 +746,9 @@ function BigOptionCard({
           width: 48,
           height: 48,
           borderRadius: 12,
-          backgroundColor: highlight ? 'rgba(255,16,57,0.15)' : 'rgba(255,255,255,0.06)',
+          backgroundColor: highlight ? 'rgba(255,16,57,0.15)' : colors.bg.elevated,
           borderWidth: 1,
-          borderColor: highlight ? 'rgba(255,16,57,0.32)' : 'rgba(255,255,255,0.10)',
+          borderColor: highlight ? 'rgba(255,16,57,0.32)' : colors.border.subtle,
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -755,7 +757,7 @@ function BigOptionCard({
       </View>
       <View style={{ flex: 1, gap: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 15, fontWeight: '700', letterSpacing: -0.2 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 15, fontWeight: '700', letterSpacing: -0.2 }}>
             {title}
           </Text>
           {soonBadge && (
@@ -764,14 +766,14 @@ function BigOptionCard({
                 paddingHorizontal: 7,
                 paddingVertical: 2,
                 borderRadius: 999,
-                backgroundColor: 'rgba(255,255,255,0.06)',
+                backgroundColor: colors.bg.elevated,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.10)',
+                borderColor: colors.border.subtle,
               }}
             >
               <Text
                 style={{
-                  color: '#a1a1aa',
+                  color: colors.text.secondary,
                   fontSize: 9,
                   fontWeight: '800',
                   letterSpacing: 0.4,
@@ -782,7 +784,7 @@ function BigOptionCard({
             </View>
           )}
         </View>
-        <Text style={{ color: '#a1a1aa', fontSize: 12, lineHeight: 17 }}>{subtitle}</Text>
+        <Text style={{ color: colors.text.secondary, fontSize: 12, lineHeight: 17 }}>{subtitle}</Text>
       </View>
       <Ionicons name="chevron-forward" size={18} color="#52525b" />
     </Pressable>
@@ -807,9 +809,9 @@ function TypeChip({
         flex: 1,
         padding: 12,
         borderRadius: 12,
-        backgroundColor: active ? 'rgba(255,16,57,0.12)' : 'rgba(255,255,255,0.04)',
+        backgroundColor: active ? 'rgba(255,16,57,0.12)' : colors.bg.elevated,
         borderWidth: 1,
-        borderColor: active ? 'rgba(255,16,57,0.45)' : 'rgba(255,255,255,0.08)',
+        borderColor: active ? 'rgba(255,16,57,0.45)' : colors.border.subtle,
         alignItems: 'center',
         gap: 4,
         opacity: pressed ? 0.7 : 1,
@@ -826,7 +828,7 @@ function TypeChip({
         {label}
       </Text>
       <Text
-        style={{ color: '#71717a', fontSize: 9, lineHeight: 12, textAlign: 'center' }}
+        style={{ color: colors.text.tertiary, fontSize: 9, lineHeight: 12, textAlign: 'center' }}
       >
         {desc}
       </Text>

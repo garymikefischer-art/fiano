@@ -25,10 +25,13 @@
  *   />
  */
 
+import { useMemo } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { appAlert } from './AppAlert';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+
+import { useColors, useResolvedMode, type ColorPalette } from '../lib/theme';
 
 export interface ActionSheetItem {
   label: string;
@@ -69,6 +72,9 @@ export function ActionSheet({
   cancelLabel,
   onClose,
 }: Props) {
+  const colors = useColors();
+  const mode = useResolvedMode();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Modal
       visible={visible}
@@ -78,7 +84,7 @@ export function ActionSheet({
       statusBarTranslucent
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={40} tint={mode === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
           {/* Close-X */}
           <Pressable
@@ -87,7 +93,7 @@ export function ActionSheet({
             accessibilityLabel="Close"
             hitSlop={10}
           >
-            <Ionicons name="close" size={16} color="#a1a1aa" />
+            <Ionicons name="close" size={16} color={colors.text.secondary} />
           </Pressable>
 
           {/* Icon im Glow-Kreis */}
@@ -189,128 +195,109 @@ export function ActionSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 440,
-    backgroundColor: 'rgba(20,21,23,0.95)',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.7,
-    shadowRadius: 60,
-    shadowOffset: { width: 0, height: 24 },
-    elevation: 16,
-  },
-  closeBtn: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconWrapper: {
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  iconBox: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,16,57,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,16,57,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#ff1039',
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#f1f2f2',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: '#a1a1aa',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  body: {
-    fontSize: 11,
-    color: '#71717a',
-    textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-  actions: {
-    gap: 8,
-    marginTop: 12,
-  },
-  actionBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  actionBtnPrimary: {
-    backgroundColor: '#ff1039',
-    shadowColor: '#ff1039',
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  actionBtnSecondary: {
-    backgroundColor: 'rgba(255,16,57,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,16,57,0.35)',
-  },
-  actionBtnDestructive: {
-    backgroundColor: 'rgba(239,68,68,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.35)',
-  },
-  actionBtnDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  actionLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  actionHint: {
-    fontSize: 10,
-    color: '#71717a',
-    marginTop: 2,
-  },
-  cancelBtn: {
-    marginTop: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  cancelLabel: {
-    fontSize: 13,
-    color: '#a1a1aa',
-    fontWeight: '600',
-  },
-});
+// Phase B3.9 (2026-05-19): theme-aware styles.
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      backgroundColor: colors.bg.backdrop,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    card: {
+      width: '100%',
+      maxWidth: 440,
+      backgroundColor: colors.bg.card,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      padding: 24,
+      shadowColor: '#000',
+      shadowOpacity: 0.7,
+      shadowRadius: 60,
+      shadowOffset: { width: 0, height: 24 },
+      elevation: 16,
+    },
+    closeBtn: {
+      position: 'absolute',
+      top: 12,
+      right: 12,
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconWrapper: { alignItems: 'center', marginBottom: 14 },
+    iconBox: {
+      width: 60,
+      height: 60,
+      borderRadius: 18,
+      backgroundColor: 'rgba(255,16,57,0.15)',
+      borderWidth: 1,
+      borderColor: colors.accent.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: colors.accent.base,
+      shadowOpacity: 0.25,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 0 },
+    },
+    title: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: colors.text.primary,
+      textAlign: 'center',
+      marginBottom: 4,
+    },
+    subtitle: {
+      fontSize: 12,
+      color: colors.text.secondary,
+      textAlign: 'center',
+      marginBottom: 4,
+    },
+    body: {
+      fontSize: 11,
+      color: colors.text.tertiary,
+      textAlign: 'center',
+      lineHeight: 16,
+      marginBottom: 12,
+    },
+    actions: { gap: 8, marginTop: 12 },
+    actionBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    actionBtnPrimary: {
+      backgroundColor: colors.accent.base,
+      shadowColor: colors.accent.base,
+      shadowOpacity: 0.4,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 0 },
+    },
+    actionBtnSecondary: {
+      backgroundColor: colors.accent.subtle,
+      borderWidth: 1,
+      borderColor: colors.accent.border,
+    },
+    actionBtnDestructive: {
+      backgroundColor: 'rgba(239,68,68,0.10)',
+      borderWidth: 1,
+      borderColor: 'rgba(239,68,68,0.35)',
+    },
+    actionBtnDisabled: {
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    actionLabel: { fontSize: 13, fontWeight: '700' },
+    actionHint: { fontSize: 10, color: colors.text.tertiary, marginTop: 2 },
+    cancelBtn: { marginTop: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+    cancelLabel: { fontSize: 13, color: colors.text.secondary, fontWeight: '600' },
+  });
+}

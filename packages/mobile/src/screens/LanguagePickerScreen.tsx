@@ -13,10 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { LANGUAGES, useLanguage, setLanguage, useT, type LanguageCode } from '../lib/i18n';
 import type { RootStackParamList } from '../navigation/types';
+import { useColors } from '../lib/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'LanguagePicker'>;
 
 export function LanguagePickerScreen() {
+  const colors = useColors();
   const nav = useNavigation<Nav>();
   const t = useT();
   const current = useLanguage();
@@ -27,7 +29,7 @@ export function LanguagePickerScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -49,9 +51,9 @@ export function LanguagePickerScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: pressed ? 0.6 : 1,
@@ -59,7 +61,7 @@ export function LanguagePickerScreen() {
         >
           <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
         </Pressable>
-        <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700' }}>
+        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>
           {t('settings.languageHeading', 'Language')}
         </Text>
         <View style={{ width: 40 }} />
@@ -71,9 +73,9 @@ export function LanguagePickerScreen() {
       >
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 16,
             overflow: 'hidden',
             marginTop: 8,
@@ -84,7 +86,7 @@ export function LanguagePickerScreen() {
             return (
               <View key={lang.code}>
                 {i > 0 && (
-                  <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginLeft: 16 }} />
+                  <View style={{ height: 1, backgroundColor: colors.bg.elevated, marginLeft: 16 }} />
                 )}
                 <Pressable
                   onPress={() => onSelect(lang.code)}
@@ -104,18 +106,18 @@ export function LanguagePickerScreen() {
                         width: 32,
                         height: 22,
                         borderRadius: 4,
-                        backgroundColor: 'rgba(255,255,255,0.06)',
+                        backgroundColor: colors.bg.elevated,
                         borderWidth: 1,
-                        borderColor: 'rgba(255,255,255,0.10)',
+                        borderColor: colors.border.subtle,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      <Text style={{ color: '#a1a1aa', fontSize: 10, fontWeight: '700', letterSpacing: 0.4 }}>
+                      <Text style={{ color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 }}>
                         {lang.code.toUpperCase()}
                       </Text>
                     </View>
-                    <Text style={{ flex: 1, color: '#f1f2f2', fontSize: 14, fontWeight: '600' }}>
+                    <Text style={{ flex: 1, color: colors.text.primary, fontSize: 14, fontWeight: '600' }}>
                       {lang.nativeName}
                     </Text>
                     {active && <Ionicons name="checkmark" size={20} color="#ff1039" />}
@@ -126,7 +128,7 @@ export function LanguagePickerScreen() {
           })}
         </View>
 
-        <Text style={{ color: '#71717a', fontSize: 11, textAlign: 'center', marginTop: 14, lineHeight: 16 }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 11, textAlign: 'center', marginTop: 14, lineHeight: 16 }}>
           Strings kommen aus @fiano/shared/i18n — gleiche Quelle wie auf Desktop.
         </Text>
       </ScrollView>

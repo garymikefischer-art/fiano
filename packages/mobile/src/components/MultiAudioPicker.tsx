@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { pickAudiosFromFiles, type PickedAudio } from '../lib/mediaPicker';
 import { haptic } from '../lib/haptics';
 import { SimpleSlider } from './SimpleSlider';
+import { useColors } from '../lib/theme';
 
 export interface AudioTrack {
   uri: string;
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export function MultiAudioPicker({ tracks, shuffle, onChange, onShuffleChange, label, desc }: Props) {
+  const colors = useColors();
   const onAdd = async () => {
     haptic.medium();
     const picked: PickedAudio[] = await pickAudiosFromFiles();
@@ -75,8 +77,8 @@ export function MultiAudioPicker({ tracks, shuffle, onChange, onShuffleChange, l
           style={{ marginTop: 1 }}
         />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}>{label}</Text>
-          <Text style={{ color: '#71717a', fontSize: 11 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '600' }}>{label}</Text>
+          <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
             {tracks.length === 0
               ? desc
               : `${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}${shuffle ? ' · shuffle' : ''}`}
@@ -134,9 +136,9 @@ export function MultiAudioPicker({ tracks, shuffle, onChange, onShuffleChange, l
               paddingHorizontal: 14,
               paddingVertical: 8,
               borderRadius: 10,
-              backgroundColor: shuffle ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.04)',
+              backgroundColor: shuffle ? 'rgba(255,16,57,0.18)' : colors.bg.elevated,
               borderWidth: 1,
-              borderColor: shuffle ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.10)',
+              borderColor: shuffle ? 'rgba(255,16,57,0.4)' : colors.border.subtle,
               flexDirection: 'row',
               alignItems: 'center',
               gap: 6,
@@ -177,6 +179,7 @@ function TrackRow({
   onRemove: (idx: number) => void;
   onVolumeChange: (idx: number, vol: number) => void;
 }) {
+  const colors = useColors();
   const [localVol, setLocalVol] = useState(track.volume ?? 0.6);
   return (
     <View
@@ -185,9 +188,9 @@ function TrackRow({
         paddingVertical: 8,
         paddingHorizontal: 10,
         borderRadius: 10,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.06)',
+        borderColor: colors.bg.elevated,
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -217,7 +220,7 @@ function TrackRow({
         </View>
         <Text
           numberOfLines={1}
-          style={{ flex: 1, color: '#f1f2f2', fontSize: 12, fontWeight: '600' }}
+          style={{ flex: 1, color: colors.text.primary, fontSize: 12, fontWeight: '600' }}
         >
           {track.filename}
         </Text>
@@ -248,7 +251,7 @@ function TrackRow({
         </View>
         <Text
           style={{
-            color: '#a1a1aa',
+            color: colors.text.secondary,
             fontSize: 10,
             fontWeight: '600',
             fontVariant: ['tabular-nums'],
@@ -272,6 +275,7 @@ function ReorderArrow({
   disabled: boolean;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -281,7 +285,7 @@ function ReorderArrow({
         width: 22,
         height: 16,
         borderRadius: 4,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: colors.bg.elevated,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: disabled ? 0.3 : pressed ? 0.6 : 1,
