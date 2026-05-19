@@ -105,7 +105,7 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
       e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 3 : 4;
     const upscaleFps = Math.max(45, Math.round(fps * 1.5));
     parts.push(
-      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=dia:mb_size=16`,
+      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=ds:mb_size=16`,
     );
     parts.push(`tmix=frames=${tmixFrames}`);
     parts.push(`fps=${fps}`);

@@ -130,8 +130,11 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
     const tmixFrames =
       e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 3 : 4;
     const upscaleFps = Math.max(45, Math.round(fps * 1.5));
+    // me=ds (diamond-search) ist der schnellste VALID me-mode für minterpolate.
+    // "dia" gibt's NICHT in der allowed-list (esa/tss/tdls/ntss/fss/ds/
+    // hexbs/epzs/umh) — User-Bug Round-8 "Undefined constant in 'dia'".
     parts.push(
-      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=dia:mb_size=16`,
+      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=ds:mb_size=16`,
     );
     parts.push(`tmix=frames=${tmixFrames}`);
     parts.push(`fps=${fps}`);

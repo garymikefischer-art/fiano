@@ -2617,14 +2617,12 @@ function TikTokTab({
       ? (selectedClip?.endSec ?? project.durationSec)
       : (selectedClip?.endSec ?? project.trimEnd ?? (project.durationSec > 60 ? 60 : project.durationSec));
 
-  const pickIntro = async () => {
+  // Phase C5.6 (2026-05-20): pickIntro nimmt jetzt 'gallery' | 'files' als
+  // Param. Aufgerufen von 2 inline-Pressables (kein appAlert/Modal mehr,
+  // vermeidet NestableDraggableFlatList+Reanimated-v3-Crash).
+  const pickIntro = async (source: 'gallery' | 'files' = 'gallery') => {
     haptic.medium();
-    // Phase C5.5 Bug-Fix (2026-05-19): ActionSheet causes app-crash auf Android
-    // (NestableDraggableFlatList + Reanimated v3 + RN-Modal-Konflikt). Revert
-    // zu direct gallery-picker (häufigster use-case für intros). Files-Option
-    // entfernt für jetzt; falls user .mov file im Files-System hat → muss
-    // er via Sharing erst in Gallery laden.
-    const picker = pickVideoFromGallery;
+    const picker = source === 'files' ? pickVideoFromFiles : pickVideoFromGallery;
     const picked = await picker({ maxDurationSec: 30 });
     if (picked) {
       // Phase C1.B+ (2026-05-19): .mov-Files mit HEVC-Alpha oder ProRes 4444
@@ -3269,12 +3267,39 @@ function TikTokTab({
           label={t('tiktok.intro', 'Intro video')}
           desc={t('tiktok.introDesc', 'Pick a short video to prepend or overlay')}
           assetName={introName}
-          onPick={pickIntro}
+          onPick={() => pickIntro('gallery')}
           onClear={() => {
             setIntroUri(null);
             setIntroName(null);
           }}
         />
+        {/* Phase C5.6 (2026-05-20): Inline "From Files"-Button — vermeidet
+            NestableDraggableFlatList+Modal-Crash. Sichtbar wenn kein Intro
+            gesetzt. */}
+        {!introUri && (
+          <Pressable
+            onPress={() => pickIntro('files')}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              marginHorizontal: 14,
+              borderRadius: 10,
+              backgroundColor: colors.bg.elevated,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons name="folder-open-outline" size={14} color={colors.text.secondary} />
+            <Text style={{ color: colors.text.secondary, fontSize: 11, fontWeight: '600', flex: 1 }}>
+              {t('tiktok.introFromFiles', 'Or pick from Files instead')}
+            </Text>
+            <Ionicons name="chevron-forward" size={14} color={colors.text.tertiary} />
+          </Pressable>
+        )}
         {introUri && (
           <View
             style={{
@@ -6033,14 +6058,12 @@ function BuilderTab({
     });
   };
 
-  const pickIntro = async () => {
+  // Phase C5.6 (2026-05-20): pickIntro nimmt jetzt 'gallery' | 'files' als
+  // Param. Aufgerufen von 2 inline-Pressables (kein appAlert/Modal mehr,
+  // vermeidet NestableDraggableFlatList+Reanimated-v3-Crash).
+  const pickIntro = async (source: 'gallery' | 'files' = 'gallery') => {
     haptic.medium();
-    // Phase C5.5 Bug-Fix (2026-05-19): ActionSheet causes app-crash auf Android
-    // (NestableDraggableFlatList + Reanimated v3 + RN-Modal-Konflikt). Revert
-    // zu direct gallery-picker (häufigster use-case für intros). Files-Option
-    // entfernt für jetzt; falls user .mov file im Files-System hat → muss
-    // er via Sharing erst in Gallery laden.
-    const picker = pickVideoFromGallery;
+    const picker = source === 'files' ? pickVideoFromFiles : pickVideoFromGallery;
     const picked = await picker({ maxDurationSec: 30 });
     if (picked) {
       // Phase Builder-5: appStore.introDefaults anwenden.
