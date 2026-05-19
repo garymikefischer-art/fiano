@@ -107,24 +107,23 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
     }
   }
 
-  // Phase C1.A.4 (2026-05-19) — Motion-Blur via Optical-Flow (minterpolate).
-  // Analog zu DaVinci Resolve's "OpticalFlow + VectorMotionBlur" Combo:
-  //  1. minterpolate generiert mit `mi_mode=mci:me_mode=bidir` motion-
-  //     kompensierte Zwischenframes via bidirectional motion estimation.
-  //  2. tmix=frames=N averaged das hochfrequente Sample sliding-window — gibt
-  //     einen weichen Trail in Bewegungsrichtung statt ghosting.
-  //  3. fps={fps} bringt's auf die Output-Framerate zurück.
-  // Bias: 2x upscale immer (kosteneffizient); tmix-frames variiert die Trail-
-  // Länge → low/medium/high. Performance: minterpolate ist CPU-intensiv, aber
-  // mci:bidir ohne aobmc bleibt unter 5x slowdown.
+  // Phase C1.A.5 (2026-05-19) — Motion-Blur via Optical-Flow (minterpolate).
+  // Optimiert für Cloud Run Timeout: weniger upscale, schnelleres me-mode.
+  // Vorher (C1.A.4): fps*2 + me=epzs → 300s+ Render bei >30s Clips → Timeout.
+  // Jetzt: fps*1.5 (low/medium) bzw. fps*2 (nur high), me=ds (diamond-search,
+  // ~2× schneller als epzs), reduzierte tmix-frames.
   if (e.motionBlur && e.motionBlur !== 'off') {
-    const tmixFrames =
-      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 3 : 4;
-    const upscaleFps = Math.max(60, fps * 2);
+    const cfg =
+      e.motionBlur === 'low'
+        ? { upscale: 1.5, tmix: 2 }
+        : e.motionBlur === 'medium'
+          ? { upscale: 1.5, tmix: 3 }
+          : { upscale: 2, tmix: 3 };
+    const upscaleFps = Math.max(45, Math.round(fps * cfg.upscale));
     parts.push(
-      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=epzs`,
+      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=ds`,
     );
-    parts.push(`tmix=frames=${tmixFrames}`);
+    parts.push(`tmix=frames=${cfg.tmix}`);
     parts.push(`fps=${fps}`);
   }
   return parts.join(',');
@@ -796,7 +795,12 @@ export function buildTikTokExportArgs(
       const ckColor = (ck.color ?? '#00ff00').replace('#', '0x');
       const ckSim = Math.max(0, Math.min(1, ck.similarity ?? 0.18)).toFixed(3);
       const ckBlend = Math.max(0, Math.min(1, ck.blend ?? 0.08)).toFixed(3);
-      filters.push(`[introScaled]chromakey=${ckColor}:${ckSim}:${ckBlend}[introCK]`);
+      // Phase C5.3 Bug-Fix (2026-05-19): despill nach chromakey entfernt den
+      // grünen Saum/Halo um die Motive — User-Report "kleiner grüner rand
+      // bleibt". despill=type=green:mix=0.6 + expand=0 ist standard-tuning
+      // für Greenscreen-Workflows (analog DaVinci's "Despill" Setting).
+      filters.push(`[introScaled]chromakey=${ckColor}:${ckSim}:${ckBlend}[introCKraw]`);
+      filters.push(`[introCKraw]despill=type=green:mix=0.6:expand=0[introCK]`);
       introLabel = '[introCK]';
     }
     filters.push(
@@ -806,13 +810,16 @@ export function buildTikTokExportArgs(
     );
 
     finalVideo = '[vfinal]';
-    // Phase C5.2 Bug-Fix (2026-05-19): Intro-Audio im overlay-mode mit
-    // einmischen. Vorher: finalAudio = [aMain] → kein intro-Ton im Export.
-    // Jetzt: intro-audio wird via amix dem [aMain] zugemischt — amix-
-    // duration=first sorgt dafür dass output bei aMain-Ende stoppt (intro
-    // typically shorter, läuft sound silently aus).
+    // Phase C5.3 Bug-Fix (2026-05-19): Intro-Audio im overlay-mode mit-
+    // einmischen, ABER getrimmt auf overlayDur Sekunden + sanftes fade-out.
+    // Vorher (C5.2): introOverlayA lief bis intro-file-end → User-Report
+    // "Intro-Ton spielt nach Intro-Ende weiter".
+    // Jetzt: atrim=duration={overlayDur} + afade out 300ms am Ende.
+    const introFadeStart = Math.max(0, overlayDur - 0.3);
     filters.push(
-      `[${introInputIdx}:a]aresample=async=1,volume=1[introOverlayA]`,
+      `[${introInputIdx}:a]aresample=async=1,volume=1,` +
+        `atrim=duration=${overlayDur.toFixed(2)},` +
+        `afade=t=out:st=${introFadeStart.toFixed(2)}:d=0.3[introOverlayA]`,
     );
     filters.push(
       `[aMain][introOverlayA]amix=inputs=2:duration=first:normalize=0[aOverlayMix]`,

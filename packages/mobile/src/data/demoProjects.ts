@@ -70,12 +70,29 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
 /** Helper: hat der Effect-Block irgendwelche aktiven Werte? */
 export function hasActiveEffects(e?: ClipEffects | null): boolean {
   if (!e) return false;
+  // Phase C5.3 Bug-Fix (2026-05-19): Color-Wheels in der Active-Check
+  // berücksichtigen. Vorher ignoriert → User-Report "keine Änderung im
+  // Export" weil ExportScreen `effects: undefined` schickte wenn nur color-
+  // wheels gesetzt waren.
+  const cw = e.colorWheels;
+  const cwActive =
+    cw &&
+    ((cw.liftR != null && Math.abs(cw.liftR) > 0.001) ||
+      (cw.liftG != null && Math.abs(cw.liftG) > 0.001) ||
+      (cw.liftB != null && Math.abs(cw.liftB) > 0.001) ||
+      (cw.gammaR != null && Math.abs(cw.gammaR - 1) > 0.005) ||
+      (cw.gammaG != null && Math.abs(cw.gammaG - 1) > 0.005) ||
+      (cw.gammaB != null && Math.abs(cw.gammaB - 1) > 0.005) ||
+      (cw.gainR != null && Math.abs(cw.gainR - 1) > 0.005) ||
+      (cw.gainG != null && Math.abs(cw.gainG - 1) > 0.005) ||
+      (cw.gainB != null && Math.abs(cw.gainB - 1) > 0.005));
   return (
     (e.brightness != null && Math.abs(e.brightness) > 0.001) ||
     (e.contrast != null && Math.abs(e.contrast - 1) > 0.001) ||
     (e.saturation != null && Math.abs(e.saturation - 1) > 0.001) ||
     (e.sharpen != null && e.sharpen > 0.001) ||
-    (e.motionBlur != null && e.motionBlur !== 'off')
+    (e.motionBlur != null && e.motionBlur !== 'off') ||
+    !!cwActive
   );
 }
 

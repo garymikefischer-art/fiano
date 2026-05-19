@@ -48,6 +48,25 @@ export function SimpleSlider({
     stateRef.current = { trackWidth, min, max, step };
   }, [trackWidth, min, max, step]);
 
+  // Phase C5.3 Bug-Fix (2026-05-19): onChange + onCommit + value via Refs.
+  // ROOT-CAUSE: PanResponder wird nur EINMAL via useRef erstellt — die
+  // closures darin capture'n onChange/onCommit zum Zeitpunkt des ersten
+  // Renders. Bei späteren Renders mit neuem onChange (z.B. weil parent-state
+  // sich änderte und der Callback frisch erzeugt wurde) feuerte der
+  // PanResponder weiterhin die VERALTETE Funktion. Effekt bei C6 Color-
+  // Wheels: nach erstem Slider-Move wurde die OLD patchCw aufgerufen mit
+  // cw={} → andere bereits-gesetzte Felder gingen verloren.
+  // FIX: alle 3 Callbacks via Ref-Pattern → PanResponder liest immer .current
+  // → Closure-staleness behoben für ALLE Slider in der App.
+  const onChangeRef = useRef(onChange);
+  const onCommitRef = useRef(onCommit);
+  const valueRef = useRef(value);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onCommitRef.current = onCommit;
+    valueRef.current = value;
+  }, [onChange, onCommit, value]);
+
   const valueFromX = (x: number): number => {
     const { trackWidth: w, min: mn, max: mx, step: s } = stateRef.current;
     if (w <= 0) return mn;
@@ -62,18 +81,18 @@ export function SimpleSlider({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => {
-        onChange(valueFromX(evt.nativeEvent.locationX));
+        onChangeRef.current(valueFromX(evt.nativeEvent.locationX));
       },
       onPanResponderMove: (evt) => {
-        onChange(valueFromX(evt.nativeEvent.locationX));
+        onChangeRef.current(valueFromX(evt.nativeEvent.locationX));
       },
       onPanResponderRelease: (evt) => {
         const v = valueFromX(evt.nativeEvent.locationX);
-        onChange(v);
-        onCommit?.(v);
+        onChangeRef.current(v);
+        onCommitRef.current?.(v);
       },
       onPanResponderTerminate: () => {
-        onCommit?.(value);
+        onCommitRef.current?.(valueRef.current);
       },
     }),
   ).current;

@@ -37,7 +37,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge';
-import { VideoPlayer, EffectsOverlay } from '../components/VideoPlayer';
+import { VideoPlayer, EffectsOverlay, WatermarkOverlay } from '../components/VideoPlayer';
 import type { ClipEffects } from '../data/demoProjects';
 import {
   DEFAULT_SPLIT_RATIO,
@@ -250,7 +250,12 @@ export function ProjectDetailScreen() {
         />
       )}
       {activeTab === 'builder' && (
-        <BuilderTab project={project} selectedClipIds={selectedClipIds} t={t} />
+        <BuilderTab
+          project={project}
+          selectedClipIds={selectedClipIds}
+          setSelectedClipIds={setSelectedClipIds}
+          t={t}
+        />
       )}
 
       {/* Phase C1.B+ Bug-Fix (2026-05-19): Async-Duration-Probe für neu via
@@ -2692,6 +2697,7 @@ function TikTokTab({
               volume: vo.volume,
             }))}
             effects={project.effectsAll}
+            watermark={project.watermark}
           />
         </View>
       </View>
@@ -3384,7 +3390,7 @@ function TikTokTab({
           <View
             style={{
               marginHorizontal: 14,
-              marginBottom: 16,
+              marginBottom: 32,
               paddingHorizontal: 14,
               paddingVertical: 12,
               gap: 8,
@@ -3803,6 +3809,7 @@ function LayoutPreview({
   introDurationSec,
   voiceOvers,
   effects,
+  watermark,
 }: {
   layout: Layout;
   sourceUri?: string;
@@ -3830,6 +3837,13 @@ function LayoutPreview({
   voiceOvers?: { path: string; startSec: number; volume: number }[];
   /** Phase C1.C+ (2026-05-19): Live-Preview Color-Grade Effects (TikTok-Tab). */
   effects?: ClipEffects | null;
+  /** Phase C5.3 (2026-05-19): Watermark Live-Preview. */
+  watermark?: {
+    path: string;
+    position: 'tl' | 'tr' | 'bl' | 'br';
+    opacity: number;
+    scale: number;
+  } | null;
 }) {
   const colors = useColors();
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
@@ -3871,6 +3885,7 @@ function LayoutPreview({
         introScale={introScale}
         introDurationSec={introDurationSec}
         effects={effects}
+        watermark={watermark}
       />
     );
   }
@@ -3899,6 +3914,7 @@ function LayoutPreview({
       introDurationSec={introDurationSec}
       voiceOvers={voiceOvers}
       effects={effects}
+      watermark={watermark}
     />
   );
 }
@@ -3932,6 +3948,7 @@ function FullModePreview({
   introScale = 1,
   introDurationSec = 3,
   effects,
+  watermark,
 }: {
   sourceUri?: string;
   /** Phase Builder-5: Sequential-Playback-Liste. Wenn gesetzt + length>=1
@@ -3953,6 +3970,13 @@ function FullModePreview({
   introDurationSec?: number;
   /** Phase C1.C+ (2026-05-19): Live-Preview Color-Grade Effects. */
   effects?: ClipEffects | null;
+  /** Phase C5.3 (2026-05-19): Watermark Live-Preview. */
+  watermark?: {
+    path: string;
+    position: 'tl' | 'tr' | 'bl' | 'br';
+    opacity: number;
+    scale: number;
+  } | null;
 }) {
   const colors = useColors();
   const [paused, setPaused] = useState(true);
@@ -4568,11 +4592,10 @@ function FullModePreview({
           <Text style={stackedStyles.time}>{formatPreviewTime(displayDur)}</Text>
         </View>
       )}
-      {/* Phase C1.C (2026-05-19): Effects Live-Preview Overlay.
-          Rudimentäre brightness/contrast Approximation via semi-transparentes
-          Overlay (RN hat keinen Video-ColorMatrix). Saturation/Sharpen/
-          Motion-Blur erst beim Cloud-Export sichtbar. */}
+      {/* Phase C1.C (2026-05-19): Effects Live-Preview Overlay. */}
       <EffectsOverlay effects={effects} />
+      {/* Phase C5.3 (2026-05-19): Watermark Live-Preview. */}
+      <WatermarkOverlay watermark={watermark} />
     </View>
   );
 }
@@ -4599,6 +4622,7 @@ function StackedSplitPreview({
   introDurationSec = 3,
   voiceOvers,
   effects,
+  watermark,
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
@@ -4625,6 +4649,13 @@ function StackedSplitPreview({
   voiceOvers?: { path: string; startSec: number; volume: number }[];
   /** Phase C1.C+ (2026-05-19): Live-Preview Color-Grade Effects. */
   effects?: ClipEffects | null;
+  /** Phase C5.3 (2026-05-19): Watermark Live-Preview. */
+  watermark?: {
+    path: string;
+    position: 'tl' | 'tr' | 'bl' | 'br';
+    opacity: number;
+    scale: number;
+  } | null;
 }) {
   const colors = useColors();
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
@@ -5031,6 +5062,7 @@ function StackedSplitPreview({
       )}
       {/* Phase C1.C (2026-05-19): Effects Live-Preview Overlay (siehe FullModePreview). */}
       <EffectsOverlay effects={effects} />
+      <WatermarkOverlay watermark={watermark} />
     </View>
   );
 }
@@ -5822,10 +5854,12 @@ function SliderLabelRow({ label, value }: { label: string; value: string }) {
 function BuilderTab({
   project,
   selectedClipIds,
+  setSelectedClipIds,
   t,
 }: {
   project: DemoProject;
   selectedClipIds: Set<string>;
+  setSelectedClipIds: (s: Set<string>) => void;
   t: (k: string, f?: string) => string;
 }) {
   const nav = useNavigation<Nav>();
@@ -6196,19 +6230,22 @@ function BuilderTab({
                         style: 'destructive',
                         onPress: () => {
                           haptic.success();
+                          // Phase C5.3 Bug-Fix (2026-05-19): Builder Clip-Delete.
+                          // - Clip aus clipOrder entfernen (=raus aus Builder)
+                          // - Clip aus selectedClipIds entfernen (=Highlights-
+                          //   Selektion + orderedItems-catchup verhindern)
+                          // - project.clips UNANGETASTET → HighlightsTab zeigt
+                          //   den Clip weiterhin in der Liste, User kann ihn
+                          //   später wieder via Highlights-tap selektieren.
                           const nextOrder = (project.clipOrder ?? []).filter(
                             (id) => id !== item.id,
                           );
-                          // Also deselect (HighlightsTab uses selectedClipIds to
-                          // construct orderedItems via clip-in-selection check).
                           const nextSel = new Set(selectedClipIds);
                           nextSel.delete(item.id);
-                          useProjectsStore.getState().updateProject(project.id, {
+                          setSelectedClipIds(nextSel);
+                          updateProject(project.id, {
                             clipOrder: nextOrder,
                           });
-                          // Note: builder props don't include setSelectedClipIds
-                          // → we mutate via closure if available. Otherwise
-                          // user can re-deselect in HighlightsTab.
                         },
                       },
                     ],
@@ -6305,6 +6342,7 @@ function BuilderTab({
             introScale={project.intro?.scale ?? 1}
             introDurationSec={project.intro?.durationSec ?? 3}
             effects={project.effectsAll}
+            watermark={project.watermark}
           />
         );
       })()}
@@ -6628,7 +6666,7 @@ function BuilderTab({
           <View
             style={{
               marginHorizontal: 14,
-              marginBottom: 16,
+              marginBottom: 32,
               paddingHorizontal: 14,
               paddingVertical: 12,
               gap: 8,

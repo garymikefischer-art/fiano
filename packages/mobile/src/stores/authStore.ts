@@ -23,6 +23,10 @@ interface Subscription {
   lifetime: boolean;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
+  /** Phase C5.3 (2026-05-19): Plan-Counter Felder aus supabase. */
+  render_count?: number | null;
+  monthly_limit?: number | null;
+  render_count_reset_at?: string | null;
 }
 
 interface AuthState {
@@ -153,7 +157,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!userId) return;
     const { data, error } = await supabase
       .from('subscriptions')
-      .select('plan, status, lifetime, current_period_end, cancel_at_period_end')
+      .select(
+        'plan, status, lifetime, current_period_end, cancel_at_period_end, render_count, monthly_limit, render_count_reset_at',
+      )
       .eq('user_id', userId)
       .maybeSingle();
     if (error) {

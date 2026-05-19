@@ -43,7 +43,10 @@ import { transcribeAudio } from './transcribe.js';
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const MAX_DURATION_SEC = parseInt(process.env.MAX_DURATION_SEC ?? '300', 10);
+// Phase C5.3 Bug-Fix (2026-05-19): bump von 300s auf 600s — Motion-Blur mit
+// minterpolate ist CPU-intensive, lange Clips brauchen mehr Spielraum.
+// Cloud-Run-Request-Timeout muss entsprechend ≥600s sein (--timeout 900 im deploy).
+const MAX_DURATION_SEC = parseInt(process.env.MAX_DURATION_SEC ?? '600', 10);
 
 const supabase = createClient(
   SUPABASE_URL || 'https://placeholder.supabase.co',
