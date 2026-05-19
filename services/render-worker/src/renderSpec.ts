@@ -15,7 +15,7 @@
  * vollständige Kontrolle über alle FFmpeg-Flags.
  */
 
-import type { TikTokExportOpts, TikTokLayout, Encoder, RegionRect } from './ffmpegArgs.js';
+import type { TikTokExportOpts, TikTokLayout, Encoder, RegionRect, ClipEffectsValues } from './ffmpegArgs.js';
 
 /**
  * ClientRenderSpec — was Mobile an /v1/render sendet.
@@ -76,6 +76,10 @@ export interface ClientRenderSpec {
 
   /** Multi-Clip Per-Source Trim. src-Index referenziert sources[]. */
   clips?: { src?: number; startSec: number; endSec: number }[];
+
+  /** Phase C1.B (2026-05-19): Color-Grade Effects. Alle Felder optional —
+   *  Worker clampt server-side gegen die Slider-Ranges aus der UI. */
+  effects?: ClipEffectsValues;
 }
 
 export type ValidationResult =
@@ -85,6 +89,7 @@ export type ValidationResult =
 const VALID_LAYOUTS: TikTokLayout[] = ['stacked', 'split', 'full'];
 const VALID_ENCODERS: Encoder[] = ['software', 'hardware'];
 const VALID_POSITIONS: ReadonlyArray<string | number> = ['top', 'center', 'bottom'];
+const VALID_MOTION_BLUR: ReadonlyArray<'off' | 'low' | 'medium' | 'high'> = ['off', 'low', 'medium', 'high'];
 
 /**
  * Validiert + clampt eine eingehende RenderSpec. Lehnt invalide / suspekte
@@ -234,6 +239,30 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     }));
   }
 
+  // Phase C1.B (2026-05-19): Color-Grade Effects. Alle Werte gegen die
+  // UI-Slider-Ranges geclampt. Falls Client out-of-range schickt → undefined-
+  // Werte werden default-behandelt (kein Filter generiert).
+  if (s.effects && typeof s.effects === 'object') {
+    const eff = s.effects as Record<string, unknown>;
+    const effects: ClipEffectsValues = {};
+    if (typeof eff.brightness === 'number' && isFinite(eff.brightness)) {
+      effects.brightness = Math.max(-1, Math.min(1, eff.brightness));
+    }
+    if (typeof eff.contrast === 'number' && isFinite(eff.contrast)) {
+      effects.contrast = Math.max(0.5, Math.min(2.0, eff.contrast));
+    }
+    if (typeof eff.saturation === 'number' && isFinite(eff.saturation)) {
+      effects.saturation = Math.max(0, Math.min(2.0, eff.saturation));
+    }
+    if (typeof eff.sharpen === 'number' && isFinite(eff.sharpen)) {
+      effects.sharpen = Math.max(0, Math.min(5.0, eff.sharpen));
+    }
+    if (typeof eff.motionBlur === 'string' && VALID_MOTION_BLUR.includes(eff.motionBlur as any)) {
+      effects.motionBlur = eff.motionBlur as 'off' | 'low' | 'medium' | 'high';
+    }
+    spec.effects = effects;
+  }
+
   return { ok: true, spec };
 }
 
@@ -299,5 +328,6 @@ export function specToTikTokOpts(
       uppercase: spec.subtitle.uppercase,
     } : undefined,
     clips: spec.clips,
+    effects: spec.effects,
   };
 }

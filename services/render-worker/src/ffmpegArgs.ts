@@ -12,6 +12,63 @@
 
 export type Encoder = 'hardware' | 'software';
 
+// ─── Phase C1 (2026-05-19): Effects Filter-Chain Builder ──────────────────
+// User-konfigurierbare Color-Grade Werte → FFmpeg eq + unsharp filter-string.
+// Wird in args[] eingehängt VOR scale/encode, NACH trim. Worker whitelistet
+// die Filter (eq, unsharp).
+
+export interface ClipEffectsValues {
+  /** -1.0 .. 1.0 (default 0). */
+  brightness?: number;
+  /** 0.5 .. 2.0 (default 1.0). */
+  contrast?: number;
+  /** 0.0 .. 2.0 (default 1.0). */
+  saturation?: number;
+  /** 0.0 .. 5.0 (default 0 = off). */
+  sharpen?: number;
+  /** Motion-Blur Preset für "240Hz look". tmix=frames=N. */
+  motionBlur?: 'off' | 'low' | 'medium' | 'high';
+}
+
+/**
+ * Generiert einen FFmpeg-vfilter-String aus Effects-Werten. Returns leeren
+ * String wenn keine Effekte aktiv (alle bei Default).
+ *
+ * Beispiel-Output: "eq=brightness=0.1:contrast=1.2:saturation=1.1,unsharp=5:5:1.5:5:5:0.0"
+ */
+export function buildEffectsFilter(e?: ClipEffectsValues | null): string {
+  if (!e) return '';
+  const eqParts: string[] = [];
+  if (e.brightness != null && Math.abs(e.brightness) > 0.001) {
+    // FFmpeg eq=brightness range: -1.0 .. 1.0 ✓ matches our slider.
+    eqParts.push(`brightness=${clampedFx(e.brightness, -1, 1).toFixed(3)}`);
+  }
+  if (e.contrast != null && Math.abs(e.contrast - 1) > 0.001) {
+    eqParts.push(`contrast=${clampedFx(e.contrast, 0.5, 2.0).toFixed(3)}`);
+  }
+  if (e.saturation != null && Math.abs(e.saturation - 1) > 0.001) {
+    eqParts.push(`saturation=${clampedFx(e.saturation, 0.0, 2.0).toFixed(3)}`);
+  }
+  const parts: string[] = [];
+  if (eqParts.length > 0) parts.push(`eq=${eqParts.join(':')}`);
+  if (e.sharpen != null && e.sharpen > 0.001) {
+    // unsharp=lx:ly:la:cx:cy:ca — luma matrix 5x5, amount=sharpen, chroma off.
+    parts.push(`unsharp=5:5:${clampedFx(e.sharpen, 0, 5).toFixed(2)}:5:5:0.0`);
+  }
+  // Phase C1.A.2 (2026-05-19): motion-blur via tmix (temporal-average).
+  // off=skip, low=2, medium=4, high=6 frames blended.
+  if (e.motionBlur && e.motionBlur !== 'off') {
+    const frames =
+      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 4 : 6;
+    parts.push(`tmix=frames=${frames}`);
+  }
+  return parts.join(',');
+}
+
+function clampedFx(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
+}
+
 export interface MobileExportOpts {
   /** Quell-Video-Pfad. */
   src: string;
@@ -263,6 +320,13 @@ export interface TikTokExportOpts {
    * Pfad (`srcs[]` ohne `clips`).
    * Gedacht für Builder-Tab 16:9 YouTube-Cut mit Highlights + Extra-Videos. */
   clips?: { src?: number; startSec: number; endSec: number }[];
+
+  /* ─── Phase C1.B (2026-05-19): Color-Grade Effects ──────────────────
+   * eq=brightness/contrast/saturation + unsharp=sharpen + tmix=motionBlur.
+   * Wirken NACH Layout-Composition (auf das fertig komponierte 9:16/16:9
+   * Frame), VOR Subtitle-Burn-In und Intro-Overlay — Subtitles + Intro
+   * sollen visuell unverändert bleiben. */
+  effects?: ClipEffectsValues;
 }
 
 /**
@@ -470,10 +534,21 @@ export function buildTikTokExportArgs(
     );
   }
 
+  let videoComposed = '[vmain]';
+
+  // ─── Phase C1.B (2026-05-19): Color-Grade Effects ──────────────────
+  // eq (brightness/contrast/saturation) + unsharp (sharpen) + tmix (motion-blur)
+  // werden hier auf das post-Layout Composite angewendet. Subtitle-Burn-In und
+  // Intro-Overlay folgen DANACH → bleiben visuell unverändert.
+  const effectsFilterStr = buildEffectsFilter(opts.effects);
+  if (effectsFilterStr) {
+    filters.push(`${videoComposed}${effectsFilterStr}[vfx]`);
+    videoComposed = '[vfx]';
+  }
+
   // ─── Subtitle Burn-In (libass ODER drawtext) ───────────────────────
   // Phase 9.6.7h: wenn `assPath` gesetzt → ass-Filter (full style-parity via
   // libass). Sonst Legacy-Pfad mit drawtext (color + stroke + position only).
-  let videoComposed = '[vmain]';
   const sub = opts.subtitle;
   const hasAss = !!sub?.assPath && sub.assPath.length > 0;
   const hasCues = !hasAss && !!sub?.cues && sub.cues.length > 0;
@@ -482,7 +557,7 @@ export function buildTikTokExportArgs(
     // libass-Pfad — ass-Filter konsumiert das Video, output [vsub].
     // original_size hilft libass beim Resolution-Scaling (.ass deklariert
     // PlayResX/Y, ass-Filter mappt das auf den tatsächlichen Video-Stream).
-    filters.push(`[vmain]ass=${sub.assPath}:original_size=${W}x${H}[vsub]`);
+    filters.push(`${videoComposed}ass=${sub.assPath}:original_size=${W}x${H}[vsub]`);
     videoComposed = '[vsub]';
   } else if (sub && (hasCues || hasText)) {
     const fontSize = sub.fontSize ?? 64;
@@ -498,7 +573,7 @@ export function buildTikTokExportArgs(
     if (hasCues) {
       // Multi-Cue: chain N drawtext-Filter mit enable=between(t,start,end).
       // Jeder Filter nimmt das vorige als Input, der letzte gibt [vsub].
-      let prevLabel = '[vmain]';
+      let prevLabel = videoComposed;
       const cues = sub.cues!;
       for (let i = 0; i < cues.length; i++) {
         const c = cues[i];
@@ -518,7 +593,7 @@ export function buildTikTokExportArgs(
       // Legacy single-line text (manual Subtitle).
       const text = (sub.uppercase ? sub.text.toUpperCase() : sub.text).replace(/'/g, "\\'");
       filters.push(
-        `[vmain]drawtext=text='${text}':fontsize=${fontSize}:` +
+        `${videoComposed}drawtext=text='${text}':fontsize=${fontSize}:` +
           `fontcolor=0x${fontColor}:` +
           `bordercolor=0x${strokeColor}:borderw=${strokeWidth}:` +
           `x=(w-text_w)/2:y=${yExpr}[vsub]`,

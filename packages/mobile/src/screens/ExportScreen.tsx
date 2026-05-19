@@ -26,7 +26,7 @@ import { buildAssSubtitle } from '@fiano/shared/assBuilder';
 import type { ClientRenderSpec } from '../lib/renderJob';
 import { useAppStore } from '../stores/appStore';
 import { useProject } from '../stores/projectsStore';
-import { DEFAULT_SPLIT_RATIO } from '../data/demoProjects';
+import { DEFAULT_SPLIT_RATIO, hasActiveEffects } from '../data/demoProjects';
 import { BrandButton } from '../components/BrandButton';
 import { ProgressBar } from '../components/ProgressBar';
 import { BackgroundGlow } from '../components/BackgroundGlow';
@@ -449,6 +449,11 @@ export function ExportScreen() {
             }
           : undefined,
         clips: builderClips.length > 0 ? builderClips : undefined,
+        // Phase C1.B (2026-05-19): Project-level Color-Grade Effects. Falls
+        // hasActiveEffects → an Worker schicken, sonst weglassen (kein Filter
+        // wird im FFmpeg-Graph generiert). Per-Clip-Override (clip.effects)
+        // wird in einem späteren Phase implementiert.
+        effects: hasActiveEffects(project?.effectsAll) ? project!.effectsAll : undefined,
       };
 
       // 7. Cloud-Render: Multi-Input Upload → Render → Download.
@@ -558,7 +563,7 @@ export function ExportScreen() {
     if (params.projectId) updateProject(params.projectId, { status: 'failed', errorMessage: 'Canceled by user' });
   };
 
-  const meta = phaseMeta(phase, t, params.mode === 'builder');
+  const meta = phaseMeta(phase, t, params.mode === 'builder', colors);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
@@ -790,7 +795,8 @@ export function ExportScreen() {
 function phaseMeta(
   phase: Phase,
   t: (k: string, f?: string) => string,
-  isBuilder = false,
+  isBuilder: boolean,
+  colors: ReturnType<typeof useColors>,
 ): {
   icon: keyof typeof Ionicons.glyphMap;
   iconColor: string;

@@ -41,6 +41,22 @@ interface Props {
   /** Wenn true: Container nutzt flex:1 statt aspectRatio (für Layouts wo
    * der Eltern-Container die Größe bestimmt, z.B. Stacked-Panels). */
   fill?: boolean;
+  /** Phase C1.C (2026-05-19): Live-Preview von Color-Grade Effects.
+   *  React-Native hat keinen nativen Video-ColorMatrix-Filter — wir
+   *  approximieren via semi-transparentes overlay:
+   *   - brightness > 0 → weißes Overlay (heller)
+   *   - brightness < 0 → schwarzes Overlay (dunkler)
+   *   - contrast < 1   → graues Overlay (washed out)
+   *   - contrast > 1   → minimales schwarzes Overlay (slight punch)
+   *  Saturation/Sharpen/Motion-Blur sind nur im Cloud-Export sichtbar
+   *  (FFmpeg eq/unsharp/tmix Filter). */
+  effects?: {
+    brightness?: number;
+    contrast?: number;
+    saturation?: number;
+    sharpen?: number;
+    motionBlur?: 'off' | 'low' | 'medium' | 'high';
+  } | null;
 }
 
 export interface VideoPlayerHandle {
@@ -53,7 +69,7 @@ const SKIP_SEC = 5;
 const AUTO_HIDE_MS = 2500;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
-  { uri, seekTo, onProgress, onDuration, resizeMode = 'contain', aspectRatio = 16 / 9, fill = false },
+  { uri, seekTo, onProgress, onDuration, resizeMode = 'contain', aspectRatio = 16 / 9, fill = false, effects },
   ref,
 ) {
   const videoRef = useRef<VideoRef>(null);
@@ -204,6 +220,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
   const progressPct = durationSec > 0 ? (currentSec / durationSec) * 100 : 0;
   const showOverlayContent = !loading && !errorMsg && controlsVisible;
 
+  // Phase C1.C — Effects-Overlay-Berechnung. Rudimentäre Approximation der
+  // FFmpeg-eq-Werte via semi-transparentes Overlay über dem <Video>.
+  const effectsOverlay = computeEffectsOverlay(effects);
+
   return (
     <View style={[styles.container, fill ? { flex: 1 } : { aspectRatio }]}>
       <Video
@@ -228,6 +248,18 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
         ignoreSilentSwitch="ignore"
         style={StyleSheet.absoluteFill}
       />
+
+      {/* Phase C1.C — Effects-Overlay (Live-Preview Approximation). */}
+      {effectsOverlay.map((layer, idx) => (
+        <View
+          key={`fx-${idx}`}
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: layer.color, opacity: layer.opacity },
+          ]}
+        />
+      ))}
 
       {/* Tap-Layer: toggelt Controls-Sichtbarkeit. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} />
@@ -321,6 +353,44 @@ function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Phase C1.C (2026-05-19): Berechnet Overlay-Layers für Live-Preview von
+ * Color-Grade Effects. RN hat keinen nativen Video-ColorMatrix → wir nehmen
+ * semi-transparente Overlays als Approximation.
+ *
+ * - brightness > 0 → weißes Overlay (Video wird heller wahrgenommen)
+ * - brightness < 0 → schwarzes Overlay (Video wird dunkler)
+ * - contrast < 1   → graues Overlay (washed out)
+ * - contrast > 1   → minimales schwarzes Vignette-Hint (slight punch)
+ *
+ * Saturation/Sharpen/Motion-Blur sind NICHT visualisierbar ohne Native
+ * Shader — werden erst beim Cloud-Export via FFmpeg eq/unsharp/tmix
+ * angewendet.
+ */
+function computeEffectsOverlay(
+  e?: Props['effects'],
+): Array<{ color: string; opacity: number }> {
+  if (!e) return [];
+  const layers: Array<{ color: string; opacity: number }> = [];
+  const b = e.brightness ?? 0;
+  if (b > 0.001) {
+    // 0..1 → 0..0.35 white overlay
+    layers.push({ color: '#ffffff', opacity: Math.min(0.35, b * 0.35) });
+  } else if (b < -0.001) {
+    // 0..-1 → 0..0.5 black overlay
+    layers.push({ color: '#000000', opacity: Math.min(0.5, -b * 0.5) });
+  }
+  const c = e.contrast ?? 1;
+  if (c < 0.999) {
+    // 0.5..1 → 0.2..0 gray overlay (washed-out)
+    layers.push({ color: '#808080', opacity: Math.min(0.25, (1 - c) * 0.5) });
+  } else if (c > 1.001) {
+    // 1..2 → 0..0.15 schwarzes Overlay (slight darkening = approximation für mehr punch)
+    layers.push({ color: '#000000', opacity: Math.min(0.15, (c - 1) * 0.15) });
+  }
+  return layers;
 }
 
 const styles = StyleSheet.create({
