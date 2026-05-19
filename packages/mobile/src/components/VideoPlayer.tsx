@@ -15,6 +15,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -57,6 +58,14 @@ interface Props {
     sharpen?: number;
     motionBlur?: 'off' | 'low' | 'medium' | 'high';
   } | null;
+  /** Phase C5.3 (2026-05-19): Watermark-Live-Preview-Overlay. RN <Image>
+   *  positioniert in der gewählten Ecke + opacity simuliert Worker-Export. */
+  watermark?: {
+    path: string;
+    position: 'tl' | 'tr' | 'bl' | 'br';
+    opacity: number;
+    scale: number;
+  } | null;
 }
 
 export interface VideoPlayerHandle {
@@ -69,7 +78,7 @@ const SKIP_SEC = 5;
 const AUTO_HIDE_MS = 2500;
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
-  { uri, seekTo, onProgress, onDuration, resizeMode = 'contain', aspectRatio = 16 / 9, fill = false, effects },
+  { uri, seekTo, onProgress, onDuration, resizeMode = 'contain', aspectRatio = 16 / 9, fill = false, effects, watermark },
   ref,
 ) {
   const videoRef = useRef<VideoRef>(null);
@@ -248,6 +257,9 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPl
       {/* Phase C1.C — Effects-Overlay (Live-Preview Approximation). */}
       <EffectsOverlay effects={effects} />
 
+      {/* Phase C5.3 — Watermark Live-Preview. */}
+      <WatermarkOverlay watermark={watermark} />
+
       {/* Tap-Layer: toggelt Controls-Sichtbarkeit. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} />
 
@@ -381,6 +393,51 @@ export function EffectsOverlay({
         />
       ))}
     </>
+  );
+}
+
+/**
+ * Phase C5.3 (2026-05-19): Watermark Live-Preview als <Image>-Overlay.
+ * Simuliert das Worker-Export-Verhalten: position in Ecke (TL/TR/BL/BR),
+ * opacity 0..1, scale = Bruchteil der Container-Breite. Padding 10 px
+ * von den Rändern. Wird auch in FullModePreview + StackedSplitPreview
+ * (ProjectDetailScreen) verwendet — daher exported.
+ */
+export function WatermarkOverlay({
+  watermark,
+}: {
+  watermark?: Props['watermark'];
+}) {
+  if (!watermark || !watermark.path) return null;
+  const widthPct = `${Math.max(5, Math.min(30, watermark.scale * 100))}%` as const;
+  const padding = 10;
+  const positionStyle: {
+    position: 'absolute';
+    top?: number;
+    bottom?: number;
+    left?: number;
+    right?: number;
+  } = {
+    position: 'absolute',
+    ...(watermark.position === 'tl' || watermark.position === 'tr'
+      ? { top: padding }
+      : { bottom: padding }),
+    ...(watermark.position === 'tl' || watermark.position === 'bl'
+      ? { left: padding }
+      : { right: padding }),
+  };
+  return (
+    <View pointerEvents="none" style={positionStyle}>
+      <Image
+        source={{ uri: watermark.path }}
+        style={{
+          width: widthPct,
+          aspectRatio: 1,
+          opacity: watermark.opacity,
+          resizeMode: 'contain',
+        }}
+      />
+    </View>
   );
 }
 

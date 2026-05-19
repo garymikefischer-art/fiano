@@ -226,6 +226,63 @@ export function SettingsScreen() {
             </View>
           </View>
 
+          {/* Phase C5.3 (2026-05-19): Plan-Counter — X / Y renders this month. */}
+          {subscription?.monthly_limit != null && (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                borderRadius: 12,
+                backgroundColor: colors.bg.elevated,
+                borderWidth: 1,
+                borderColor: colors.border.subtle,
+              }}
+            >
+              <Ionicons name="cloud-upload-outline" size={16} color="#ff1039" />
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text
+                  style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}
+                >
+                  {t('settings.renderQuota', 'Renders this month')}
+                </Text>
+                <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
+                  {subscription.monthly_limit === 0
+                    ? t('settings.renderQuotaUnlimited', 'Unlimited')
+                    : `${(subscription.render_count ?? 0).toLocaleString()} / ${subscription.monthly_limit.toLocaleString()}`}
+                </Text>
+              </View>
+              {subscription.monthly_limit > 0 && (
+                <View
+                  style={{
+                    width: 70,
+                    height: 6,
+                    borderRadius: 999,
+                    backgroundColor: colors.bg.elevated,
+                    borderWidth: 1,
+                    borderColor: colors.border.subtle,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <View
+                    style={{
+                      height: '100%',
+                      width: `${Math.min(100, Math.round(((subscription.render_count ?? 0) / Math.max(1, subscription.monthly_limit)) * 100))}%`,
+                      backgroundColor:
+                        (subscription.render_count ?? 0) >= subscription.monthly_limit
+                          ? '#ef4444'
+                          : (subscription.render_count ?? 0) >= subscription.monthly_limit * 0.8
+                            ? '#f59e0b'
+                            : '#22c55e',
+                    }}
+                  />
+                </View>
+              )}
+            </View>
+          )}
+
           <Pressable
             onPress={() => nav.navigate('Pricing')}
             style={({ pressed }) => ({

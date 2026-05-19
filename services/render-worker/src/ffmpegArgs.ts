@@ -90,16 +90,21 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
     }
   }
 
-  // Phase C1.A.4 (2026-05-19) — Motion-Blur via Optical-Flow (minterpolate).
-  // Analog zu DaVinci Resolve's "OpticalFlow + VectorMotionBlur" Combo.
+  // Phase C1.A.5 (2026-05-19) — Motion-Blur via Optical-Flow (minterpolate).
+  // Performance-optimiert: me=ds (diamond-search) + reduzierter upscale damit
+  // Cloud-Run-600s-Timeout nicht gerissen wird.
   if (e.motionBlur && e.motionBlur !== 'off') {
-    const tmixFrames =
-      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 3 : 4;
-    const upscaleFps = Math.max(60, fps * 2);
+    const cfg =
+      e.motionBlur === 'low'
+        ? { upscale: 1.5, tmix: 2 }
+        : e.motionBlur === 'medium'
+          ? { upscale: 1.5, tmix: 3 }
+          : { upscale: 2, tmix: 3 };
+    const upscaleFps = Math.max(45, Math.round(fps * cfg.upscale));
     parts.push(
-      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=epzs`,
+      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=ds`,
     );
-    parts.push(`tmix=frames=${tmixFrames}`);
+    parts.push(`tmix=frames=${cfg.tmix}`);
     parts.push(`fps=${fps}`);
   }
   return parts.join(',');
@@ -769,7 +774,9 @@ export function buildTikTokExportArgs(
       const ckColor = (ck.color ?? '#00ff00').replace('#', '0x');
       const ckSim = Math.max(0, Math.min(1, ck.similarity ?? 0.18)).toFixed(3);
       const ckBlend = Math.max(0, Math.min(1, ck.blend ?? 0.08)).toFixed(3);
-      filters.push(`[introScaled]chromakey=${ckColor}:${ckSim}:${ckBlend}[introCK]`);
+      // Phase C5.3: chromakey + despill für sauberen green-screen ohne Saum.
+      filters.push(`[introScaled]chromakey=${ckColor}:${ckSim}:${ckBlend}[introCKraw]`);
+      filters.push(`[introCKraw]despill=type=green:mix=0.6:expand=0[introCK]`);
       introLabel = '[introCK]';
     }
     filters.push(
@@ -778,9 +785,14 @@ export function buildTikTokExportArgs(
         `enable='between(t,0,${overlayDur.toFixed(2)})'[vfinal]`,
     );
     finalVideo = '[vfinal]';
-    // Phase C5.2 Bug-Fix (2026-05-19): Intro-Audio im overlay-mode mit-mischen.
+    // Phase C5.3 Bug-Fix (2026-05-19): Intro-Audio overlay-mode mit
+    // atrim+afade — stoppt nach overlayDur Sekunden (vorher: ran bis intro-
+    // file-end → User-Report "Ton dauernd weiter").
+    const introFadeStart = Math.max(0, overlayDur - 0.3);
     filters.push(
-      `[${introInputIdx}:a]aresample=async=1,volume=1[introOverlayA]`,
+      `[${introInputIdx}:a]aresample=async=1,volume=1,` +
+        `atrim=duration=${overlayDur.toFixed(2)},` +
+        `afade=t=out:st=${introFadeStart.toFixed(2)}:d=0.3[introOverlayA]`,
     );
     filters.push(
       `[aMain][introOverlayA]amix=inputs=2:duration=first:normalize=0[aOverlayMix]`,
