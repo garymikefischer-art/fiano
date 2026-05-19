@@ -861,8 +861,12 @@ export function ThumbnailGeneratorScreen() {
   );
 }
 
+// Phase B3.8 (2026-05-19): module-level const → color hardcoded.
+// useColors-tokens können hier nicht stehen weil außerhalb function-scope.
+// Die Werte sind mid-grey/border-grey die in beiden Modi OK aussehen;
+// für sauberen Light-Mode kann jede Verwendung mit { color: theme... } overriden.
 const SECTION_LABEL = {
-  color: colors.text.secondary,
+  color: '#a1a1aa',
   fontSize: 11,
   fontWeight: '700' as const,
   letterSpacing: 0.6,
@@ -873,10 +877,10 @@ const INPUT_STYLE = {
   borderRadius: 10,
   paddingHorizontal: 12,
   paddingVertical: 10,
-  color: colors.text.primary,
+  color: '#f1f2f2',
   fontSize: 12,
   borderWidth: 1,
-  borderColor: colors.border.subtle,
+  borderColor: 'rgba(255,255,255,0.08)',
 };
 
 const MULTILINE_STYLE = {
