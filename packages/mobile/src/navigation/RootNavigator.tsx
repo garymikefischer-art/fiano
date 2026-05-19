@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
+import { useColors } from '../lib/theme';
 import { SplashScreen } from '../screens/SplashScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignupScreen } from '../screens/SignupScreen';
@@ -32,6 +33,7 @@ export function RootNavigator() {
   const session = useAuthStore((s) => s.session);
   const subscription = useAuthStore((s) => s.subscription);
   const onboardingCompleted = useAppStore((s) => s.onboardingCompleted);
+  const colors = useColors();
 
   if (authInitializing || appInitializing) {
     return <SplashScreen />;
@@ -57,11 +59,11 @@ export function RootNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: '#0d1014' },
-        headerTitleStyle: { color: '#f1f2f2', fontSize: 16, fontWeight: '600' },
+        headerStyle: { backgroundColor: colors.bg.primary },
+        headerTitleStyle: { color: colors.text.primary, fontSize: 16, fontWeight: '600' },
         headerTintColor: '#ff1039',
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: '#090b0c' },
+        contentStyle: { backgroundColor: colors.bg.primary },
       }}
     >
       {session ? (

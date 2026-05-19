@@ -37,7 +37,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge';
-import { VideoPlayer } from '../components/VideoPlayer';
+import { VideoPlayer, EffectsOverlay } from '../components/VideoPlayer';
+import type { ClipEffects } from '../data/demoProjects';
 import {
   DEFAULT_SPLIT_RATIO,
   formatDuration,
@@ -78,7 +79,7 @@ import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { ExportSettingsModal } from '../components/ExportSettingsModal';
 import { DEFAULT_SUBTITLES, type SubtitleSettings } from '../data/demoProjects';
-import { pickVideoFromFiles } from '../lib/mediaPicker';
+import { pickVideoFromFiles, pickVideoFromGallery } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { ClipEffectsSection } from '../components/ClipEffectsSection';
 import { useT } from '../lib/i18n';
@@ -439,14 +440,30 @@ function HighlightsTab({
   };
 
   // Phase C1.B+ (2026-05-19): Highlights-Tab — User kann zusätzliche Source-
-  // Videos vom Handy importieren. Hängt picked.uri ans project.sourceUris[]
-  // an → Multi-Source-Concat-Pipeline beim 9:16-Export rendert alle hinter-
-  // einander. Sourcetype wird auf 'multi-clip' gesetzt damit Mobile-Pipeline
-  // den Multi-Concat-Pfad wählt (renderJob.ts `sourceUris` Vorrang).
+  // Videos vom Handy importieren. ActionSheet Gallery/Files → picked.uri wird
+  // ans project.sourceUris[] angehängt UND ein neuer 'source'-Clip in
+  // project.clips erzeugt (sonst nicht in den Listen sichtbar). Multi-Source-
+  // Concat-Pipeline rendert alle Sources hintereinander beim 9:16-Export.
   const onAddSourceVideo = async () => {
     haptic.medium();
-    const picked = await pickVideoFromFiles({});
+    // Gallery vs Files (analog AddVideoProjectScreen askSource()).
+    const source = await new Promise<'gallery' | 'files' | null>((resolve) => {
+      appAlert(
+        t('highlights.addSourceSheetTitle', 'Add video from?'),
+        t('highlights.addSourceSheetBody', 'Where is the video you want to add?'),
+        [
+          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
+          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
+          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
+        ],
+      );
+    });
+    if (!source) return;
+    const picker = source === 'gallery' ? pickVideoFromGallery : pickVideoFromFiles;
+    const picked = await picker({});
     if (!picked) return;
+
+    // Append uri to sourceUris[].
     const existing =
       project.sourceUris && project.sourceUris.length > 0
         ? project.sourceUris
@@ -454,9 +471,31 @@ function HighlightsTab({
           ? [project.sourceUri]
           : [];
     const nextUris = [...existing, picked.uri];
+    const newSourceIdx = nextUris.length - 1;
+
+    // Neuer 'source'-Clip damit das Video in allen Tab-Listen erscheint
+    // (HighlightsTab, TikTokTab, BuilderTab lesen project.clips).
+    const dur = Math.max(0.1, picked.durationSec ?? 0);
+    const newClip: DemoClip = {
+      id: `src-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      startSec: 0,
+      endSec: dur,
+      label: picked.filename ?? t('highlights.addedClipDefault', 'Imported clip'),
+      score: 0,
+      kind: 'source',
+      sourceIdx: newSourceIdx,
+    };
+
+    // perClipDurations synchron halten falls bereits gepflegt (Multi-Whisper).
+    const newPerClipDurations = project.perClipDurations
+      ? [...project.perClipDurations, dur]
+      : undefined;
+
     useProjectsStore.getState().updateProject(project.id, {
       sourceUris: nextUris,
       sourceType: 'multi-clip',
+      clips: [...project.clips, newClip],
+      ...(newPerClipDurations ? { perClipDurations: newPerClipDurations } : {}),
     });
     haptic.success();
   };
@@ -844,7 +883,7 @@ function HighlightsTab({
                   opacity: pressed ? 0.7 : 1,
                 })}
               >
-                <Ionicons name="create-outline" size={13} color="#f1f2f2" />
+                <Ionicons name="create-outline" size={13} color={colors.text.primary} />
                 <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>
                   {t('highlights.editCues', 'Edit cues')}
                 </Text>
@@ -2186,6 +2225,21 @@ function TikTokTab({
     haptic.medium();
     const picked = await pickVideoFromFiles({ maxDurationSec: 30 });
     if (picked) {
+      // Phase C1.B+ (2026-05-19): .mov-Files mit HEVC-Alpha oder ProRes 4444
+      // werden auf Android ExoPlayer NICHT abgespielt (silent-fail). Pre-
+      // emptive Hinweis damit User mp4 nutzt ODER bewusst akzeptiert dass
+      // Live-Preview leer bleibt (Cloud-Export kann .mov trotzdem rendern).
+      const isMov = picked.filename?.toLowerCase().endsWith('.mov');
+      if (isMov) {
+        appAlert(
+          t('intro.movWarnTitle', '.mov format detected'),
+          t(
+            'intro.movWarnBody',
+            'On Android, .mov files with transparency (HEVC-Alpha / ProRes) often fail to preview. Export to Cloud still works. Tip: convert to .mp4 for live preview.',
+          ),
+          [{ text: t('common.ok', 'OK'), style: 'default' }],
+        );
+      }
       // Phase Builder-5: appStore.introDefaults beim Pick anwenden — damit
       // User die overlay-Position nicht jedes Mal neu einstellen muss.
       // Phase A4.c (2026-05-18): Fallback-Defaults sind jetzt 'bottom'-Preset
@@ -2246,6 +2300,7 @@ function TikTokTab({
               startSec: vo.startSec,
               volume: vo.volume,
             }))}
+            effects={project.effectsAll}
           />
         </View>
       </View>
@@ -3200,6 +3255,7 @@ function LayoutPreview({
   introScale,
   introDurationSec,
   voiceOvers,
+  effects,
 }: {
   layout: Layout;
   sourceUri?: string;
@@ -3225,6 +3281,8 @@ function LayoutPreview({
   introScale?: number;
   introDurationSec?: number;
   voiceOvers?: { path: string; startSec: number; volume: number }[];
+  /** Phase C1.C+ (2026-05-19): Live-Preview Color-Grade Effects (TikTok-Tab). */
+  effects?: ClipEffects | null;
 }) {
   const colors = useColors();
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
@@ -3265,6 +3323,7 @@ function LayoutPreview({
         introY={introY}
         introScale={introScale}
         introDurationSec={introDurationSec}
+        effects={effects}
       />
     );
   }
@@ -3292,6 +3351,7 @@ function LayoutPreview({
       introScale={introScale}
       introDurationSec={introDurationSec}
       voiceOvers={voiceOvers}
+      effects={effects}
     />
   );
 }
@@ -3324,6 +3384,7 @@ function FullModePreview({
   introY = 0,
   introScale = 1,
   introDurationSec = 3,
+  effects,
 }: {
   sourceUri?: string;
   /** Phase Builder-5: Sequential-Playback-Liste. Wenn gesetzt + length>=1
@@ -3343,6 +3404,8 @@ function FullModePreview({
   introY?: number;
   introScale?: number;
   introDurationSec?: number;
+  /** Phase C1.C+ (2026-05-19): Live-Preview Color-Grade Effects. */
+  effects?: ClipEffects | null;
 }) {
   const colors = useColors();
   const [paused, setPaused] = useState(true);
@@ -3922,6 +3985,11 @@ function FullModePreview({
           <Text style={stackedStyles.time}>{formatPreviewTime(displayDur)}</Text>
         </View>
       )}
+      {/* Phase C1.C (2026-05-19): Effects Live-Preview Overlay.
+          Rudimentäre brightness/contrast Approximation via semi-transparentes
+          Overlay (RN hat keinen Video-ColorMatrix). Saturation/Sharpen/
+          Motion-Blur erst beim Cloud-Export sichtbar. */}
+      <EffectsOverlay effects={effects} />
     </View>
   );
 }
@@ -3947,6 +4015,7 @@ function StackedSplitPreview({
   introScale = 1,
   introDurationSec = 3,
   voiceOvers,
+  effects,
 }: {
   layout: 'stacked' | 'split';
   sourceUri: string;
@@ -3971,6 +4040,8 @@ function StackedSplitPreview({
   introDurationSec?: number;
   /** Voice-Overs für Live-Preview-Audio (Phase 9.6.4). Synchron zur Master-Position. */
   voiceOvers?: { path: string; startSec: number; volume: number }[];
+  /** Phase C1.C+ (2026-05-19): Live-Preview Color-Grade Effects. */
+  effects?: ClipEffects | null;
 }) {
   const colors = useColors();
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
@@ -4375,6 +4446,8 @@ function StackedSplitPreview({
           <Text style={stackedStyles.time}>{formatPreviewTime(durationSec)}</Text>
         </View>
       )}
+      {/* Phase C1.C (2026-05-19): Effects Live-Preview Overlay (siehe FullModePreview). */}
+      <EffectsOverlay effects={effects} />
     </View>
   );
 }
@@ -5601,6 +5674,7 @@ function BuilderTab({
             introY={project.intro?.y ?? 0}
             introScale={project.intro?.scale ?? 1}
             introDurationSec={project.intro?.durationSec ?? 3}
+            effects={project.effectsAll}
           />
         );
       })()}
