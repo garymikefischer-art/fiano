@@ -132,7 +132,7 @@ export function RegionPickerModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen">
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
         <BackgroundGlow />
 

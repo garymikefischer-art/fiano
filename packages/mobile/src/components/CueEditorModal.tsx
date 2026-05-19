@@ -98,7 +98,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
         <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
 

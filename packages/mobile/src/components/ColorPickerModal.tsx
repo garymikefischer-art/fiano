@@ -72,7 +72,7 @@ export function ColorPickerModal({ visible, value, title = 'Farbe wählen', onCl
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={onClose}
       statusBarTranslucent
