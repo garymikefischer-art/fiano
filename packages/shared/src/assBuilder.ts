@@ -257,59 +257,87 @@ function isHighlightWord(word: string, hwords: SubtitleHighlightWord[] | undefin
 }
 
 /**
- * Layered-Style baut einen Event-Text wo highlight-words inline mit größerer
- * fs + highlight-color formattiert werden. Beispiel:
- *   "I am BIG" mit highlightWords=[{text:'big',big:true}]
- *   → "I am {\fs60\1c<highlight>}BIG{\fs26\1c<normal>}"
+ * Layered-Style: big-words + small-words als ZWEI ÜBERLAPPENDE Dialogue-Events.
+ * Big-word hinten (Layer 0), small-words vorne (Layer 1) — der small-Text
+ * überlappt die untere Hälfte des big-words ("layered" = überlappende Ebenen).
+ *
+ * 1:1 Desktop-Parität mit `renderLayeredSubtitleToPng` (subtitleCanvas.ts):
+ *   bigFs   = styleFontSize × highlightFontScale
+ *   smallFs = styleFontSize × 0.7
+ *   yBig    = cy − smallFs/4         (big-word leicht über Cue-Center)
+ *   ySmall  = yBig + bigFs × 0.42    (small überlappt big's untere ~42%)
+ *
+ * Phase R9-bugfix2 (2026-05-20): Vorher \N-2-Zeilen-Layout — falsch. "Layered"
+ * heißt überlappende Ebenen (roter big hinten, weißer small vorne), nicht zwei
+ * getrennte Zeilen. Ein Single-Event kann nicht überlappen → zwei \pos-Events
+ * mit verschiedenem Layer.
+ *
+ * Phase C7 (2026-05-19): Big-Word-Zoom via libass \t() — 80%→110% "pop".
  */
-function buildLayeredText(
+function buildLayeredEvents(
   cueText: string,
   settings: SubtitleSettings,
   styleFontSize: number,
-): string {
-  const words = cueText.split(/(\s+)/); // keep whitespace between words
+  cx: number,
+  cy: number,
+  cueOverridesInline: string,
+): { layer: number; text: string }[] {
+  const words = cueText.split(/\s+/).filter(Boolean);
   const normalColor = assColor(settings.textColor ?? '#ffffff');
   const highlightColor = settings.highlightUseGradient
     ? assColor(settings.highlightGradientFrom ?? settings.highlightColor ?? '#ff1039')
     : assColor(settings.highlightColor ?? '#ff1039');
   const bigScale = settings.highlightFontScale ?? 1.4;
   const bigFs = Math.round(styleFontSize * bigScale);
+  const smallFs = Math.round(styleFontSize * 0.7);
 
-  let inHighlight = false;
-  let out = '';
+  // Words in big/small splitten — Reihenfolge in jeder Gruppe erhalten.
+  const bigWords: string[] = [];
+  const smallWords: string[] = [];
   for (const w of words) {
-    if (/^\s+$/.test(w)) {
-      out += escapeAss(w);
-      continue;
+    if (isHighlightWord(w, settings.highlightWords)) {
+      bigWords.push(w);
+    } else {
+      smallWords.push(w);
     }
-    const isBig = isHighlightWord(w, settings.highlightWords);
-    if (isBig && !inHighlight) {
-      // Phase C7 (2026-05-19): Big-Word-Zoom-Animation via libass \t() tag.
-      // Word startet bei 80% scale + animiert über 120ms zu 110% scale —
-      // erzeugt einen "pop"-Effekt auf jedes Highlight-Wort. Bias zur
-      // current frame: zoom-in ist schneller als zoom-out (kein zoom-out,
-      // bleibt auf 110% bis Wort-Ende = nächstes non-highlight token).
-      // Desktop hatte das via libass \t() — Mobile war vorher static.
-      out += `{\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx110\\fscy110)`;
-      // optional extra drop-shadow on highlight word
-      if ((settings.highlightDropShadow ?? 0) > 0) {
-        out += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
-      }
-      if (settings.highlightGlow === true) {
-        const hgStrength = settings.highlightGlowStrength ?? 0.7;
-        const hgColor = assColor(settings.highlightGlowColor ?? settings.highlightColor ?? '#ff1039');
-        out += `\\bord${Math.round(2 + hgStrength * 3)}\\3c${hgColor}\\blur6`;
-      }
-      out += '}';
-      inHighlight = true;
-    } else if (!isBig && inHighlight) {
-      // Phase C7: reset scale + style nach big-word.
-      out += `{\\fs${styleFontSize}\\1c${normalColor}\\xshad0\\yshad0\\fscx100\\fscy100}`;
-      inHighlight = false;
-    }
-    out += escapeAss(w);
   }
-  return out;
+
+  // Kein big-word → einfaches Single-Event ohne layered Effekt.
+  if (bigWords.length === 0) {
+    return [
+      { layer: 0, text: `{\\pos(${cx},${cy})${cueOverridesInline}}${escapeAss(cueText)}` },
+    ];
+  }
+
+  // Geometrie (Desktop-Parität): big leicht über center, small überlappt unten.
+  const yBig = Math.round(cy - smallFs / 4);
+  const ySmall = Math.round(yBig + bigFs * 0.42);
+
+  // Big-Event (Layer 0 — hinten). highlight-Style + Zoom-Animation.
+  let bigTags =
+    `{\\pos(${cx},${yBig})${cueOverridesInline}` +
+    `\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx110\\fscy110)`;
+  if ((settings.highlightDropShadow ?? 0) > 0) {
+    bigTags += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
+  }
+  if (settings.highlightGlow === true) {
+    const hgStrength = settings.highlightGlowStrength ?? 0.7;
+    const hgColor = assColor(settings.highlightGlowColor ?? settings.highlightColor ?? '#ff1039');
+    bigTags += `\\bord${Math.round(2 + hgStrength * 3)}\\3c${hgColor}\\blur6`;
+  }
+  bigTags += '}';
+  const bigEvent = { layer: 0, text: `${bigTags}${escapeAss(bigWords.join(' '))}` };
+
+  // Nur big-words → nur das big-Event.
+  if (smallWords.length === 0) {
+    return [bigEvent];
+  }
+
+  // Small-Event (Layer 1 — vorne, überlappt big). normal-Style.
+  const smallTags = `{\\pos(${cx},${ySmall})${cueOverridesInline}\\fs${smallFs}\\1c${normalColor}}`;
+  const smallEvent = { layer: 1, text: `${smallTags}${escapeAss(smallWords.join(' '))}` };
+
+  return [bigEvent, smallEvent];
 }
 
 /* ─── Main Builder ─────────────────────────────────────────────────── */
@@ -342,18 +370,32 @@ export function buildAssSubtitle(opts: AssBuildOpts): string {
   ];
 
   const events: string[] = [];
+  const overridesInline = overrides.replace(/^\{|\}$/g, '');
   for (const cue of cues) {
     const rawText = settings.uppercase ? cue.text.toUpperCase() : cue.text;
-    const body = isLayered
-      ? buildLayeredText(rawText, settings, style.fontsize)
-      : escapeAss(rawText);
-    // Override-Prefix: position-tag IMMER FIRST damit es nicht von \1c/\bord
-    // overrides "leaked" wird (ASS-spec: pos kann nur als erstes funktionieren
-    // in der Override-Block — andere Tags davor mischen kann visual flicker).
-    const prefix = `{${posTag}${overrides.replace(/^\{|\}$/g, '')}}`;
-    events.push(
-      `Dialogue: 0,${assTime(cue.startSec)},${assTime(cue.endSec)},Default,,0,0,0,,${prefix}${body}`,
-    );
+    if (isLayered) {
+      // Layered = zwei überlappende Events (big hinten Layer 0, small vorne
+      // Layer 1) — jedes Event bringt seinen eigenen \pos mit.
+      for (const ev of buildLayeredEvents(
+        rawText,
+        settings,
+        style.fontsize,
+        cx,
+        cy,
+        overridesInline,
+      )) {
+        events.push(
+          `Dialogue: ${ev.layer},${assTime(cue.startSec)},${assTime(cue.endSec)},Default,,0,0,0,,${ev.text}`,
+        );
+      }
+    } else {
+      // Override-Prefix: position-tag IMMER FIRST (ASS-spec: \pos muss erstes
+      // im Override-Block sein, sonst visual flicker).
+      const prefix = `{${posTag}${overridesInline}}`;
+      events.push(
+        `Dialogue: 0,${assTime(cue.startSec)},${assTime(cue.endSec)},Default,,0,0,0,,${prefix}${escapeAss(rawText)}`,
+      );
+    }
   }
 
   return [...header, ...events, ''].join('\n');

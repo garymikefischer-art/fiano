@@ -3286,6 +3286,7 @@ function TikTokTab({
               paddingHorizontal: 14,
               paddingVertical: 8,
               marginHorizontal: 14,
+              marginBottom: 16,
               borderRadius: 10,
               backgroundColor: colors.bg.elevated,
               borderWidth: 1,
@@ -3358,6 +3359,7 @@ function TikTokTab({
               paddingVertical: 12,
               marginHorizontal: 14,
               marginTop: 8,
+              marginBottom: 16,
               borderRadius: 12,
               backgroundColor: colors.bg.elevated,
               borderWidth: 1,
@@ -6616,6 +6618,7 @@ function BuilderTab({
               paddingVertical: 12,
               marginHorizontal: 14,
               marginTop: 8,
+              marginBottom: 16,
               borderRadius: 12,
               backgroundColor: colors.bg.elevated,
               borderWidth: 1,
@@ -6844,13 +6847,16 @@ function BuilderTab({
 
     {/* Phase B1.2 (2026-05-18): Modals OUTSIDE NestableScrollContainer rendern,
         sonst kann RN-Modal sein Layout nicht voll aufbauen (Scissors-Bug). */}
-    {/* Subtitle-Settings-Modal — lazy mount. */}
+    {/* Phase C5.X (2026-05-20): isInline-mode — RN-Modal crashed in
+        NestableDraggableFlatList scope (measureLayout-Konflikt mit Reanimated
+        v3). Im 9:16-Tab bleibt es Modal, im BuilderTab → absolute-View. */}
     {subModalOpen && (
       <SubtitleSettingsModal
         visible={subModalOpen}
         settings={subSettings}
         onClose={() => setSubModalOpen(false)}
         onChange={(next) => updateProject(project.id, { subtitles: next })}
+        isInline
       />
     )}
 
