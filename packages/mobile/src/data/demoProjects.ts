@@ -298,7 +298,7 @@ export const DEFAULT_SUBTITLES: SubtitleSettings = {
   shadowBlur: 0,
   metallic: false,
   maxWordsPerChunk: 2,
-  highlightFontScale: 1.4,
+  highlightFontScale: 1.8,
 };
 
 /** AI-Voice-Over (Text-to-Speech) mit Position im Output-Video. Analog Desktop ProjectVoiceOver. */
