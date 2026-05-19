@@ -17,7 +17,7 @@
  * Save → updateProject(id, { subtitles }). Reset → DEFAULT_SUBTITLES.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -606,6 +606,15 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
               {/* 8. Layered Settings (nur wenn style='layered') */}
               {local.style === 'layered' && (
                 <Section title="LAYERED — HIGHLIGHT WORD">
+                  {/* Phase C5.4 (2026-05-19): Highlight-Words TextInput (Mobile war
+                      vorher nur Desktop). Comma-separated, parsed in array of
+                      {text, big:true}. */}
+                  <HighlightWordsInput
+                    value={local.highlightWords ?? []}
+                    onChange={(words) => patch({ highlightWords: words })}
+                    styles={styles}
+                    colors={colors}
+                  />
                   <SliderRow
                     label="Size scale"
                     value={local.highlightFontScale ?? 1.4}
@@ -919,6 +928,65 @@ function OptionCard({
         </View>
       )}
     </Pressable>
+  );
+}
+
+/* Phase C5.4 (2026-05-19): HighlightWordsInput — comma-separated TextInput
+   für Layered-Subtitle "big-word" markers. */
+function HighlightWordsInput({
+  value,
+  onChange,
+  styles,
+  colors,
+}: {
+  value: { text: string; big: boolean }[];
+  onChange: (next: { text: string; big: boolean }[]) => void;
+  styles: ReturnType<typeof makeStyles>;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [text, setText] = useState(() => value.map((w) => w.text).join(', '));
+  // Keep local in sync wenn parent value changes (e.g. preset reset).
+  useEffect(() => {
+    setText(value.map((w) => w.text).join(', '));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.length]);
+
+  const commit = (raw: string) => {
+    const words = raw
+      .split(/[,\n]/)
+      .map((w) => w.trim())
+      .filter((w) => w.length > 0)
+      .map((t) => ({ text: t, big: true }));
+    onChange(words);
+  };
+
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={styles.subLabel}>Words to highlight (comma-separated)</Text>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        onBlur={() => commit(text)}
+        onSubmitEditing={() => commit(text)}
+        placeholder="z.B. BIG, WOW, BOOM"
+        placeholderTextColor={colors.text.muted}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        style={{
+          color: colors.text.primary,
+          backgroundColor: colors.bg.elevated,
+          borderWidth: 1,
+          borderColor: colors.border.subtle,
+          borderRadius: 10,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          fontSize: 13,
+        }}
+      />
+      <Text style={[styles.helper, { color: colors.text.tertiary }]}>
+        Diese Wörter werden im Layered-Style {value.length > 0 ? `(${value.length}) ` : ''}größer + farbig angezeigt.
+      </Text>
+    </View>
   );
 }
 

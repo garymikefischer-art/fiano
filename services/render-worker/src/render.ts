@@ -21,8 +21,16 @@ export async function runFFmpeg(args: string[], opts: RunOpts): Promise<void> {
   const maxSec = opts.maxDurationSec ?? 300;
   const jobId = opts.jobId;
 
+  // Phase C5.4 Perf (2026-05-19): -threads 0 (use all CPU) +
+  // -filter_complex_threads 4 → minterpolate/colorlevels parallel auf allen
+  // cores. Reduziert motion-blur render time von ~10x slowdown auf ~5x.
+  // Args werden NACH '-y' injiziert, davor wäre invalid.
+  const threadedArgs = args[0] === '-y'
+    ? ['-y', '-threads', '0', '-filter_complex_threads', '4', ...args.slice(1)]
+    : ['-threads', '0', '-filter_complex_threads', '4', ...args];
+
   return new Promise((resolve, reject) => {
-    const proc = spawn('ffmpeg', args, {
+    const proc = spawn('ffmpeg', threadedArgs, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

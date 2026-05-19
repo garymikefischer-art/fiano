@@ -120,23 +120,20 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 3
     }
   }
 
-  // Phase C1.A.5 (2026-05-19) — Motion-Blur via Optical-Flow (minterpolate).
-  // Optimiert für Cloud Run Timeout: weniger upscale, schnelleres me-mode.
-  // Vorher (C1.A.4): fps*2 + me=epzs → 300s+ Render bei >30s Clips → Timeout.
-  // Jetzt: fps*1.5 (low/medium) bzw. fps*2 (nur high), me=ds (diamond-search,
-  // ~2× schneller als epzs), reduzierte tmix-frames.
+  // Phase C1.A.6 (2026-05-19) — Motion-Blur weiter optimiert.
+  // ROOT-CAUSE Round-6: minterpolate mit mci ist auch mit fps*1.5 noch zu
+  // langsam für längere Clips. NEUE strategy: fps*1.5 für alle Stufen,
+  // me=dia (kleinster search-pattern → schnellster mode), tmix variiert
+  // nur die Trail-Länge. Plus: -threads 0 + -filter_complex_threads 4 im
+  // render.ts → minterpolate läuft parallel auf allen CPU-cores.
   if (e.motionBlur && e.motionBlur !== 'off') {
-    const cfg =
-      e.motionBlur === 'low'
-        ? { upscale: 1.5, tmix: 2 }
-        : e.motionBlur === 'medium'
-          ? { upscale: 1.5, tmix: 3 }
-          : { upscale: 2, tmix: 3 };
-    const upscaleFps = Math.max(45, Math.round(fps * cfg.upscale));
+    const tmixFrames =
+      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 3 : 4;
+    const upscaleFps = Math.max(45, Math.round(fps * 1.5));
     parts.push(
-      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=ds`,
+      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=dia:mb_size=16`,
     );
-    parts.push(`tmix=frames=${cfg.tmix}`);
+    parts.push(`tmix=frames=${tmixFrames}`);
     parts.push(`fps=${fps}`);
   }
   return parts.join(',');
