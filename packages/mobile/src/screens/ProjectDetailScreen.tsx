@@ -3286,6 +3286,7 @@ function TikTokTab({
               paddingHorizontal: 14,
               paddingVertical: 8,
               marginHorizontal: 14,
+              marginBottom: 16,
               borderRadius: 10,
               backgroundColor: colors.bg.elevated,
               borderWidth: 1,
