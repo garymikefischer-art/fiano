@@ -318,6 +318,13 @@ export interface TikTokExportOpts {
    * Pfad (`srcs[]` ohne `clips`).
    * Gedacht für Builder-Tab 16:9 YouTube-Cut mit Highlights + Extra-Videos. */
   clips?: { src?: number; startSec: number; endSec: number }[];
+
+  /* ─── Phase C1.B (2026-05-19): Color-Grade Effects ──────────────────
+   * eq=brightness/contrast/saturation + unsharp=sharpen + tmix=motionBlur.
+   * Wirken NACH Layout-Composition (auf das fertig komponierte 9:16/16:9
+   * Frame), VOR Subtitle-Burn-In und Intro-Overlay — Subtitles + Intro
+   * sollen visuell unverändert bleiben. */
+  effects?: ClipEffectsValues;
 }
 
 /**
@@ -525,10 +532,21 @@ export function buildTikTokExportArgs(
     );
   }
 
+  let videoComposed = '[vmain]';
+
+  // ─── Phase C1.B (2026-05-19): Color-Grade Effects ──────────────────
+  // eq (brightness/contrast/saturation) + unsharp (sharpen) + tmix (motion-blur)
+  // werden hier auf das post-Layout Composite angewendet. Subtitle-Burn-In und
+  // Intro-Overlay folgen DANACH → bleiben visuell unverändert.
+  const effectsFilterStr = buildEffectsFilter(opts.effects);
+  if (effectsFilterStr) {
+    filters.push(`${videoComposed}${effectsFilterStr}[vfx]`);
+    videoComposed = '[vfx]';
+  }
+
   // ─── Subtitle Burn-In (libass ODER drawtext) ───────────────────────
   // Phase 9.6.7h: wenn `assPath` gesetzt → ass-Filter (full style-parity via
   // libass). Sonst Legacy-Pfad mit drawtext (color + stroke + position only).
-  let videoComposed = '[vmain]';
   const sub = opts.subtitle;
   const hasAss = !!sub?.assPath && sub.assPath.length > 0;
   const hasCues = !hasAss && !!sub?.cues && sub.cues.length > 0;
@@ -537,7 +555,7 @@ export function buildTikTokExportArgs(
     // libass-Pfad — ass-Filter konsumiert das Video, output [vsub].
     // original_size hilft libass beim Resolution-Scaling (.ass deklariert
     // PlayResX/Y, ass-Filter mappt das auf den tatsächlichen Video-Stream).
-    filters.push(`[vmain]ass=${sub.assPath}:original_size=${W}x${H}[vsub]`);
+    filters.push(`${videoComposed}ass=${sub.assPath}:original_size=${W}x${H}[vsub]`);
     videoComposed = '[vsub]';
   } else if (sub && (hasCues || hasText)) {
     const fontSize = sub.fontSize ?? 64;
@@ -553,7 +571,7 @@ export function buildTikTokExportArgs(
     if (hasCues) {
       // Multi-Cue: chain N drawtext-Filter mit enable=between(t,start,end).
       // Jeder Filter nimmt das vorige als Input, der letzte gibt [vsub].
-      let prevLabel = '[vmain]';
+      let prevLabel = videoComposed;
       const cues = sub.cues!;
       for (let i = 0; i < cues.length; i++) {
         const c = cues[i];
@@ -573,7 +591,7 @@ export function buildTikTokExportArgs(
       // Legacy single-line text (manual Subtitle).
       const text = (sub.uppercase ? sub.text.toUpperCase() : sub.text).replace(/'/g, "\\'");
       filters.push(
-        `[vmain]drawtext=text='${text}':fontsize=${fontSize}:` +
+        `${videoComposed}drawtext=text='${text}':fontsize=${fontSize}:` +
           `fontcolor=0x${fontColor}:` +
           `bordercolor=0x${strokeColor}:borderw=${strokeWidth}:` +
           `x=(w-text_w)/2:y=${yExpr}[vsub]`,

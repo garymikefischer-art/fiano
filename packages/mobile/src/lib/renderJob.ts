@@ -80,6 +80,15 @@ export interface ClientRenderSpec {
     durationSec?: number;
   };
   clips?: { src?: number; startSec: number; endSec: number }[];
+  /** Phase C1.B (2026-05-19): Color-Grade Effects. Worker clampt server-side
+   *  (eq + unsharp + tmix). Felder spiegeln ClipEffects aus demoProjects.ts. */
+  effects?: {
+    brightness?: number;
+    contrast?: number;
+    saturation?: number;
+    sharpen?: number;
+    motionBlur?: 'off' | 'low' | 'medium' | 'high';
+  };
 }
 
 export interface RenderJobResult {
