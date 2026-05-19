@@ -133,6 +133,9 @@ export interface DemoProject {
   /** Phase C1 (2026-05-19): "Applies to all clips" Default-Effects. Per-Clip-
    *  effects in clip.effects haben Vorrang. */
   effectsAll?: ClipEffects;
+  /** Phase C5 (2026-05-19): Watermark-Overlay auf Export. Logo/Image wird
+   *  in der gewählten Ecke positioniert, opacity-skalierbar. */
+  watermark?: ProjectWatermark;
   /** Letzte Fehlermeldung wenn status === 'failed'. */
   errorMessage?: string;
   /** Generated Thumbnail-URIs aus Phase 9.8 Gemini-Thumbs. Persistent in
@@ -322,6 +325,21 @@ export interface ProjectExtraVideo {
   trimEnd?: number;
 }
 
+/** Phase C5 (2026-05-19): Watermark-Overlay. Wird auf jedes Export-Render
+ *  in der gewählten Position eingeblendet (z.B. Logo). */
+export interface ProjectWatermark {
+  /** file:// URI im documentDirectory/watermarks/. */
+  path: string;
+  /** Original-Dateiname (Display). */
+  filename?: string;
+  /** Position auf dem Output-Frame. */
+  position: 'tl' | 'tr' | 'bl' | 'br';
+  /** Opacity 0..1, default 0.7. */
+  opacity: number;
+  /** Watermark-Größe als Anteil der Frame-Breite. 0.05..0.3, default 0.15. */
+  scale: number;
+}
+
 export interface ProjectIntro {
   /** file:// URI. */
   path: string;
@@ -340,6 +358,15 @@ export interface ProjectIntro {
   /** Phase 9.6.6.1 (overlay-mode only). Wie lange das Overlay sichtbar bleibt.
    *  Default 3.0s — kann später nach Wunsch override-bar werden. */
   durationSec?: number;
+  /** Phase C5-Intro (2026-05-19): Greenscreen / Chromakey. Im overlay-Mode
+   *  wird die Farbe transparent gemacht, sodass das Source-Video durchschaut.
+   *  similarity = wie tolerant der Farbabgleich (0..1, default 0.18). blend =
+   *  edge-softness (0..1, default 0.08). Default color #00ff00 (grün). */
+  chromakey?: {
+    color?: string;
+    similarity?: number;
+    blend?: number;
+  };
 }
 
 export const DEFAULT_SPLIT_RATIO = 0.4;

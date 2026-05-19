@@ -450,6 +450,8 @@ export function ExportScreen() {
               x: intro.x,
               y: intro.y,
               durationSec: intro.durationSec,
+              // Phase C5-Intro (2026-05-19): Chromakey/Greenscreen durchreichen.
+              chromakey: intro.chromakey,
             }
           : undefined,
         clips: builderClips.length > 0 ? builderClips : undefined,
@@ -458,6 +460,14 @@ export function ExportScreen() {
         // wird im FFmpeg-Graph generiert). Per-Clip-Override (clip.effects)
         // wird in einem späteren Phase implementiert.
         effects: hasActiveEffects(project?.effectsAll) ? project!.effectsAll : undefined,
+        // Phase C5 (2026-05-19): Watermark-Overlay durchreichen (Worker resolved path).
+        watermark: project?.watermark
+          ? {
+              position: project.watermark.position,
+              opacity: project.watermark.opacity,
+              scale: project.watermark.scale,
+            }
+          : undefined,
       };
 
       // 7. Cloud-Render: Multi-Input Upload → Render → Download.
@@ -470,6 +480,7 @@ export function ExportScreen() {
           musicUris: musicTracks.map((m) => m.path),
           voiceOverUris: voiceOvers.map((vo) => vo.path),
           assContent,
+          watermarkUri: project?.watermark?.path,
         },
         spec,
         projectId: params.projectId ?? 'no-project',
@@ -744,7 +755,7 @@ export function ExportScreen() {
               title={t('common.cancel', 'Cancel')}
               variant="secondary"
               onPress={onCancel}
-              icon={<Ionicons name="stop-circle-outline" size={16} color="#f1f2f2" />}
+              icon={<Ionicons name="stop-circle-outline" size={16} color={colors.text.primary} />}
             />
           )}
 
@@ -752,7 +763,7 @@ export function ExportScreen() {
             <BrandButton
               title={t('export.backToHome', 'Back to home')}
               onPress={() => nav.popToTop()}
-              icon={<Ionicons name="home-outline" size={16} color="#fff" />}
+              icon={<Ionicons name="home-outline" size={16} color={colors.text.primary} />}
             />
           )}
 

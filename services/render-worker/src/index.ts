@@ -138,7 +138,7 @@ function isOwnedSafeKey(key: string, userId: string): boolean {
   return true;
 }
 
-type UploadKind = 'source' | 'intro' | 'music' | 'voice-over' | 'subtitle';
+type UploadKind = 'source' | 'intro' | 'music' | 'voice-over' | 'subtitle' | 'watermark';
 
 const KIND_EXT: Record<UploadKind, string> = {
   source: 'mp4',
@@ -147,6 +147,8 @@ const KIND_EXT: Record<UploadKind, string> = {
   'voice-over': 'mp3',
   // Phase 9.6.7h: Advanced-Substation-Alpha-Untertitel-Datei. libass-Renderer.
   subtitle: 'ass',
+  // Phase C5 (2026-05-19): Watermark-Image (PNG/JPG für Logo-Overlay).
+  watermark: 'png',
 };
 
 /**
@@ -211,6 +213,8 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
         voiceOvers?: string[];
         /** Phase 9.6.7h: ASS-Subtitle-File (libass burn-in). */
         subtitle?: string;
+        /** Phase C5 (2026-05-19): Watermark-Image für Overlay. */
+        watermark?: string;
       };
       /** Legacy (deprecated): pre-built FFmpeg args. */
       args?: string[];
@@ -255,6 +259,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       ...(inputs?.music ?? []),
       ...(inputs?.voiceOvers ?? []),
       ...(inputs?.subtitle ? [inputs.subtitle] : []),
+      ...(inputs?.watermark ? [inputs.watermark] : []),
     ];
     for (const k of allKeys) {
       // Phase A6.5 (2026-05-18): Strict regex statt prefix-only-check.
@@ -360,6 +365,16 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       }
     }
 
+    if (inputs?.watermark) {
+      // Phase C5 (2026-05-19): Watermark-Image nach /tmp/. Extension preserved
+      // damit FFmpeg den richtigen decoder wählt (.png vs .jpg).
+      const ext = inputs.watermark.match(/\.(png|jpg|jpeg)$/i)?.[1] ?? 'png';
+      const wmTmp = path.join(tmpdir(), `${jobId}-watermark.${ext}`);
+      await downloadToFile(inputs.watermark, wmTmp);
+      replaceMap['{WATERMARK}'] = wmTmp;
+      tmpFiles.push(wmTmp);
+    }
+
     if (inputs?.subtitle) {
       // Phase 9.6.7h: libass burn-in. .ass-Datei nach /tmp/, Platzhalter {ASS}
       // wird im filter-arg ass=${path}:original_size=WxH ersetzt.
@@ -429,6 +444,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
         music: musicPaths,
         voiceOvers: voPaths,
         assPath: replaceMap['{ASS}'],
+        watermark: replaceMap['{WATERMARK}'],
       });
       finalArgs = buildTikTokExportArgs(opts, 'other');
     } else {

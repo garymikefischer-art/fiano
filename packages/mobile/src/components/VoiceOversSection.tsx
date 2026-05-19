@@ -9,8 +9,9 @@
  *   - Sliders für startSec (0..maxSec) und volume (0..1.5)
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useColors } from '../lib/theme';
 import { appAlert } from './AppAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { TtsModal } from './TtsModal';
@@ -35,6 +36,8 @@ export function VoiceOversSection({
   const addVoiceOver = useProjectsStore((s) => s.addVoiceOver);
   const updateVoiceOver = useProjectsStore((s) => s.updateVoiceOver);
   const removeVoiceOver = useProjectsStore((s) => s.removeVoiceOver);
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -111,6 +114,8 @@ export function VoiceOversSection({
               key={`${vo.path}-${i}`}
               vo={vo}
               maxSec={maxSec}
+              styles={styles}
+              colors={colors}
               onEdit={() => {
                 haptic.light();
                 setEditingIdx(i);
@@ -150,12 +155,16 @@ export function VoiceOversSection({
 function VoiceOverRow({
   vo,
   maxSec,
+  styles,
+  colors,
   onEdit,
   onDelete,
   onPatch,
 }: {
   vo: ProjectVoiceOver;
   maxSec: number;
+  styles: ReturnType<typeof makeStyles>;
+  colors: ReturnType<typeof useColors>;
   onEdit: () => void;
   onDelete: () => void;
   onPatch: (patch: Partial<ProjectVoiceOver>) => void;
@@ -176,7 +185,7 @@ function VoiceOverRow({
           </Text>
         </View>
         <Pressable hitSlop={8} onPress={onEdit} style={styles.iconBtn}>
-          <Ionicons name="create-outline" size={16} color="#a1a1aa" />
+          <Ionicons name="create-outline" size={16} color={colors.text.secondary} />
         </Pressable>
         <Pressable hitSlop={8} onPress={onDelete} style={styles.iconBtn}>
           <Ionicons name="trash-outline" size={16} color="#ef4444" />
@@ -263,159 +272,161 @@ function fmtSec(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  heading: {
-    color: '#a1a1aa',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-  },
-  sub: {
-    color: '#71717a',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  newBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(255,16,57,0.45)',
-  },
-  newLabel: {
-    color: '#ff1039',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  emptyBox: {
-    paddingHorizontal: 14,
-    paddingVertical: 18,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: '#71717a',
-    fontSize: 11,
-    fontStyle: 'italic',
-    textAlign: 'center',
-  },
-  row: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  rowHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  rowTitle: {
-    color: '#f1f2f2',
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 17,
-  },
-  rowMeta: {
-    color: '#71717a',
-    fontSize: 10,
-    marginTop: 2,
-    fontVariant: ['tabular-nums'],
-  },
-  iconBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sliderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  sliderLabel: {
-    color: '#71717a',
-    fontSize: 10,
-    fontWeight: '600',
-    width: 55,
-  },
-  sliderValue: {
-    color: '#a1a1aa',
-    fontSize: 11,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    minWidth: 40,
-    textAlign: 'right',
-  },
-  footer: {
-    color: '#52525b',
-    fontSize: 9,
-    fontStyle: 'italic',
-    paddingHorizontal: 4,
-  },
-  duckRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    marginTop: 2,
-  },
-  duckLabel: {
-    color: '#f1f2f2',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  duckHint: {
-    color: '#71717a',
-    fontSize: 9,
-    lineHeight: 12,
-  },
-  duckSwitch: {
-    width: 32,
-    height: 18,
-    borderRadius: 999,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  duckSwitchOn: {
-    backgroundColor: 'rgba(255,16,57,0.45)',
-  },
-  duckSwitchOff: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  duckSwitchKnob: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#fff',
-  },
-  duckSwitchKnobOn: {
-    alignSelf: 'flex-end',
-  },
-  duckSwitchKnobOff: {
-    alignSelf: 'flex-start',
-  },
-});
+function makeStyles(colors: ReturnType<typeof useColors>) {
+  return StyleSheet.create({
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    heading: {
+      color: colors.text.secondary,
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 1.4,
+    },
+    sub: {
+      color: colors.text.tertiary,
+      fontSize: 10,
+      marginTop: 2,
+    },
+    newBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: 'rgba(255,16,57,0.45)',
+    },
+    newLabel: {
+      color: '#ff1039',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    emptyBox: {
+      paddingHorizontal: 14,
+      paddingVertical: 18,
+      borderRadius: 12,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      borderStyle: 'dashed',
+      alignItems: 'center',
+    },
+    emptyText: {
+      color: colors.text.tertiary,
+      fontSize: 11,
+      fontStyle: 'italic',
+      textAlign: 'center',
+    },
+    row: {
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 8,
+    },
+    rowHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    rowTitle: {
+      color: colors.text.primary,
+      fontSize: 12,
+      fontWeight: '600',
+      lineHeight: 17,
+    },
+    rowMeta: {
+      color: colors.text.tertiary,
+      fontSize: 10,
+      marginTop: 2,
+      fontVariant: ['tabular-nums'],
+    },
+    iconBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      backgroundColor: colors.bg.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sliderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    sliderLabel: {
+      color: colors.text.tertiary,
+      fontSize: 10,
+      fontWeight: '600',
+      width: 55,
+    },
+    sliderValue: {
+      color: colors.text.secondary,
+      fontSize: 11,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+      minWidth: 40,
+      textAlign: 'right',
+    },
+    footer: {
+      color: colors.text.muted,
+      fontSize: 9,
+      fontStyle: 'italic',
+      paddingHorizontal: 4,
+    },
+    duckRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      marginTop: 2,
+    },
+    duckLabel: {
+      color: colors.text.primary,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    duckHint: {
+      color: colors.text.tertiary,
+      fontSize: 9,
+      lineHeight: 12,
+    },
+    duckSwitch: {
+      width: 32,
+      height: 18,
+      borderRadius: 999,
+      padding: 2,
+      justifyContent: 'center',
+    },
+    duckSwitchOn: {
+      backgroundColor: 'rgba(255,16,57,0.45)',
+    },
+    duckSwitchOff: {
+      backgroundColor: colors.bg.elevated,
+    },
+    duckSwitchKnob: {
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      backgroundColor: '#fff',
+    },
+    duckSwitchKnobOn: {
+      alignSelf: 'flex-end',
+    },
+    duckSwitchKnobOff: {
+      alignSelf: 'flex-start',
+    },
+  });
+}

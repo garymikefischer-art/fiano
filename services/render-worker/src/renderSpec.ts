@@ -72,6 +72,8 @@ export interface ClientRenderSpec {
     x?: number;
     y?: number;
     durationSec?: number;
+    /** Phase C5-Intro (2026-05-19): Greenscreen overlay-Mode. */
+    chromakey?: { color?: string; similarity?: number; blend?: number };
   };
 
   /** Multi-Clip Per-Source Trim. src-Index referenziert sources[]. */
@@ -80,6 +82,14 @@ export interface ClientRenderSpec {
   /** Phase C1.B (2026-05-19): Color-Grade Effects. Alle Felder optional —
    *  Worker clampt server-side gegen die Slider-Ranges aus der UI. */
   effects?: ClipEffectsValues;
+
+  /** Phase C5 (2026-05-19): Watermark-Overlay. path wird vom Worker resolved
+   *  wenn inputs.watermark-key vorhanden. position/opacity/scale clamp-validiert. */
+  watermark?: {
+    position: 'tl' | 'tr' | 'bl' | 'br';
+    opacity: number;
+    scale: number;
+  };
 }
 
 export type ValidationResult =
@@ -218,7 +228,7 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     }
   }
 
-  // Intro: mode + scale + x/y + duration.
+  // Intro: mode + scale + x/y + duration + chromakey.
   if (s.intro && typeof s.intro === 'object') {
     const intro = s.intro as Record<string, unknown>;
     spec.intro = {
@@ -229,6 +239,21 @@ export function validateRenderSpec(input: unknown): ValidationResult {
       durationSec: intro.durationSec !== undefined
         ? clampPositive(intro.durationSec, 3, 60) : undefined,
     };
+    // Phase C5-Intro (2026-05-19): Chromakey validation. Color als 6-hex-string
+    // mit optionalem '#'-prefix; similarity + blend geclamped 0..1.
+    if (intro.chromakey && typeof intro.chromakey === 'object') {
+      const ck = intro.chromakey as Record<string, unknown>;
+      const validColor =
+        typeof ck.color === 'string' && /^#?[0-9a-fA-F]{6}$/.test(ck.color)
+          ? (ck.color as string)
+          : undefined;
+      spec.intro.chromakey = {
+        color: validColor,
+        similarity:
+          typeof ck.similarity === 'number' ? clamp01(ck.similarity, 0.18) : undefined,
+        blend: typeof ck.blend === 'number' ? clamp01(ck.blend, 0.08) : undefined,
+      };
+    }
   }
 
   // Clips: multi-source trim ranges.
@@ -239,6 +264,20 @@ export function validateRenderSpec(input: unknown): ValidationResult {
       startSec: clampPositive(c?.startSec, 0, 86400),
       endSec: clampPositive(c?.endSec, 0, 86400),
     }));
+  }
+
+  // Phase C5 (2026-05-19): Watermark validation.
+  if (s.watermark && typeof s.watermark === 'object') {
+    const wm = s.watermark as Record<string, unknown>;
+    const validPositions: ReadonlyArray<string> = ['tl', 'tr', 'bl', 'br'];
+    spec.watermark = {
+      position:
+        typeof wm.position === 'string' && validPositions.includes(wm.position)
+          ? (wm.position as 'tl' | 'tr' | 'bl' | 'br')
+          : 'br',
+      opacity: typeof wm.opacity === 'number' ? clamp01(wm.opacity, 0.7) : 0.7,
+      scale: typeof wm.scale === 'number' ? clamp01(wm.scale, 0.15, 0.05, 0.3) : 0.15,
+    };
   }
 
   // Phase C1.B (2026-05-19): Color-Grade Effects. Alle Werte gegen die
@@ -281,6 +320,7 @@ export function specToTikTokOpts(
     music: string[];
     voiceOvers: string[];
     assPath?: string;
+    watermark?: string;
   },
 ): TikTokExportOpts {
   const isMulti = paths.sources.length > 1;
@@ -318,6 +358,7 @@ export function specToTikTokOpts(
       x: spec.intro.x,
       y: spec.intro.y,
       durationSec: spec.intro.durationSec,
+      chromakey: spec.intro.chromakey,
     } : undefined,
     subtitle: spec.subtitle ? {
       text: spec.subtitle.text ?? '',
@@ -332,5 +373,14 @@ export function specToTikTokOpts(
     } : undefined,
     clips: spec.clips,
     effects: spec.effects,
+    watermark:
+      spec.watermark && paths.watermark
+        ? {
+            path: paths.watermark,
+            position: spec.watermark.position,
+            opacity: spec.watermark.opacity,
+            scale: spec.watermark.scale,
+          }
+        : undefined,
   };
 }
