@@ -225,9 +225,10 @@ export function SignupScreen() {
   );
 }
 
+// Phase B3.7 (2026-05-19): module-level const → color hardcoded.
 const LABEL = {
   fontSize: 10,
-  color: colors.text.tertiary,
+  color: '#71717a',
   letterSpacing: 1.6,
   marginBottom: 4,
 } as const;
