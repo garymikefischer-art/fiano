@@ -188,6 +188,89 @@ export function ClipEffectsSection({ value, onChange }: Props) {
             onChange={(v) => patch({ sharpen: v })}
             colors={colors}
           />
+
+          {/* Phase C1.A.2 (2026-05-19): Motion-Blur Preset für "240Hz look".
+              tmix=frames=N temporal-average. Pro-locked. */}
+          <View style={{ gap: 6 }}>
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'space-between' }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '600' }}>
+                  {t('effects.motionBlur', 'Motion Blur')}
+                </Text>
+                {!advancedUnlocked && (
+                  <View
+                    style={{
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 6,
+                      backgroundColor: 'rgba(255,16,57,0.18)',
+                      borderWidth: 1,
+                      borderColor: colors.accent.border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 3,
+                    }}
+                  >
+                    <Ionicons name="lock-closed" size={8} color={colors.accent.base} />
+                    <Text style={{ color: colors.accent.base, fontSize: 9, fontWeight: '700' }}>
+                      PRO
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text
+                style={{ color: colors.text.tertiary, fontSize: 11, fontWeight: '600' }}
+              >
+                {t('effects.motionBlurHint', '240Hz Gaming Look')}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {(['off', 'low', 'medium', 'high'] as const).map((preset) => {
+                const isActive = (effects.motionBlur ?? 'off') === preset;
+                return (
+                  <Pressable
+                    key={preset}
+                    onPress={() => {
+                      if (!advancedUnlocked) {
+                        onAdvancedSliderTouch();
+                        return;
+                      }
+                      haptic.selection();
+                      patch({ motionBlur: preset });
+                    }}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      paddingVertical: 8,
+                      borderRadius: 10,
+                      backgroundColor: isActive ? colors.accent.subtle : colors.bg.elevated,
+                      borderWidth: 1,
+                      borderColor: isActive ? colors.accent.border : colors.border.subtle,
+                      alignItems: 'center',
+                      opacity: !advancedUnlocked ? 0.55 : pressed ? 0.7 : 1,
+                    })}
+                  >
+                    <Text
+                      style={{
+                        color: isActive ? colors.accent.base : colors.text.primary,
+                        fontSize: 11,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {preset === 'off'
+                        ? t('effects.mbOff', 'Off')
+                        : preset === 'low'
+                          ? t('effects.mbLow', 'Low')
+                          : preset === 'medium'
+                            ? t('effects.mbMedium', 'Med')
+                            : t('effects.mbHigh', 'High')}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
       )}
     </View>

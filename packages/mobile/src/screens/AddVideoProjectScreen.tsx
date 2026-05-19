@@ -665,6 +665,7 @@ export function AddVideoProjectScreen() {
 /* ─── Sub-Components ──────────────────────────────────────────── */
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
+  const colors = useColors();
   return (
     <Text
       style={{
@@ -681,6 +682,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 function FieldLabel({ children }: { children: string }) {
+  const colors = useColors();
   return (
     <Text
       style={{
@@ -697,6 +699,7 @@ function FieldLabel({ children }: { children: string }) {
 }
 
 function OrDivider({ t }: { t: (k: string, f?: string) => string }) {
+  const colors = useColors();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 }}>
       <View style={{ flex: 1, height: 1, backgroundColor: colors.bg.elevated }} />
@@ -725,6 +728,7 @@ function BigOptionCard({
   onPress: () => void;
   soonBadge?: boolean;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -802,6 +806,7 @@ function TypeChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}

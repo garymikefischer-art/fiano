@@ -46,6 +46,10 @@ export interface ClipEffects {
   saturation?: number;
   /** Sharpen amount 0.0 .. 5.0 (default 0 = off). */
   sharpen?: number;
+  /** Motion-Blur Preset (Phase C1.A.2 — 2026-05-19). User-Wunsch: "240 Hz
+   *  look" für Gaming-Content. FFmpeg tmix=frames=N temporal-average.
+   *  off=0, low=2, medium=4, high=6. */
+  motionBlur?: 'off' | 'low' | 'medium' | 'high';
 }
 
 /** Default-Effects ("identität" — kein Filter aktiv). */
@@ -54,6 +58,7 @@ export const DEFAULT_CLIP_EFFECTS: ClipEffects = {
   contrast: 1,
   saturation: 1,
   sharpen: 0,
+  motionBlur: 'off',
 };
 
 /** Helper: hat der Effect-Block irgendwelche aktiven Werte? */
@@ -63,7 +68,8 @@ export function hasActiveEffects(e?: ClipEffects | null): boolean {
     (e.brightness != null && Math.abs(e.brightness) > 0.001) ||
     (e.contrast != null && Math.abs(e.contrast - 1) > 0.001) ||
     (e.saturation != null && Math.abs(e.saturation - 1) > 0.001) ||
-    (e.sharpen != null && e.sharpen > 0.001)
+    (e.sharpen != null && e.sharpen > 0.001) ||
+    (e.motionBlur != null && e.motionBlur !== 'off')
   );
 }
 
