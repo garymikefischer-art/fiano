@@ -293,7 +293,7 @@ export function PricingScreen() {
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
+            <Ionicons name="chevron-back" size={18} color={colors.text.primary} />
           </Pressable>
         )}
         <View style={{ width: 40 }} />
