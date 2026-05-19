@@ -25,6 +25,7 @@ import { BackgroundGlow } from '../components/BackgroundGlow';
 import { supabase } from '../lib/supabase';
 import { ENV } from '../lib/env';
 import { useT } from '../lib/i18n';
+import { useColors } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Pricing'>;
@@ -99,6 +100,7 @@ export function PricingScreen() {
   // gesetzt wenn User ohne creator/pro Sub einloggt.
   const paywallMode = route.params?.paywallMode === true;
   const t = useT();
+  const colors = useColors();
   const user = useAuthStore((s) => s.user);
   const subscription = useAuthStore((s) => s.subscription);
   const signOut = useAuthStore((s) => s.signOut);
@@ -220,7 +222,7 @@ export function PricingScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -261,9 +263,9 @@ export function PricingScreen() {
               paddingHorizontal: 12,
               paddingVertical: 8,
               borderRadius: 16,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: colors.border.subtle,
               flexDirection: 'row',
               alignItems: 'center',
               gap: 6,
@@ -271,7 +273,7 @@ export function PricingScreen() {
             })}
           >
             <Ionicons name="log-out-outline" size={14} color="#a1a1aa" />
-            <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '600' }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '600' }}>
               {t('pricing.signOutBtn', 'Sign out')}
             </Text>
           </Pressable>
@@ -283,9 +285,9 @@ export function PricingScreen() {
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.08)',
+              borderColor: colors.border.subtle,
               alignItems: 'center',
               justifyContent: 'center',
               opacity: pressed ? 0.6 : 1,
@@ -324,14 +326,14 @@ export function PricingScreen() {
               </Text>
             </View>
           )}
-          <Text style={{ color: '#f1f2f2', fontSize: 32, fontWeight: '700', letterSpacing: -0.8 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 32, fontWeight: '700', letterSpacing: -0.8 }}>
             {paywallMode
               ? t('pricing.paywallHeadline', 'Choose a plan to continue')
               : currentPlan
                 ? t('pricing.headlineUpgrade')
                 : t('pricing.headline')}
           </Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 13, lineHeight: 19 }}>
+          <Text style={{ color: colors.text.secondary, fontSize: 13, lineHeight: 19 }}>
             {paywallMode
               ? t(
                   'pricing.paywallSubhead',
@@ -342,7 +344,7 @@ export function PricingScreen() {
                 : t('pricing.subhead')}
           </Text>
           {user?.email && (
-            <Text style={{ color: '#71717a', fontSize: 12 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 12 }}>
               {t('pricing.signedInAs').replace('{email}', user.email)}
             </Text>
           )}
@@ -405,6 +407,7 @@ function PlanCard({
   onCheckout: () => void;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   const isHighlight = plan.highlight;
 
   // Outer-Wrapper hält das "MOST POPULAR"-Pill außerhalb der overflow:hidden Card,
@@ -415,8 +418,8 @@ function PlanCard({
         style={{
           borderRadius: 22,
           borderWidth: 1,
-          borderColor: isHighlight ? 'rgba(255,16,57,0.45)' : 'rgba(255,255,255,0.08)',
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          borderColor: isHighlight ? 'rgba(255,16,57,0.45)' : colors.border.subtle,
+          backgroundColor: colors.bg.elevated,
           padding: 20,
           gap: 14,
           overflow: 'hidden',
@@ -437,7 +440,7 @@ function PlanCard({
 
       <View style={{ gap: 4 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 22, fontWeight: '700', letterSpacing: -0.4 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 22, fontWeight: '700', letterSpacing: -0.4 }}>
             {t(plan.nameKey)}
           </Text>
           {current && (
@@ -457,17 +460,17 @@ function PlanCard({
             </View>
           )}
         </View>
-        <Text style={{ color: '#a1a1aa', fontSize: 12, lineHeight: 17 }}>{t(plan.taglineKey)}</Text>
+        <Text style={{ color: colors.text.secondary, fontSize: 12, lineHeight: 17 }}>{t(plan.taglineKey)}</Text>
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-        <Text style={{ color: '#f1f2f2', fontSize: 32, fontWeight: '700', letterSpacing: -0.6 }}>
+        <Text style={{ color: colors.text.primary, fontSize: 32, fontWeight: '700', letterSpacing: -0.6 }}>
           {plan.price}
         </Text>
-        <Text style={{ color: '#71717a', fontSize: 13 }}>{t(plan.periodKey)}</Text>
+        <Text style={{ color: colors.text.tertiary, fontSize: 13 }}>{t(plan.periodKey)}</Text>
       </View>
 
-      <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+      <View style={{ height: 1, backgroundColor: colors.bg.elevated }} />
 
       <View style={{ gap: 9 }}>
         {plan.featureKeys.map((fk, i) => (
@@ -500,14 +503,14 @@ function PlanCard({
         style={({ pressed }) => ({
           marginTop: 4,
           backgroundColor: current
-            ? 'rgba(255,255,255,0.06)'
+            ? colors.bg.elevated
             : pressed
               ? '#cc0d2e'
               : isHighlight
                 ? '#ff1039'
-                : 'rgba(255,255,255,0.06)',
+                : colors.bg.elevated,
           borderWidth: isHighlight || current ? 0 : 1,
-          borderColor: 'rgba(255,255,255,0.12)',
+          borderColor: colors.border.strong,
           borderRadius: 14,
           paddingVertical: 14,
           flexDirection: 'row',

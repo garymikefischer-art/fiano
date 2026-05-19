@@ -27,14 +27,33 @@ import { AppAlertHost } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
 import { useColors, useResolvedMode } from './src/lib/theme';
 
-// Phase B1.4 (2026-05-18): known-harmless Reanimated v3 + RN-Modal warning,
-// triggert bei NestableDraggableFlatList + TrimModal open. Reanimated wrapped
-// manche refs als Animated-components, RN's measureLayout-call schlägt
+// Phase B1.4 (2026-05-18) / B1.5 (2026-05-19): known-harmless Reanimated v3
+// warning, triggert bei NestableDraggableFlatList + TrimModal open. Reanimated
+// wrapped manche refs als Animated-components, RN's measureLayout-call schlägt
 // dann auf den non-native ref fehl. App funktioniert trotzdem normal.
-// Silencen vermeidet Console-Spam beim Build/Test.
+//
+// LogBox.ignoreLogs filtert nur die in-app yellow-box, NICHT die Metro/Hermes
+// `(NOBRIDGE) ERROR Warning:`-Outputs. Daher zusätzlich console.warn +
+// console.error-Patch am module-top-level.
 LogBox.ignoreLogs([
   'ref.measureLayout must be called with a ref to a native component',
 ]);
+
+const SILENCED_WARNINGS = [
+  'measureLayout must be called with a ref to a native component',
+];
+const originalConsoleWarn = console.warn;
+const originalConsoleError = console.error;
+console.warn = (...args: unknown[]) => {
+  const msg = String(args[0] ?? '');
+  if (SILENCED_WARNINGS.some((p) => msg.includes(p))) return;
+  originalConsoleWarn(...args);
+};
+console.error = (...args: unknown[]) => {
+  const msg = String(args[0] ?? '');
+  if (SILENCED_WARNINGS.some((p) => msg.includes(p))) return;
+  originalConsoleError(...args);
+};
 
 /**
  * Setzt die Android-Navigation-Bar-Farbe zur Laufzeit. Macht den schwarzen

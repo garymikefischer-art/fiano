@@ -23,10 +23,12 @@ import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { GoogleButton } from '../components/GoogleButton';
 import { useT } from '../lib/i18n';
+import { useColors } from '../lib/theme';
 
 export function SignupScreen() {
   const t = useT();
   const nav = useNavigation();
+  const colors = useColors();
   const signUp = useAuthStore((s) => s.signUp);
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
 
@@ -73,7 +75,7 @@ export function SignupScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0d0509' }}
+      style={{ flex: 1, backgroundColor: colors.bg.primary }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <BackgroundGlow />
@@ -116,10 +118,10 @@ export function SignupScreen() {
             shadowOffset: { width: 0, height: 4 },
           }}
         >
-          <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
             {t('auth.signUpTitle')}
           </Text>
-          <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
+          <Text style={{ color: colors.text.tertiary, fontSize: 12, marginTop: 4 }}>
             {t('auth.signUpSubtitle')}
           </Text>
 
@@ -128,11 +130,11 @@ export function SignupScreen() {
           </View>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
-            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border.subtle }} />
             <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '500', letterSpacing: 1.5 }}>
               {t('auth.or').toUpperCase()}
             </Text>
-            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border.subtle }} />
           </View>
 
           <View>
@@ -225,7 +227,7 @@ export function SignupScreen() {
 
 const LABEL = {
   fontSize: 10,
-  color: '#71717a',
+  color: colors.text.tertiary,
   letterSpacing: 1.6,
   marginBottom: 4,
 } as const;

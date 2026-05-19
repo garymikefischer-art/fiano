@@ -162,9 +162,9 @@ export function SettingsScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.border.subtle,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: pressed ? 0.6 : 1,
@@ -172,7 +172,7 @@ export function SettingsScreen() {
         >
           <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
         </Pressable>
-        <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700' }}>{t('settings.title')}</Text>
+        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>{t('settings.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -183,9 +183,9 @@ export function SettingsScreen() {
         {/* Account-Card */}
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 18,
             padding: 16,
             gap: 14,
@@ -205,7 +205,7 @@ export function SettingsScreen() {
               <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }}>{initial}</Text>
             </View>
             <View style={{ flex: 1, gap: 4 }}>
-              <Text numberOfLines={1} style={{ color: '#f1f2f2', fontSize: 15, fontWeight: '700' }}>
+              <Text numberOfLines={1} style={{ color: colors.text.primary, fontSize: 15, fontWeight: '700' }}>
                 {user?.email ?? 'Signed in'}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -221,7 +221,7 @@ export function SettingsScreen() {
                 >
                   <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '700' }}>{planBadge}</Text>
                 </View>
-                <Text style={{ color: '#71717a', fontSize: 11 }}>{planLabel}</Text>
+                <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>{planLabel}</Text>
               </View>
             </View>
           </View>
@@ -337,7 +337,7 @@ export function SettingsScreen() {
         <SectionLabel>{t('settings.captureHeading', 'CAPTURE REGIONS').toUpperCase()}</SectionLabel>
         <Text
           style={{
-            color: '#71717a',
+            color: colors.text.tertiary,
             fontSize: 11,
             lineHeight: 15,
             marginTop: -8,
@@ -355,9 +355,9 @@ export function SettingsScreen() {
             setRegionModalVisible(true);
           }}
           style={({ pressed }) => ({
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 16,
             padding: 14,
             flexDirection: 'row',
@@ -368,10 +368,10 @@ export function SettingsScreen() {
         >
           <RegionPreview facecam={facecamRegion} gameplay={gameplayRegion} width={108} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '700' }}>
+            <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
               {t('settings.captureLivePreview', 'Edit regions')}
             </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 16 }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 16 }}>
               {t(
                 'settings.captureLegend',
                 'Upload a test clip + drag the red & blue boxes for pixel-precise control.',
@@ -383,7 +383,7 @@ export function SettingsScreen() {
 
         {/* API Keys */}
         <SectionLabel>{t('settings.apiKeysHeading', 'API KEYS').toUpperCase()}</SectionLabel>
-        <Text style={{ color: '#71717a', fontSize: 11, lineHeight: 15, marginTop: -8 }}>
+        <Text style={{ color: colors.text.tertiary, fontSize: 11, lineHeight: 15, marginTop: -8 }}>
           {t(
             'settings.apiKeysDescription',
             'Stored encrypted in device secure-store. Required for Podcast Highlights (OpenAI) and Thumbnail generation (Gemini).',
@@ -392,9 +392,9 @@ export function SettingsScreen() {
 
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 16,
             overflow: 'hidden',
           }}
@@ -430,14 +430,14 @@ export function SettingsScreen() {
           {/* YouTube Login: in-app WebView (primary) + manual-paste (fallback). */}
           <View style={{ paddingVertical: 12, paddingHorizontal: 14, gap: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}>
+              <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '600' }}>
                 {t('settings.youtubeCookies', 'YouTube cookies (optional)')}
               </Text>
               {youtubeCookies.length > 0 && (
                 <Text style={{ color: '#22c55e', fontSize: 10, fontWeight: '700' }}>● saved</Text>
               )}
             </View>
-            <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 10, lineHeight: 14 }}>
               {t(
                 'settings.youtubeCookiesHint',
                 'Bypass YouTube bot-detection. Cookies stay on your device only. Use of your own account & content is your responsibility.',
@@ -487,7 +487,7 @@ export function SettingsScreen() {
               onPress={() => setYoutubeCookiesVisible((v) => !v)}
               style={{ paddingVertical: 4, alignItems: 'center' }}
             >
-              <Text style={{ color: '#71717a', fontSize: 10 }}>
+              <Text style={{ color: colors.text.tertiary, fontSize: 10 }}>
                 {youtubeCookiesVisible
                   ? t('settings.youtubeHideManual', 'Hide manual paste')
                   : t('settings.youtubeShowManual', 'Or paste cookies manually')}
@@ -509,7 +509,7 @@ export function SettingsScreen() {
                     borderRadius: 8,
                     paddingHorizontal: 10,
                     paddingVertical: 8,
-                    color: '#f1f2f2',
+                    color: colors.text.primary,
                     fontSize: 11,
                     minHeight: 80,
                     textAlignVertical: 'top',
@@ -523,7 +523,7 @@ export function SettingsScreen() {
                     borderRadius: 8,
                     backgroundColor:
                       youtubeCookiesInput.trim() === youtubeCookies
-                        ? 'rgba(255,255,255,0.04)'
+                        ? colors.bg.elevated
                         : pressed
                           ? '#cc0d2e'
                           : '#ff1039',
@@ -544,9 +544,9 @@ export function SettingsScreen() {
         <SectionLabel>{t('settings.exportHeading', 'EXPORT DEFAULTS').toUpperCase()}</SectionLabel>
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 16,
             padding: 14,
             gap: 12,
@@ -682,18 +682,19 @@ function ApiKeyRow({
   placeholder?: string;
   hint?: string;
 }) {
+  const colors = useColors();
   const isStored = saved.length > 0;
   const dirty = value.trim() !== saved;
   return (
     <View style={{ paddingVertical: 12, paddingHorizontal: 14, gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}>{label}</Text>
+        <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '600' }}>{label}</Text>
         {isStored && (
           <Text style={{ color: '#22c55e', fontSize: 10, fontWeight: '700' }}>● saved</Text>
         )}
       </View>
       {hint && (
-        <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>{hint}</Text>
+        <Text style={{ color: colors.text.tertiary, fontSize: 10, lineHeight: 14 }}>{hint}</Text>
       )}
       <View
         style={{
@@ -717,7 +718,7 @@ function ApiKeyRow({
           numberOfLines={multiline ? 4 : 1}
           style={{
             flex: multiline ? undefined : 1,
-            color: '#f1f2f2',
+            color: colors.text.primary,
             fontSize: 12,
             paddingVertical: 8,
             minHeight: multiline ? 64 : undefined,
@@ -739,7 +740,7 @@ function ApiKeyRow({
             paddingVertical: 8,
             borderRadius: 8,
             backgroundColor: !dirty || !value.trim()
-              ? 'rgba(255,255,255,0.04)'
+              ? colors.bg.elevated
               : pressed
                 ? '#cc0d2e'
                 : '#ff1039',
@@ -756,13 +757,13 @@ function ApiKeyRow({
               paddingVertical: 8,
               paddingHorizontal: 14,
               borderRadius: 8,
-              backgroundColor: 'rgba(255,255,255,0.04)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
               borderColor: 'rgba(255,255,255,0.10)',
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Text style={{ color: '#a1a1aa', fontSize: 11, fontWeight: '700' }}>Clear</Text>
+            <Text style={{ color: colors.text.secondary, fontSize: 11, fontWeight: '700' }}>Clear</Text>
           </Pressable>
         )}
       </View>
@@ -783,9 +784,10 @@ function ExportPickerRow<T extends string | number>({
   format: (v: T) => string;
   onPick: (v: T) => void;
 }) {
+  const colors = useColors();
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ color: '#71717a', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
+      <Text style={{ color: colors.text.tertiary, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
         {label.toUpperCase()}
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -799,9 +801,9 @@ function ExportPickerRow<T extends string | number>({
                 paddingHorizontal: 12,
                 paddingVertical: 7,
                 borderRadius: 999,
-                backgroundColor: active ? 'rgba(255,16,57,0.16)' : 'rgba(255,255,255,0.04)',
+                backgroundColor: active ? 'rgba(255,16,57,0.16)' : colors.bg.elevated,
                 borderWidth: 1,
-                borderColor: active ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.08)',
+                borderColor: active ? 'rgba(255,16,57,0.4)' : colors.border.subtle,
                 opacity: pressed ? 0.7 : 1,
               })}
             >

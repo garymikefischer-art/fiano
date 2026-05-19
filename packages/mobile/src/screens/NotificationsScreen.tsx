@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { useT } from '../lib/i18n';
+import { useColors } from '../lib/theme';
 import { useNotificationsStore } from '../stores/notificationsStore';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -20,6 +21,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Notifications'>;
 export function NotificationsScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
+  const colors = useColors();
   const items = useNotificationsStore((s) => s.items);
   const markRead = useNotificationsStore((s) => s.markRead);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
@@ -27,7 +29,7 @@ export function NotificationsScreen() {
   const unreadCount = items.reduce((c, n) => c + (n.unread ? 1 : 0), 0);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -49,9 +51,9 @@ export function NotificationsScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: pressed ? 0.6 : 1,
@@ -59,7 +61,7 @@ export function NotificationsScreen() {
         >
           <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
         </Pressable>
-        <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700' }}>
+        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>
           {t('topBar.notifications')}
         </Text>
         <Pressable
@@ -92,9 +94,9 @@ export function NotificationsScreen() {
             paddingHorizontal: 10,
             paddingVertical: 5,
             borderRadius: 999,
-            backgroundColor: unreadCount > 0 ? 'rgba(255,16,57,0.12)' : 'rgba(255,255,255,0.06)',
+            backgroundColor: unreadCount > 0 ? 'rgba(255,16,57,0.12)' : colors.bg.elevated,
             borderWidth: 1,
-            borderColor: unreadCount > 0 ? 'rgba(255,16,57,0.28)' : 'rgba(255,255,255,0.08)',
+            borderColor: unreadCount > 0 ? 'rgba(255,16,57,0.28)' : colors.border.subtle,
             marginBottom: 6,
           }}
         >
@@ -126,19 +128,19 @@ export function NotificationsScreen() {
                 width: 64,
                 height: 64,
                 borderRadius: 32,
-                backgroundColor: 'rgba(255,255,255,0.04)',
+                backgroundColor: colors.bg.elevated,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.08)',
+                borderColor: colors.border.subtle,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
               <Ionicons name="notifications-off-outline" size={26} color="#71717a" />
             </View>
-            <Text style={{ color: '#a1a1aa', fontSize: 13, fontWeight: '600' }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '600' }}>
               {t('topBar.noNotificationsYet', 'No notifications')}
             </Text>
-            <Text style={{ color: '#71717a', fontSize: 11, textAlign: 'center', maxWidth: 240 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 11, textAlign: 'center', maxWidth: 240 }}>
               {t(
                 'topBar.noNotificationsHint',
                 "You'll be notified here when projects finish processing or new features arrive.",
@@ -156,7 +158,7 @@ export function NotificationsScreen() {
                 padding: 14,
                 borderRadius: 16,
                 borderWidth: 1,
-                borderColor: n.unread ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.06)',
+                borderColor: n.unread ? 'rgba(255,16,57,0.18)' : colors.bg.elevated,
                 backgroundColor: n.unread ? 'rgba(255,16,57,0.05)' : 'rgba(255,255,255,0.03)',
                 opacity: pressed ? 0.7 : 1,
               })}
@@ -179,7 +181,7 @@ export function NotificationsScreen() {
                   <Text
                     style={{
                       flex: 1,
-                      color: '#f1f2f2',
+                      color: colors.text.primary,
                       fontSize: 13,
                       fontWeight: '700',
                       lineHeight: 18,
@@ -199,8 +201,8 @@ export function NotificationsScreen() {
                     />
                   )}
                 </View>
-                <Text style={{ color: '#a1a1aa', fontSize: 12, lineHeight: 17 }}>{n.body}</Text>
-                <Text style={{ color: '#71717a', fontSize: 10, marginTop: 2 }}>{n.time}</Text>
+                <Text style={{ color: colors.text.secondary, fontSize: 12, lineHeight: 17 }}>{n.body}</Text>
+                <Text style={{ color: colors.text.tertiary, fontSize: 10, marginTop: 2 }}>{n.time}</Text>
               </View>
             </Pressable>
           ))
