@@ -28,6 +28,9 @@ export interface RenderJobInputs {
    *  geschrieben und als 'subtitle'-kind hochgeladen. Worker ersetzt {ASS}-
    *  Platzhalter im filter_complex mit dem tmp-Pfad. */
   assContent?: string;
+  /** Phase C5 (2026-05-19): Watermark-Image-URI. Wird als 'watermark'-kind
+   *  hochgeladen + via filter_complex overlay angewendet. */
+  watermarkUri?: string;
 }
 
 export interface RenderJobOpts {
@@ -78,6 +81,7 @@ export interface ClientRenderSpec {
     x?: number;
     y?: number;
     durationSec?: number;
+    chromakey?: { color?: string; similarity?: number; blend?: number };
   };
   clips?: { src?: number; startSec: number; endSec: number }[];
   /** Phase C1.B (2026-05-19): Color-Grade Effects. Worker clampt server-side
@@ -88,6 +92,12 @@ export interface ClientRenderSpec {
     saturation?: number;
     sharpen?: number;
     motionBlur?: 'off' | 'low' | 'medium' | 'high';
+  };
+  /** Phase C5 (2026-05-19): Watermark-Overlay (path wird vom Worker resolved). */
+  watermark?: {
+    position: 'tl' | 'tr' | 'bl' | 'br';
+    opacity: number;
+    scale: number;
   };
 }
 
@@ -136,7 +146,7 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
 
   const uploadOne = async (
     localUri: string,
-    kind: 'source' | 'intro' | 'music' | 'voice-over' | 'subtitle',
+    kind: 'source' | 'intro' | 'music' | 'voice-over' | 'subtitle' | 'watermark',
     index?: number,
   ): Promise<string> => {
     // 1. Signed Upload-URL holen
@@ -211,6 +221,12 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
   // dass libass-DoS-Inputs (oversized, embedded fonts, drawing-mode, capped
   // override-values) je den Worker erreichen. Defense-in-depth: Worker
   // validiert auch nach Download, aber Mobile-side fail-fast spart Roundtrip.
+  // Phase C5 (2026-05-19): Watermark-Image als 'watermark'-kind hochladen.
+  let watermarkKey: string | undefined;
+  if (opts.inputs.watermarkUri) {
+    watermarkKey = await uploadOne(opts.inputs.watermarkUri, 'watermark');
+  }
+
   let subtitleKey: string | undefined;
   if (hasAss) {
     const validation = validateAssContent(opts.inputs.assContent!);
@@ -244,6 +260,7 @@ export async function runRenderJob(opts: RenderJobOpts): Promise<RenderJobResult
         music: musicKeys.length > 0 ? musicKeys : undefined,
         voiceOvers: voKeys.length > 0 ? voKeys : undefined,
         subtitle: subtitleKey,
+        watermark: watermarkKey,
       },
       spec: opts.spec,
       projectId: opts.projectId,

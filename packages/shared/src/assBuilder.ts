@@ -284,7 +284,13 @@ function buildLayeredText(
     }
     const isBig = isHighlightWord(w, settings.highlightWords);
     if (isBig && !inHighlight) {
-      out += `{\\fs${bigFs}\\1c${highlightColor}`;
+      // Phase C7 (2026-05-19): Big-Word-Zoom-Animation via libass \t() tag.
+      // Word startet bei 80% scale + animiert über 120ms zu 110% scale —
+      // erzeugt einen "pop"-Effekt auf jedes Highlight-Wort. Bias zur
+      // current frame: zoom-in ist schneller als zoom-out (kein zoom-out,
+      // bleibt auf 110% bis Wort-Ende = nächstes non-highlight token).
+      // Desktop hatte das via libass \t() — Mobile war vorher static.
+      out += `{\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx110\\fscy110)`;
       // optional extra drop-shadow on highlight word
       if ((settings.highlightDropShadow ?? 0) > 0) {
         out += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
@@ -297,7 +303,8 @@ function buildLayeredText(
       out += '}';
       inHighlight = true;
     } else if (!isBig && inHighlight) {
-      out += `{\\fs${styleFontSize}\\1c${normalColor}\\xshad0\\yshad0}`;
+      // Phase C7: reset scale + style nach big-word.
+      out += `{\\fs${styleFontSize}\\1c${normalColor}\\xshad0\\yshad0\\fscx100\\fscy100}`;
       inHighlight = false;
     }
     out += escapeAss(w);

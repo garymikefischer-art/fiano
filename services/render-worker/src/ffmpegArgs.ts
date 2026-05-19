@@ -55,12 +55,21 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null): string {
     // unsharp=lx:ly:la:cx:cy:ca — luma matrix 5x5, amount=sharpen, chroma off.
     parts.push(`unsharp=5:5:${clampedFx(e.sharpen, 0, 5).toFixed(2)}:5:5:0.0`);
   }
-  // Phase C1.A.2 (2026-05-19): motion-blur via tmix (temporal-average).
-  // off=skip, low=2, medium=4, high=6 frames blended.
+  // Phase C1.A.2 (2026-05-19) + Bug-Fix C1.B.2 (2026-05-19):
+  // Motion-blur via tmix (temporal-weighted-average). Uniform weights gaben
+  // heavy ghosting / "Verzerrung" — jetzt biased zur aktuellen frame mit
+  // tail-off Gewichten. Resultat: subtile motion blur, kein heavy ghosting.
+  //   - low:    2 frames, weights "2 1"     → subtle echo (~33% prev)
+  //   - medium: 3 frames, weights "3 2 1"   → moderate trail
+  //   - high:   4 frames, weights "4 3 2 1" → strong trail (current dominant)
   if (e.motionBlur && e.motionBlur !== 'off') {
-    const frames =
-      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 4 : 6;
-    parts.push(`tmix=frames=${frames}`);
+    const cfg =
+      e.motionBlur === 'low'
+        ? { frames: 2, weights: '2 1' }
+        : e.motionBlur === 'medium'
+          ? { frames: 3, weights: '3 2 1' }
+          : { frames: 4, weights: '4 3 2 1' };
+    parts.push(`tmix=frames=${cfg.frames}:weights=${cfg.weights}`);
   }
   return parts.join(',');
 }
@@ -307,6 +316,19 @@ export interface TikTokExportOpts {
     y?: number;
     /** overlay-only. Sichtbarkeitsdauer in Sekunden, Default 3. */
     durationSec?: number;
+    /** Phase C5-Intro (2026-05-19). Greenscreen / Chromakey für overlay-Mode. */
+    chromakey?: { color?: string; similarity?: number; blend?: number };
+  };
+
+  /* ─── Phase C5 (2026-05-19): Watermark-Overlay ─────────────────────
+   * Statisches Bild (z.B. Logo) wird in der gewählten Ecke des Output-
+   * Frames eingeblendet. Wird NACH allen Effects + Subtitles + Intro
+   * gerendert (Watermark immer obenauf — wie Branding). */
+  watermark?: {
+    path: string;
+    position: 'tl' | 'tr' | 'bl' | 'br';
+    opacity: number;
+    scale: number;
   };
 
   /* ─── Builder-Mode (Phase Builder-1 + Builder-3): Per-Clip Trim + Concat ─
@@ -407,6 +429,12 @@ export function buildTikTokExportArgs(
   for (const vo of voiceOvers) {
     args.push('-i', vo.path);
     voInputIndices.push(inputIdx++);
+  }
+  // Phase C5 (2026-05-19): Watermark als zusätzlicher Input.
+  let watermarkInputIdx = -1;
+  if (opts.watermark) {
+    args.push('-i', opts.watermark.path);
+    watermarkInputIdx = inputIdx++;
   }
 
   // ─── Filter-Complex aufbauen ────────────────────────────────────────
@@ -632,9 +660,13 @@ export function buildTikTokExportArgs(
   let srcAudioLabel = '[srcAv]';
   if (duckingIdx.length > 0) {
     // Asplit jede ducking VO in eine "mix"-Kopie (geht in amix) und eine
-    // "sidechain"-Kopie (triggert sidechaincompress auf srcAv).
+    // "sidechain"-Kopie (triggert sidechaincompress auf srcAv). Bug-Fix
+    // C4.1 (2026-05-19): sidechain-Kopie wird mit apad=pad_dur=3600 silent-
+    // gepaddet damit sie nie endet — sonst stoppt sidechaincompress den
+    // Source-Output nach VO-Ende (User-Report: "kein Sound nach TTS").
     for (const i of duckingIdx) {
-      filters.push(`[vo${i}]asplit=2[vo${i}_mix][vo${i}_sc]`);
+      filters.push(`[vo${i}]asplit=2[vo${i}_mix][vo${i}_sc_raw]`);
+      filters.push(`[vo${i}_sc_raw]apad=pad_dur=3600[vo${i}_sc]`);
     }
     // Sidechain-Trigger: bei mehreren ducking-VOs → erst amix der sc-copies.
     let scLabel: string;
@@ -694,11 +726,23 @@ export function buildTikTokExportArgs(
     const yFrac = clamp(opts.intro.y ?? 0, 0, 1);
     const overlayDur = Math.max(0.5, opts.intro.durationSec ?? 3);
     const introTargetW = Math.max(2, Math.round(W * scale));
+
+    // Phase C5-Intro (2026-05-19): Chromakey/Greenscreen wenn opts.intro.chromakey
+    // gesetzt. Zwischen scale und overlay → green pixels werden transparent.
+    const ck = opts.intro.chromakey;
+    let introLabel = '[introScaled]';
     filters.push(
-      `[${introInputIdx}:v]scale=${introTargetW}:-2:flags=lanczos,fps=${fps},setsar=1[introV]`,
+      `[${introInputIdx}:v]scale=${introTargetW}:-2:flags=lanczos,fps=${fps},setsar=1[introScaled]`,
     );
+    if (ck) {
+      const ckColor = (ck.color ?? '#00ff00').replace('#', '0x');
+      const ckSim = Math.max(0, Math.min(1, ck.similarity ?? 0.18)).toFixed(3);
+      const ckBlend = Math.max(0, Math.min(1, ck.blend ?? 0.08)).toFixed(3);
+      filters.push(`[introScaled]chromakey=${ckColor}:${ckSim}:${ckBlend}[introCK]`);
+      introLabel = '[introCK]';
+    }
     filters.push(
-      `${videoComposed}[introV]overlay=` +
+      `${videoComposed}${introLabel}overlay=` +
         `x='(W-w)*${xFrac.toFixed(4)}':y='(H-h)*${yFrac.toFixed(4)}':` +
         `enable='between(t,0,${overlayDur.toFixed(2)})'[vfinal]`,
     );
@@ -733,6 +777,29 @@ export function buildTikTokExportArgs(
   } else {
     finalVideo = videoComposed;
     finalAudio = '[aMain]';
+  }
+
+  // Phase C5 (2026-05-19): Watermark wird ZULETZT eingeblendet — oben drauf
+  // über final video (nach Subtitle, Effects, Intro). Position-Padding 20px.
+  if (opts.watermark && watermarkInputIdx >= 0) {
+    const wm = opts.watermark;
+    const wmScale = Math.max(0.05, Math.min(0.3, wm.scale));
+    const wmOpacity = Math.max(0, Math.min(1, wm.opacity));
+    const wmWidth = Math.max(2, Math.round(W * wmScale));
+    const padding = 20;
+    filters.push(
+      `[${watermarkInputIdx}:v]scale=${wmWidth}:-1,format=rgba,colorchannelmixer=aa=${wmOpacity.toFixed(3)}[wm]`,
+    );
+    const xExpr =
+      wm.position === 'tl' || wm.position === 'bl'
+        ? `${padding}`
+        : `main_w-overlay_w-${padding}`;
+    const yExpr =
+      wm.position === 'tl' || wm.position === 'tr'
+        ? `${padding}`
+        : `main_h-overlay_h-${padding}`;
+    filters.push(`${finalVideo}[wm]overlay=${xExpr}:${yExpr}[vWM]`);
+    finalVideo = '[vWM]';
   }
 
   args.push('-filter_complex', filters.join(';'));

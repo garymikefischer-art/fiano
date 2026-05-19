@@ -47,6 +47,7 @@ import {
   type DemoClip,
   type DemoProject,
   type ProjectExtraVideo,
+  type ProjectWatermark,
   type ProjectMode,
   type SourceType,
 } from '../data/demoProjects';
@@ -79,7 +80,7 @@ import { SubtitleSettingsModal } from '../components/SubtitleSettingsModal';
 import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { ExportSettingsModal } from '../components/ExportSettingsModal';
 import { DEFAULT_SUBTITLES, type SubtitleSettings } from '../data/demoProjects';
-import { pickVideoFromFiles, pickVideoFromGallery } from '../lib/mediaPicker';
+import { pickVideoFromFiles, pickVideoFromGallery, pickImageForWatermark } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { ClipEffectsSection } from '../components/ClipEffectsSection';
 import { useT } from '../lib/i18n';
@@ -322,6 +323,230 @@ function ClipDurationProbe({ project }: { project: DemoProject }) {
       ignoreSilentSwitch="ignore"
       disableFocus
     />
+  );
+}
+
+/* ─── Phase C5 (2026-05-19): WatermarkSection — Logo/Image-Overlay ───── */
+
+function WatermarkSection({
+  project,
+  t,
+}: {
+  project: DemoProject;
+  t: (k: string, f?: string) => string;
+}) {
+  const colors = useColors();
+  const updateProject = useProjectsStore((s) => s.updateProject);
+  const watermark = project.watermark;
+
+  const onPick = async () => {
+    haptic.medium();
+    try {
+      const picked = await pickImageForWatermark();
+      if (!picked) return;
+      updateProject(project.id, {
+        watermark: {
+          path: picked.uri,
+          filename: picked.filename,
+          position: watermark?.position ?? 'br',
+          opacity: watermark?.opacity ?? 0.7,
+          scale: watermark?.scale ?? 0.15,
+        },
+      });
+      haptic.success();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      appAlert(t('common.error', 'Error'), msg);
+    }
+  };
+
+  const onRemove = () => {
+    haptic.warning();
+    updateProject(project.id, { watermark: undefined });
+  };
+
+  const patch = (p: Partial<ProjectWatermark>) => {
+    if (!watermark) return;
+    updateProject(project.id, { watermark: { ...watermark, ...p } });
+  };
+
+  return (
+    <View style={{ gap: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text
+          style={{
+            flex: 1,
+            color: colors.text.secondary,
+            fontSize: 10,
+            fontWeight: '700',
+            letterSpacing: 1.4,
+          }}
+        >
+          {t('watermark.heading', 'WATERMARK')}
+        </Text>
+        {watermark ? (
+          <Pressable onPress={onRemove} hitSlop={8}>
+            <Text style={{ color: '#ef4444', fontSize: 11, fontWeight: '700' }}>
+              {t('common.remove', 'Remove')}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={onPick}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: 'rgba(255,16,57,0.45)',
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons name="add" size={14} color="#ff1039" />
+            <Text style={{ color: '#ff1039', fontSize: 11, fontWeight: '700' }}>
+              {t('watermark.add', 'Pick image')}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+
+      {watermark && (
+        <View
+          style={{
+            backgroundColor: colors.bg.elevated,
+            borderWidth: 1,
+            borderColor: colors.border.subtle,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            gap: 10,
+          }}
+        >
+          <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>
+            🏷️ {watermark.filename ?? 'watermark'}
+          </Text>
+
+          {/* Position 2×2 grid */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {(['tl', 'tr', 'bl', 'br'] as const).map((pos) => {
+              const isActive = watermark.position === pos;
+              const label =
+                pos === 'tl'
+                  ? t('watermark.posTL', '↖ Top-left')
+                  : pos === 'tr'
+                    ? t('watermark.posTR', '↗ Top-right')
+                    : pos === 'bl'
+                      ? t('watermark.posBL', '↙ Bottom-left')
+                      : t('watermark.posBR', '↘ Bottom-right');
+              return (
+                <Pressable
+                  key={pos}
+                  onPress={() => {
+                    haptic.selection();
+                    patch({ position: pos });
+                  }}
+                  style={({ pressed }) => ({
+                    flexGrow: 1,
+                    flexBasis: '47%',
+                    paddingVertical: 8,
+                    paddingHorizontal: 8,
+                    borderRadius: 10,
+                    backgroundColor: isActive ? 'rgba(255,16,57,0.18)' : colors.bg.elevated,
+                    borderWidth: 1,
+                    borderColor: isActive ? 'rgba(255,16,57,0.45)' : colors.border.subtle,
+                    alignItems: 'center',
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      color: isActive ? '#ff1039' : colors.text.primary,
+                      fontSize: 11,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Opacity slider */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text
+              style={{
+                color: colors.text.tertiary,
+                fontSize: 10,
+                fontWeight: '600',
+                width: 60,
+              }}
+            >
+              {t('watermark.opacity', 'Opacity')}
+            </Text>
+            <View style={{ flex: 1 }}>
+              <SimpleSlider
+                value={watermark.opacity}
+                min={0.1}
+                max={1}
+                step={0.05}
+                onChange={(v) => patch({ opacity: v })}
+              />
+            </View>
+            <Text
+              style={{
+                color: colors.text.secondary,
+                fontSize: 11,
+                fontWeight: '600',
+                fontVariant: ['tabular-nums'],
+                minWidth: 36,
+                textAlign: 'right',
+              }}
+            >
+              {Math.round(watermark.opacity * 100)}%
+            </Text>
+          </View>
+
+          {/* Scale slider */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text
+              style={{
+                color: colors.text.tertiary,
+                fontSize: 10,
+                fontWeight: '600',
+                width: 60,
+              }}
+            >
+              {t('watermark.size', 'Size')}
+            </Text>
+            <View style={{ flex: 1 }}>
+              <SimpleSlider
+                value={watermark.scale}
+                min={0.05}
+                max={0.3}
+                step={0.01}
+                onChange={(v) => patch({ scale: v })}
+              />
+            </View>
+            <Text
+              style={{
+                color: colors.text.secondary,
+                fontSize: 11,
+                fontWeight: '600',
+                fontVariant: ['tabular-nums'],
+                minWidth: 36,
+                textAlign: 'right',
+              }}
+            >
+              {Math.round(watermark.scale * 100)}%
+            </Text>
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -1088,6 +1313,37 @@ function HighlightsTab({
                 if (isMultiSource) setActiveSourceIdx(idx);
                 toggleClip(clip.id);
               }}
+              onDelete={() => {
+                haptic.warning();
+                appAlert(
+                  t('highlights.deleteClipTitle', 'Delete clip?'),
+                  t(
+                    'highlights.deleteClipBody',
+                    'Removes this clip from the project. The source file stays on the device.',
+                  ),
+                  [
+                    { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+                    {
+                      text: t('common.delete', 'Delete'),
+                      style: 'destructive',
+                      onPress: () => {
+                        haptic.success();
+                        const next = project.clips.filter((c) => c.id !== clip.id);
+                        const nextSel = new Set(selectedClipIds);
+                        nextSel.delete(clip.id);
+                        const nextOrder = (project.clipOrder ?? []).filter(
+                          (id) => id !== clip.id,
+                        );
+                        useProjectsStore.getState().updateProject(project.id, {
+                          clips: next,
+                          clipOrder: nextOrder,
+                        });
+                        setSelectedClipIds(nextSel);
+                      },
+                    },
+                  ],
+                );
+              }}
             />
           ))}
         </View>
@@ -1390,6 +1646,7 @@ function SelectableClipRow({
   selected,
   activeForPreview,
   onToggle,
+  onDelete,
 }: {
   index: number;
   clip: DemoClip;
@@ -1398,6 +1655,9 @@ function SelectableClipRow({
   /** Phase A3.6: Multi-Source-Mode markiert die aktuell im Player abgespielte Source. */
   activeForPreview?: boolean;
   onToggle: () => void;
+  /** Phase C5.1 (2026-05-19): Optional Lösch-Button rechts in der Card.
+   *  Bei undefined wird kein Trash-Icon gerendert. */
+  onDelete?: () => void;
 }) {
   const colors = useColors();
   const scorePct = Math.round(clip.score * 100);
@@ -1512,6 +1772,26 @@ function SelectableClipRow({
           </Text>
         </View>
       </View>
+      {/* Phase C5.1 (2026-05-19): Lösch-Button rechts in der Card. */}
+      {onDelete && (
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          hitSlop={8}
+          style={({ pressed }) => ({
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: pressed ? 'rgba(239,68,68,0.18)' : 'transparent',
+          })}
+        >
+          <Ionicons name="trash-outline" size={16} color="#ef4444" />
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -3005,6 +3285,83 @@ function TikTokTab({
         {introUri && (
           <IntroOverlayControls project={project} t={t} />
         )}
+
+        {/* Phase C5-Intro (2026-05-19): Greenscreen Toggle (overlay-Mode only). */}
+        {introUri && introMode === 'overlay' && (
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              const current = project.intro;
+              if (!current) return;
+              useProjectsStore.getState().updateProject(project.id, {
+                intro: {
+                  ...current,
+                  chromakey: current.chromakey ? undefined : { color: '#00ff00' },
+                },
+              });
+            }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              marginHorizontal: 14,
+              marginTop: 8,
+              borderRadius: 12,
+              backgroundColor: colors.bg.elevated,
+              borderWidth: 1,
+              borderColor: project.intro?.chromakey
+                ? 'rgba(34,197,94,0.45)'
+                : colors.border.subtle,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons
+              name="color-wand-outline"
+              size={18}
+              color={project.intro?.chromakey ? '#22c55e' : colors.text.tertiary}
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
+                {t('tiktok.introChromakey', 'Greenscreen (Chromakey)')}
+              </Text>
+              <Text style={{ color: colors.text.tertiary, fontSize: 11, lineHeight: 14 }}>
+                {project.intro?.chromakey
+                  ? t(
+                      'tiktok.introChromakeyOnHint',
+                      'Grüne Pixel werden transparent — Source-Video schaut durch.',
+                    )
+                  : t(
+                      'tiktok.introChromakeyOffHint',
+                      'Aktivieren falls Intro grünen Hintergrund hat (#00ff00).',
+                    )}
+              </Text>
+            </View>
+            <View
+              style={{
+                width: 32,
+                height: 18,
+                borderRadius: 999,
+                padding: 2,
+                justifyContent: 'center',
+                backgroundColor: project.intro?.chromakey
+                  ? 'rgba(34,197,94,0.45)'
+                  : colors.bg.elevated,
+              }}
+            >
+              <View
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  backgroundColor: '#fff',
+                  alignSelf: project.intro?.chromakey ? 'flex-end' : 'flex-start',
+                }}
+              />
+            </View>
+          </Pressable>
+        )}
       </View>
 
       {/* Voice-Overs (TTS) — eigene Section analog Desktop's VoiceOversSection. */}
@@ -3013,6 +3370,9 @@ function TikTokTab({
         totalDurationHint={project.durationSec}
         title={t('tiktok.tts', 'TTS Voice-over')}
       />
+
+      {/* Phase C5 (2026-05-19): Watermark-Section. */}
+      <WatermarkSection project={project} t={t} />
 
       {/* Aktive Add-Ons Live-Indicator */}
       {(musicTracks.length > 0 || introUri || hasVoiceOvers || subtitles) && (
@@ -3740,11 +4100,16 @@ function FullModePreview({
   };
 
   // Auto-advance bei sequence + trim-end erreicht.
+  // Phase C5.1 Bug-Fix (2026-05-19): defensive paused-reset + pendingSeekSec
+  // clear bei transition, sodass importierte Source-Clips als nächstes Item
+  // sauber starten (User-Report "preview hört nach standard video ab").
   const handleProgress = (currentTime: number) => {
     setCurrentSec(currentTime);
     if (hasSequence && activeEnd > 0 && currentTime >= activeEnd) {
       if (currentIdx < sources!.length - 1) {
         setCurrentIdx((i) => i + 1);
+        setPendingSeekSec(null);
+        setPaused(false);
       } else {
         setPaused(true);
       }
@@ -3753,6 +4118,24 @@ function FullModePreview({
   const handleVideoEnd = () => {
     if (hasSequence && currentIdx < sources!.length - 1) {
       setCurrentIdx((i) => i + 1);
+      setPendingSeekSec(null);
+      setPaused(false);
+    } else if (hasSequence) {
+      setPaused(true);
+    }
+  };
+  // Phase C5.1 Bug-Fix: onError-Log für sequential-playback — wenn ein Clip
+  // nicht abgespielt werden kann (Codec-Issue / corrupt file), springen wir
+  // zum nächsten Item statt silent zu hängen.
+  const handleVideoError = (info: unknown) => {
+    console.warn(
+      `[FullModePreview] video error on clip ${currentIdx}/${sources?.length ?? 0}:`,
+      JSON.stringify(info)?.slice(0, 200),
+    );
+    if (hasSequence && currentIdx < (sources?.length ?? 0) - 1) {
+      setCurrentIdx((i) => i + 1);
+      setPendingSeekSec(null);
+      setPaused(false);
     } else if (hasSequence) {
       setPaused(true);
     }
@@ -3837,6 +4220,7 @@ function FullModePreview({
               }}
               onProgress={(d) => handleProgress(d.currentTime)}
               onEnd={handleVideoEnd}
+              onError={handleVideoError}
               bufferConfig={{
                 minBufferMs: 1500,
                 maxBufferMs: 3000,
@@ -6009,6 +6393,83 @@ function BuilderTab({
             Controls in beiden Modi anzeigen. */}
         {introUri && (
           <IntroOverlayControls project={project} t={t} />
+        )}
+
+        {/* Phase C5-Intro (2026-05-19): Greenscreen Toggle (overlay-Mode only). */}
+        {introUri && introMode === 'overlay' && (
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              const current = project.intro;
+              if (!current) return;
+              useProjectsStore.getState().updateProject(project.id, {
+                intro: {
+                  ...current,
+                  chromakey: current.chromakey ? undefined : { color: '#00ff00' },
+                },
+              });
+            }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              marginHorizontal: 14,
+              marginTop: 8,
+              borderRadius: 12,
+              backgroundColor: colors.bg.elevated,
+              borderWidth: 1,
+              borderColor: project.intro?.chromakey
+                ? 'rgba(34,197,94,0.45)'
+                : colors.border.subtle,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons
+              name="color-wand-outline"
+              size={18}
+              color={project.intro?.chromakey ? '#22c55e' : colors.text.tertiary}
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: colors.text.primary, fontSize: 13, fontWeight: '700' }}>
+                {t('tiktok.introChromakey', 'Greenscreen (Chromakey)')}
+              </Text>
+              <Text style={{ color: colors.text.tertiary, fontSize: 11, lineHeight: 14 }}>
+                {project.intro?.chromakey
+                  ? t(
+                      'tiktok.introChromakeyOnHint',
+                      'Grüne Pixel werden transparent — Source-Video schaut durch.',
+                    )
+                  : t(
+                      'tiktok.introChromakeyOffHint',
+                      'Aktivieren falls Intro grünen Hintergrund hat (#00ff00).',
+                    )}
+              </Text>
+            </View>
+            <View
+              style={{
+                width: 32,
+                height: 18,
+                borderRadius: 999,
+                padding: 2,
+                justifyContent: 'center',
+                backgroundColor: project.intro?.chromakey
+                  ? 'rgba(34,197,94,0.45)'
+                  : colors.bg.elevated,
+              }}
+            >
+              <View
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  backgroundColor: '#fff',
+                  alignSelf: project.intro?.chromakey ? 'flex-end' : 'flex-start',
+                }}
+              />
+            </View>
+          </Pressable>
         )}
       </View>
 

@@ -224,6 +224,56 @@ export async function pickVideoFromFiles(opts: PickOpts = {}): Promise<PickedVid
 export const pickVideo = pickVideoFromGallery;
 
 /**
+ * Phase C5 (2026-05-19): Image-Picker für Watermark.
+ * Akzeptiert PNG/JPG, persistiert in documentDirectory/watermarks/.
+ */
+export interface PickedImage {
+  uri: string;
+  filename?: string;
+  width?: number;
+  height?: number;
+}
+
+export async function pickImageForWatermark(): Promise<PickedImage | null> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (perm.status !== 'granted') {
+    throw new Error('Camera-Roll-Berechtigung verweigert. Bitte in den Einstellungen erlauben.');
+  }
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    quality: 1,
+    allowsMultipleSelection: false,
+    allowsEditing: false,
+  });
+  if (result.canceled || !result.assets || result.assets.length === 0) return null;
+  const asset = result.assets[0];
+  // Persistieren in documentDirectory/watermarks/
+  if (!asset.uri.startsWith('file://')) {
+    return {
+      uri: asset.uri,
+      filename: asset.fileName ?? undefined,
+      width: asset.width,
+      height: asset.height,
+    };
+  }
+  const dir = `${FileSystem.documentDirectory}watermarks/`;
+  try {
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  } catch {
+    /* exists */
+  }
+  const safeName = (asset.fileName ?? 'watermark.png').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const dest = `${dir}${Date.now()}-${safeName}`;
+  await FileSystem.copyAsync({ from: asset.uri, to: dest });
+  return {
+    uri: dest,
+    filename: asset.fileName ?? undefined,
+    width: asset.width,
+    height: asset.height,
+  };
+}
+
+/**
  * Kopiert eine gepickte Datei aus dem temporären Cache (wo expo-image-picker /
  * expo-document-picker sie ablegen) in den App-eigenen documentDirectory.
  *
