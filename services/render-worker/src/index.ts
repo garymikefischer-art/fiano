@@ -112,7 +112,11 @@ function makeLimiter(windowMs: number, max: number, name: string) {
 const limitUploadUrl  = makeLimiter(60_000, 30, 'upload-url');
 const limitRender     = makeLimiter(60_000, 5, 'render');
 const limitTranscribe = makeLimiter(60_000, 5, 'transcribe');
-const limitDownload   = makeLimiter(60_000, 3, 'download');
+// Phase B3.10 (2026-05-19): download-Limit 3 → 10/min. User-Report: 5 URL-
+// Imports in einem Project triggern rate-limit. Real-World ist Batch-Import
+// häufig (Multi-URL-Picker). 10/min ist ein Kompromiss zwischen UX und
+// yt-dlp/R2-Cost-Cap.
+const limitDownload   = makeLimiter(60_000, 10, 'download');
 
 app.get('/health', (_req, res) => {
   // Phase A6.5 (2026-05-18): env-Fingerprint entfernt (P1-2 Audit). Vorher

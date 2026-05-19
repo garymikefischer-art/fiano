@@ -813,6 +813,8 @@ function Section({
   lockFeatureId?: import('../lib/features').FeatureId | null;
   onLockedPress?: (featureId: import('../lib/features').FeatureId) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={{ gap: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -850,6 +852,8 @@ function Pill({
   active: boolean;
   onPress: () => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable
       onPress={() => {
@@ -881,6 +885,8 @@ function OptionCard({
   /** Phase A5: locked Variante zeigt Schloss-Badge oben rechts + 55% opacity. */
   locked?: boolean;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable
       onPress={() => {
@@ -933,6 +939,8 @@ function SliderRow({
   display: string;
   onChange: (v: number) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={{ gap: 4 }}>
       <View style={styles.sliderHeader}>
@@ -991,6 +999,8 @@ function ToggleRow({
   value: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <Pressable
       onPress={() => {

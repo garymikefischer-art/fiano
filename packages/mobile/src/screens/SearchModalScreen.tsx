@@ -284,6 +284,7 @@ function ResultGroup({
   hits: Hit[];
   onPick: (h: Hit) => void;
 }) {
+  const colors = useColors();
   return (
     <View style={{ gap: 8 }}>
       <Text
