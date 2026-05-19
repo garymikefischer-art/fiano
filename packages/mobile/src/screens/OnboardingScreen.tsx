@@ -214,6 +214,7 @@ function SlideView({
   width: number;
   t: (k: string, f?: string) => string;
 }) {
+  const colors = useColors();
   return (
     <View style={{ width, paddingHorizontal: 32, alignItems: 'center', justifyContent: 'center', gap: 28 }}>
       {/* Hero-Visual */}

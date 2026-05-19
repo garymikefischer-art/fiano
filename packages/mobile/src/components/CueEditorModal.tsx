@@ -115,7 +115,7 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
           }}
         >
           <Pressable onPress={onClose} hitSlop={8} style={{ padding: 8 }}>
-            <Ionicons name="close" size={22} color="#f1f2f2" />
+            <Ionicons name="close" size={22} color={colors.text.primary} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700' }}>
@@ -215,12 +215,14 @@ export function CueEditorModal({ visible, cues, sourceUris, onClose, onSave }: P
                       onChangeText={(text) => updateText(absIdx, text)}
                       multiline
                       placeholder={t('cueEditor.placeholder', 'Cue text…')}
-                      placeholderTextColor="#52525b"
+                      placeholderTextColor={colors.text.muted}
                       style={{
                         color: colors.text.primary,
                         fontSize: 13,
                         lineHeight: 18,
-                        backgroundColor: 'rgba(0,0,0,0.25)',
+                        backgroundColor: colors.bg.elevated,
+                        borderWidth: 1,
+                        borderColor: colors.border.subtle,
                         borderRadius: 8,
                         paddingHorizontal: 10,
                         paddingVertical: 8,

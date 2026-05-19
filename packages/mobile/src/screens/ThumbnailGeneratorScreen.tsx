@@ -498,7 +498,7 @@ export function ThumbnailGeneratorScreen() {
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
+          <Ionicons name="chevron-back" size={18} color={colors.text.primary} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700' }} numberOfLines={1}>
@@ -536,7 +536,7 @@ export function ThumbnailGeneratorScreen() {
 
         {/* Genre Chips */}
         <View style={{ gap: 8 }}>
-          <Text style={SECTION_LABEL}>GAME TYPE</Text>
+          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>GAME TYPE</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -586,7 +586,7 @@ export function ThumbnailGeneratorScreen() {
         {genre === 'custom' && (
           <>
             <View style={{ gap: 6 }}>
-              <Text style={SECTION_LABEL}>STYLE</Text>
+              <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>STYLE</Text>
               <View style={{ flexDirection: 'row', gap: 6 }}>
                 {(['default', 'comic', 'realistic'] as CustomStyle[]).map((s) => {
                   const active = customStyle === s;
@@ -632,13 +632,13 @@ export function ThumbnailGeneratorScreen() {
               )}
             </View>
             <View style={{ gap: 6 }}>
-              <Text style={SECTION_LABEL}>CUSTOM GAME NAME (OPTIONAL)</Text>
+              <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>CUSTOM GAME NAME (OPTIONAL)</Text>
               <TextInput
                 value={customGameName}
                 onChangeText={setCustomGameName}
                 placeholder="e.g. Fortnite, Warzone, Valorant — type your own"
                 placeholderTextColor="#52525b"
-                style={INPUT_STYLE}
+                style={[INPUT_STYLE, { color: colors.text.primary, backgroundColor: colors.bg.elevated, borderColor: colors.border.subtle }]}
               />
               <Text style={{ color: colors.text.tertiary, fontSize: 10, lineHeight: 14 }}>
                 Using a real game name? You are responsible for trademark compliance.
@@ -649,44 +649,44 @@ export function ThumbnailGeneratorScreen() {
 
         {/* Prompt-Fields */}
         <View style={{ gap: 6 }}>
-          <Text style={SECTION_LABEL}>BACKGROUND</Text>
+          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>BACKGROUND</Text>
           <TextInput
             value={background}
             onChangeText={setBackground}
             placeholder={placeholders.background}
             placeholderTextColor="#52525b"
             multiline
-            style={[INPUT_STYLE, MULTILINE_STYLE]}
+            style={[INPUT_STYLE, MULTILINE_STYLE, { color: colors.text.primary, backgroundColor: colors.bg.elevated, borderColor: colors.border.subtle }]}
           />
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text style={SECTION_LABEL}>EFFECTS</Text>
+          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>EFFECTS</Text>
           <TextInput
             value={effects}
             onChangeText={setEffects}
             placeholder={placeholders.effects}
             placeholderTextColor="#52525b"
             multiline
-            style={[INPUT_STYLE, MULTILINE_STYLE]}
+            style={[INPUT_STYLE, MULTILINE_STYLE, { color: colors.text.primary, backgroundColor: colors.bg.elevated, borderColor: colors.border.subtle }]}
           />
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text style={SECTION_LABEL}>WEAPONS / SKINS / FOREGROUND</Text>
+          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>WEAPONS / SKINS / FOREGROUND</Text>
           <TextInput
             value={weapons}
             onChangeText={setWeapons}
             placeholder={placeholders.weapons}
             placeholderTextColor="#52525b"
             multiline
-            style={[INPUT_STYLE, MULTILINE_STYLE]}
+            style={[INPUT_STYLE, MULTILINE_STYLE, { color: colors.text.primary, backgroundColor: colors.bg.elevated, borderColor: colors.border.subtle }]}
           />
         </View>
 
         {/* Reference Image (optional) */}
         <View style={{ gap: 6 }}>
-          <Text style={SECTION_LABEL}>REFERENCE IMAGE (OPTIONAL)</Text>
+          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>REFERENCE IMAGE (OPTIONAL)</Text>
           {refImageUri ? (
             <View
               style={{
@@ -785,7 +785,7 @@ export function ThumbnailGeneratorScreen() {
         {/* Latest Generated */}
         {latestUri && (
           <View style={{ gap: 8 }}>
-            <Text style={SECTION_LABEL}>LATEST</Text>
+            <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>LATEST</Text>
             <View
               style={{
                 borderRadius: 14,
@@ -826,7 +826,7 @@ export function ThumbnailGeneratorScreen() {
         {/* History */}
         {history.length > 0 && (
           <View style={{ gap: 8 }}>
-            <Text style={SECTION_LABEL}>HISTORY · {history.length}</Text>
+            <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>HISTORY · {history.length}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {history.map((uri) => (
                 <Pressable

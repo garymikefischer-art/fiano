@@ -272,31 +272,35 @@ export function RegionPickerModal({
                 Pick any 16:9 video or screenshot to position the facecam (red) + gameplay
                 (blue) regions visually. Used for preview only.
               </Text>
-              {/* Phase B4 (2026-05-18): drei Upload-Buttons (Gallery video / Files
-                  video / Image). Image-Upload für User die nur Screenshot haben. */}
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {/* Phase B4 (2026-05-18) + B3.10 (2026-05-19): drei Upload-Buttons
+                  (Gallery / Files / Image) — flex:1, gleichbreit, kurze Labels,
+                  damit alle 3 in einer Zeile passen statt umzubrechen. */}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
                 <Pressable
                   onPress={() => onUploadTestClip(false)}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    paddingHorizontal: 12,
+                    flex: 1,
+                    paddingHorizontal: 8,
                     paddingVertical: 9,
                     borderRadius: 10,
-                    backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+                    backgroundColor: pressed ? colors.accent.pressed : colors.accent.base,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 6,
+                    justifyContent: 'center',
+                    gap: 5,
                     opacity: busy ? 0.6 : 1,
                   })}
                 >
-                  <Ionicons name="videocam-outline" size={14} color="#fff" />
-                  <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Gallery video</Text>
+                  <Ionicons name="videocam-outline" size={14} color={colors.text.onAccent} />
+                  <Text style={{ color: colors.text.onAccent, fontSize: 11, fontWeight: '700' }}>Gallery</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => onUploadTestClip(true)}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    paddingHorizontal: 12,
+                    flex: 1,
+                    paddingHorizontal: 8,
                     paddingVertical: 9,
                     borderRadius: 10,
                     backgroundColor: colors.bg.elevated,
@@ -304,18 +308,20 @@ export function RegionPickerModal({
                     borderColor: colors.border.strong,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 6,
+                    justifyContent: 'center',
+                    gap: 5,
                     opacity: pressed ? 0.6 : 1,
                   })}
                 >
-                  <Ionicons name="folder-open-outline" size={14} color="#f1f2f2" />
-                  <Text style={{ color: colors.text.primary, fontSize: 11, fontWeight: '700' }}>Files video</Text>
+                  <Ionicons name="folder-open-outline" size={14} color={colors.text.primary} />
+                  <Text style={{ color: colors.text.primary, fontSize: 11, fontWeight: '700' }}>Files</Text>
                 </Pressable>
                 <Pressable
                   onPress={onUploadTestImage}
                   disabled={busy}
                   style={({ pressed }) => ({
-                    paddingHorizontal: 12,
+                    flex: 1,
+                    paddingHorizontal: 8,
                     paddingVertical: 9,
                     borderRadius: 10,
                     backgroundColor: colors.bg.elevated,
@@ -323,11 +329,12 @@ export function RegionPickerModal({
                     borderColor: colors.border.strong,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 6,
+                    justifyContent: 'center',
+                    gap: 5,
                     opacity: pressed ? 0.6 : 1,
                   })}
                 >
-                  <Ionicons name="image-outline" size={14} color="#f1f2f2" />
+                  <Ionicons name="image-outline" size={14} color={colors.text.primary} />
                   <Text style={{ color: colors.text.primary, fontSize: 11, fontWeight: '700' }}>Image</Text>
                 </Pressable>
               </View>
