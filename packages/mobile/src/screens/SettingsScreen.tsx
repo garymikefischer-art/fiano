@@ -226,8 +226,9 @@ export function SettingsScreen() {
             </View>
           </View>
 
-          {/* Phase C5.3 (2026-05-19): Plan-Counter — X / Y renders this month. */}
-          {subscription?.monthly_limit != null && (
+          {/* Phase C5.3 (2026-05-19): Plan-Counter — X / Y renders this month.
+              Nur sichtbar bei aktivem creator/pro plan (monthly_limit > 0). */}
+          {subscription?.monthly_limit != null && subscription.monthly_limit > 0 && (
             <View
               style={{
                 flexDirection: 'row',
