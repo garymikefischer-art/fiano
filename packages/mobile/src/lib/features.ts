@@ -61,7 +61,10 @@ export type FeatureId =
   | 'quality_render_mode'
   | 'priority_queue'
   | 'early_access'
-  | 'unlimited_projects';
+  | 'unlimited_projects'
+  // Phase C1 (2026-05-19): advanced effects (saturation + sharpen) = Pro.
+  // basic_effects (brightness + contrast) gibt's schon als creator.
+  | 'advanced_effects';
 
 /**
  * i18n-Keys für die User-facing Feature-Namen.
@@ -92,6 +95,7 @@ export const FEATURE_LABEL_KEY: Record<FeatureId, string> = {
   priority_queue: 'features.priority_queue',
   early_access: 'features.early_access',
   unlimited_projects: 'features.unlimited_projects',
+  advanced_effects: 'features.advanced_effects',
 };
 
 /** Map: Feature-ID → benötigter Mindest-Plan. */
@@ -122,6 +126,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureId, PlanRequirement> = {
   priority_queue: 'pro',
   early_access: 'pro',
   unlimited_projects: 'pro',
+  advanced_effects: 'pro',
 };
 
 /* ─── Project-Limit (numerisch, separat von Boolean-Features) ─────────── */

@@ -80,6 +80,7 @@ import { ExportSettingsModal } from '../components/ExportSettingsModal';
 import { DEFAULT_SUBTITLES, type SubtitleSettings } from '../data/demoProjects';
 import { pickVideoFromFiles } from '../lib/mediaPicker';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
+import { ClipEffectsSection } from '../components/ClipEffectsSection';
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
 import * as sounds from '../lib/sounds';
@@ -2826,6 +2827,12 @@ function TikTokTab({
           </Text>
         </View>
       )}
+
+      {/* Phase C1.A (2026-05-19): Effects Section. Applies to all 9:16 exports. */}
+      <ClipEffectsSection
+        value={project.effectsAll}
+        onChange={(next) => updateProject(project.id, { effectsAll: next })}
+      />
 
       <Text
         style={{
@@ -5805,6 +5812,13 @@ function BuilderTab({
           </Text>
         </View>
       )}
+
+      {/* Phase C1.A (2026-05-19): Effects Section. Per-project effectsAll
+          applies to all clips on export. Live-preview kommt in C1.B. */}
+      <ClipEffectsSection
+        value={project.effectsAll}
+        onChange={(next) => updateProject(project.id, { effectsAll: next })}
+      />
 
       <Pressable
         onPress={() => {

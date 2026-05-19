@@ -863,6 +863,7 @@ export const en: Record<string, string> = {
   'features.priority_queue':          'Priority Queue',
   'features.early_access':            'Early Access',
   'features.unlimited_projects':      'Unlimited Projects',
+  'features.advanced_effects':        'Advanced Effects (Saturation + Sharpen)',
 
   // Project-Limit hints (Phase 6.3 Sub-Phase 4)
   'projectLimit.usageHint':    'Click to upgrade to Pro — unlimited projects',
