@@ -7,8 +7,10 @@ import { useEffect, useRef } from 'react';
 import { Animated, Easing, View, Text } from 'react-native';
 import { FianoLogo } from '../components/FianoLogo';
 import { BackgroundGlow } from '../components/BackgroundGlow';
+import { useColors } from '../lib/theme';
 
 export function SplashScreen() {
+  const colors = useColors();
   const sweep = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0.7)).current;
 
@@ -33,7 +35,7 @@ export function SplashScreen() {
   const sweepLeft = sweep.interpolate({ inputRange: [0, 1], outputRange: ['-33%', '100%'] });
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0d0509', alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center' }}>
       <BackgroundGlow />
 
       <View style={{ alignItems: 'center', gap: 28 }}>
@@ -46,7 +48,7 @@ export function SplashScreen() {
             width: 160,
             height: 2,
             borderRadius: 1,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.bg.elevated,
             overflow: 'hidden',
           }}
         >

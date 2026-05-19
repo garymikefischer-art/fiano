@@ -98,16 +98,20 @@ export function TrimModal({
   const [paused, setPaused] = useState(true);
   const [trackWidth, setTrackWidth] = useState(0);
 
+  // Phase B1.5 (2026-05-19): deps reduziert auf [visible]. Vorher feuerte
+  // der Effect bei sourceDurationProp-update (onLoad → setSourceDuration)
+  // → setPaused(true) → Play-Loop (User: "tap → pause → play → pause").
+  // State wird nur einmal beim Modal-Open initialisiert.
   useEffect(() => {
     if (visible) {
       setStartSec(initialStartSec);
       setEndSec(initialEndSec);
       setCurrentSec(initialStartSec);
       setPaused(true);
-      // sourceDuration reset auf prop (wird ggf. von onLoad überschrieben)
       setSourceDuration(sourceDurationProp ?? 0);
     }
-  }, [visible, initialStartSec, initialEndSec, sourceDurationProp]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   // Refs für PanResponder closures (verhindert stale State).
   const stateRef = useRef({ trackWidth, sourceDuration, startSec, endSec });

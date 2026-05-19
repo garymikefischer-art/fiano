@@ -634,9 +634,9 @@ function HighlightsTab({
       {project.sourceUri && (
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: hasCues ? 'rgba(34,197,94,0.32)' : 'rgba(255,255,255,0.08)',
+            borderColor: hasCues ? 'rgba(34,197,94,0.32)' : colors.border.subtle,
             borderRadius: 14,
             padding: 12,
             gap: 10,
@@ -696,7 +696,7 @@ function HighlightsTab({
               <View
                 style={{
                   height: 3,
-                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  backgroundColor: colors.bg.elevated,
                   borderRadius: 2,
                   overflow: 'hidden',
                 }}
@@ -724,7 +724,7 @@ function HighlightsTab({
                 paddingVertical: 10,
                 borderRadius: 10,
                 backgroundColor: analysisBusy
-                  ? 'rgba(255,255,255,0.06)'
+                  ? colors.bg.elevated
                   : pressed
                     ? '#cc0d2e'
                     : '#ff1039',
@@ -775,9 +775,9 @@ function HighlightsTab({
                   paddingHorizontal: 14,
                   paddingVertical: 10,
                   borderRadius: 10,
-                  backgroundColor: 'rgba(255,255,255,0.06)',
+                  backgroundColor: colors.bg.elevated,
                   borderWidth: 1,
-                  borderColor: 'rgba(255,255,255,0.10)',
+                  borderColor: colors.border.subtle,
                   opacity: pressed ? 0.7 : 1,
                 })}
               >
@@ -811,9 +811,9 @@ function HighlightsTab({
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 14,
             paddingHorizontal: 12,
             paddingVertical: 10,
@@ -845,7 +845,7 @@ function HighlightsTab({
               paddingVertical: 8,
               borderRadius: 10,
               backgroundColor: selectedCount === 0
-                ? 'rgba(255,255,255,0.06)'
+                ? colors.bg.elevated
                 : pressed
                   ? '#cc0d2e'
                   : '#ff1039',
@@ -1207,7 +1207,7 @@ function SelectableClipRow({
     ? '#ff1039'
     : selected
       ? 'rgba(255,16,57,0.32)'
-      : 'rgba(255,255,255,0.08)';
+      : colors.border.subtle;
   return (
     <Pressable
       onPress={onToggle}
@@ -1215,7 +1215,7 @@ function SelectableClipRow({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        backgroundColor: selected ? 'rgba(255,16,57,0.08)' : 'rgba(255,255,255,0.04)',
+        backgroundColor: selected ? 'rgba(255,16,57,0.08)' : colors.bg.elevated,
         borderRadius: 14,
         borderWidth: activeForPreview ? 2 : 1,
         borderColor,
@@ -1287,7 +1287,7 @@ function SelectableClipRow({
               flex: 1,
               height: 4,
               borderRadius: 2,
-              backgroundColor: 'rgba(255,255,255,0.06)',
+              backgroundColor: colors.bg.elevated,
               overflow: 'hidden',
             }}
           >
@@ -1327,9 +1327,9 @@ function EmptyClips({
   return (
     <View
       style={{
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         borderRadius: 16,
         padding: 24,
         alignItems: 'center',
@@ -1397,9 +1397,9 @@ function ProjectInfoCard({
   return (
     <View
       style={{
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        backgroundColor: colors.bg.elevated,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         borderRadius: 18,
         padding: 16,
         gap: 14,
@@ -1451,7 +1451,7 @@ function ProjectInfoCard({
           gap: 12,
           paddingTop: 4,
           borderTopWidth: 1,
-          borderTopColor: 'rgba(255,255,255,0.06)',
+          borderTopColor: colors.bg.elevated,
         }}
       >
         <InfoCell
@@ -1625,9 +1625,9 @@ function ManualTab({
                   paddingHorizontal: 12,
                   paddingVertical: 8,
                   borderRadius: 10,
-                  backgroundColor: isActive ? '#ff1039' : 'rgba(255,255,255,0.06)',
+                  backgroundColor: isActive ? '#ff1039' : colors.bg.elevated,
                   borderWidth: 1,
-                  borderColor: isActive ? '#ff1039' : 'rgba(255,255,255,0.10)',
+                  borderColor: isActive ? '#ff1039' : colors.border.subtle,
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 4,
@@ -1647,9 +1647,9 @@ function ManualTab({
       {/* Mark-In/Out Card */}
       <View
         style={{
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          backgroundColor: colors.bg.elevated,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           borderRadius: 18,
           padding: 16,
           gap: 14,
@@ -1711,7 +1711,7 @@ function ManualTab({
           disabled={!canAddClip}
           style={({ pressed }) => ({
             backgroundColor: !canAddClip
-              ? 'rgba(255,255,255,0.06)'
+              ? colors.bg.elevated
               : pressed
                 ? '#cc0d2e'
                 : '#ff1039',
@@ -1747,7 +1747,7 @@ function ManualTab({
               padding: 18,
               backgroundColor: 'rgba(255,255,255,0.03)',
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.06)',
+              borderColor: colors.bg.elevated,
               borderRadius: 14,
               alignItems: 'center',
             }}
@@ -1772,9 +1772,9 @@ function ManualTab({
                 gap: 12,
                 padding: 12,
                 borderRadius: 14,
-                backgroundColor: 'rgba(255,255,255,0.04)',
+                backgroundColor: colors.bg.elevated,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.08)',
+                borderColor: colors.border.subtle,
                 opacity: pressed ? 0.7 : 1,
               })}
             >
@@ -1843,9 +1843,9 @@ function MarkButton({
       <Pressable
         onPress={onSet}
         style={({ pressed }) => ({
-          backgroundColor: set ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.06)',
+          backgroundColor: set ? 'rgba(255,16,57,0.18)' : colors.bg.elevated,
           borderWidth: 1,
-          borderColor: set ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.12)',
+          borderColor: set ? 'rgba(255,16,57,0.4)' : colors.border.strong,
           borderRadius: 12,
           paddingVertical: 10,
           paddingHorizontal: 12,
@@ -2244,10 +2244,10 @@ function TikTokTab({
                       ? '#ff1039'
                       : isSelected
                         ? 'rgba(255,16,57,0.5)'
-                        : 'rgba(255,255,255,0.08)',
+                        : colors.border.subtle,
                     backgroundColor: isSelected
                       ? 'rgba(255,16,57,0.08)'
-                      : 'rgba(255,255,255,0.04)',
+                      : colors.bg.elevated,
                     overflow: 'hidden',
                   }}
                 >
@@ -2382,9 +2382,9 @@ function TikTokTab({
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          backgroundColor: colors.bg.elevated,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           borderRadius: 14,
           paddingHorizontal: 14,
           paddingVertical: 10,
@@ -2443,9 +2443,9 @@ function TikTokTab({
               paddingHorizontal: 12,
               paddingVertical: 7,
               borderRadius: 999,
-              backgroundColor: usingOverride ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.06)',
+              backgroundColor: usingOverride ? 'rgba(255,16,57,0.18)' : colors.bg.elevated,
               borderWidth: 1,
-              borderColor: usingOverride ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.10)',
+              borderColor: usingOverride ? 'rgba(255,16,57,0.4)' : colors.border.subtle,
               opacity: pressed ? 0.7 : 1,
             })}
           >
@@ -2503,9 +2503,9 @@ function TikTokTab({
       {layout === 'full' && (
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 14,
             paddingHorizontal: 14,
             paddingVertical: 12,
@@ -2562,9 +2562,9 @@ function TikTokTab({
       {layout !== 'full' && (
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 14,
             paddingHorizontal: 14,
             paddingVertical: 12,
@@ -2665,9 +2665,9 @@ function TikTokTab({
       <SectionHeader>{t('tiktok.addOnsHeader', 'ADD-ONS').toUpperCase()}</SectionHeader>
       <View
         style={{
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          backgroundColor: colors.bg.elevated,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           borderRadius: 16,
           overflow: 'hidden',
         }}
@@ -2696,7 +2696,7 @@ function TikTokTab({
               borderRadius: 10,
               backgroundColor: 'rgba(255,255,255,0.05)',
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.10)',
+              borderColor: colors.border.subtle,
               alignItems: 'center',
               justifyContent: 'center',
               marginLeft: 4,
@@ -3156,6 +3156,7 @@ function LayoutPreview({
   introDurationSec?: number;
   voiceOvers?: { path: string; startSec: number; volume: number }[];
 }) {
+  const colors = useColors();
   // Schaubild der drei Layouts. Echte Region-Composition (FFmpeg-Native) folgt
   // in einer nativen Phase — hier zeigen wir die Aufteilung via 1–2 Player +
   // farbige Labels, damit der User unmittelbar sieht was Stacked vs Split macht.
@@ -3167,7 +3168,7 @@ function LayoutPreview({
           backgroundColor: `hsl(${thumbHue}, 40%, 18%)`,
           borderRadius: 18,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           alignItems: 'center',
           justifyContent: 'center',
         }}
@@ -3273,6 +3274,7 @@ function FullModePreview({
   introScale?: number;
   introDurationSec?: number;
 }) {
+  const colors = useColors();
   const [paused, setPaused] = useState(true);
   const [muted, setMuted] = useState(false);
   const [videosActive, setVideosActive] = useState(false);
@@ -3562,7 +3564,7 @@ function FullModePreview({
         overflow: 'hidden',
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         backgroundColor: '#000',
       }}
     >
@@ -3900,6 +3902,7 @@ function StackedSplitPreview({
   /** Voice-Overs für Live-Preview-Audio (Phase 9.6.4). Synchron zur Master-Position. */
   voiceOvers?: { path: string; startSec: number; volume: number }[];
 }) {
+  const colors = useColors();
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
   const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
@@ -4045,7 +4048,7 @@ function StackedSplitPreview({
         borderRadius: 18,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
         backgroundColor: '#000',
       }}
     >
@@ -4450,9 +4453,9 @@ function LayoutOption({
         flex: 1,
         padding: 12,
         borderRadius: 14,
-        backgroundColor: active ? 'rgba(255,16,57,0.12)' : 'rgba(255,255,255,0.04)',
+        backgroundColor: active ? 'rgba(255,16,57,0.12)' : colors.bg.elevated,
         borderWidth: 1,
-        borderColor: active ? 'rgba(255,16,57,0.45)' : 'rgba(255,255,255,0.08)',
+        borderColor: active ? 'rgba(255,16,57,0.45)' : colors.border.subtle,
         gap: 6,
         opacity: pressed ? 0.7 : 1,
       })}
@@ -4507,7 +4510,7 @@ function ToggleRow({
           width: 38,
           height: 22,
           borderRadius: 11,
-          backgroundColor: value ? '#ff1039' : 'rgba(255,255,255,0.10)',
+          backgroundColor: value ? '#ff1039' : colors.border.subtle,
           padding: 2,
           justifyContent: 'center',
         }}
@@ -4545,9 +4548,9 @@ function IntroModeChip({
         flex: 1,
         padding: 10,
         borderRadius: 10,
-        backgroundColor: active ? 'rgba(255,16,57,0.12)' : 'rgba(255,255,255,0.04)',
+        backgroundColor: active ? 'rgba(255,16,57,0.12)' : colors.bg.elevated,
         borderWidth: 1,
-        borderColor: active ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.08)',
+        borderColor: active ? 'rgba(255,16,57,0.4)' : colors.border.subtle,
         gap: 2,
         opacity: pressed ? 0.7 : 1,
       })}
@@ -4569,6 +4572,7 @@ function ReorderArrow({
   disabled: boolean;
   onPress: () => void;
 }) {
+  const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -4578,7 +4582,7 @@ function ReorderArrow({
         width: 24,
         height: 18,
         borderRadius: 6,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: colors.bg.elevated,
         alignItems: 'center',
         justifyContent: 'center',
         opacity: disabled ? 0.3 : pressed ? 0.6 : 1,
@@ -4660,11 +4664,12 @@ function SectionHeader({ children }: { children: string }) {
 }
 
 function Divider() {
+  const colors = useColors();
   return (
     <View
       style={{
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.06)',
+        backgroundColor: colors.bg.elevated,
         marginLeft: 44,
       }}
     />
@@ -4777,10 +4782,10 @@ function IntroOverlayControls({
               paddingVertical: 6,
               borderRadius: 999,
               backgroundColor:
-                activePreset === p ? 'rgba(255,16,57,0.18)' : 'rgba(255,255,255,0.04)',
+                activePreset === p ? 'rgba(255,16,57,0.18)' : colors.bg.elevated,
               borderWidth: 1,
               borderColor:
-                activePreset === p ? 'rgba(255,16,57,0.4)' : 'rgba(255,255,255,0.08)',
+                activePreset === p ? 'rgba(255,16,57,0.4)' : colors.border.subtle,
               opacity: pressed ? 0.7 : 1,
             })}
           >
@@ -4921,9 +4926,9 @@ function IntroOverlayControls({
               paddingVertical: 8,
               paddingHorizontal: 12,
               borderRadius: 10,
-              backgroundColor: 'rgba(255,255,255,0.04)',
+              backgroundColor: colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.10)',
+              borderColor: colors.border.subtle,
               opacity: pressed ? 0.7 : 1,
             })}
           >
@@ -5364,9 +5369,9 @@ function BuilderTab({
             padding: 12,
             marginBottom: 8,
             borderRadius: 14,
-            backgroundColor: isExtra ? 'rgba(255,16,57,0.06)' : 'rgba(255,255,255,0.04)',
+            backgroundColor: isExtra ? 'rgba(255,16,57,0.06)' : colors.bg.elevated,
             borderWidth: 1,
-            borderColor: isExtra ? 'rgba(255,16,57,0.25)' : 'rgba(255,255,255,0.08)',
+            borderColor: isExtra ? 'rgba(255,16,57,0.25)' : colors.border.subtle,
             opacity: isActive ? 0.92 : 1,
           }}
         >
@@ -5621,7 +5626,7 @@ function BuilderTab({
                       ? 'rgba(255,16,57,0.18)'
                       : 'rgba(255,16,57,0.08)',
                   borderWidth: 1,
-                  borderColor: disabled ? 'rgba(255,255,255,0.06)' : 'rgba(255,16,57,0.30)',
+                  borderColor: disabled ? colors.bg.elevated : 'rgba(255,16,57,0.30)',
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 10,
@@ -5648,9 +5653,9 @@ function BuilderTab({
       <SectionHeader>{t('builder.addOnsHeader', 'ADD-ONS').toUpperCase()}</SectionHeader>
       <View
         style={{
-          backgroundColor: 'rgba(255,255,255,0.04)',
+          backgroundColor: colors.bg.elevated,
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderColor: colors.border.subtle,
           borderRadius: 16,
           overflow: 'hidden',
         }}
@@ -5677,7 +5682,7 @@ function BuilderTab({
               borderRadius: 10,
               backgroundColor: 'rgba(255,255,255,0.05)',
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.10)',
+              borderColor: colors.border.subtle,
               alignItems: 'center',
               justifyContent: 'center',
               marginLeft: 4,
@@ -6023,6 +6028,7 @@ function BuilderTab({
 /* ─── Hero-Placeholder für Demo-Projekte ohne sourceUri ────────── */
 
 function PlaceholderHero({ project }: { project: DemoProject }) {
+  const colors = useColors();
   return (
     <View
       style={{
@@ -6033,7 +6039,7 @@ function PlaceholderHero({ project }: { project: DemoProject }) {
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.08)',
+        borderColor: colors.border.subtle,
       }}
     >
       <View

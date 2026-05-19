@@ -35,6 +35,7 @@ import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { GoogleButton } from '../components/GoogleButton';
 import { useT } from '../lib/i18n';
+import { useColors } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -42,6 +43,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
 export function LoginScreen() {
   const nav = useNavigation<Nav>();
   const t = useT();
+  const colors = useColors();
   const signIn = useAuthStore((s) => s.signIn);
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
 
@@ -82,7 +84,7 @@ export function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#0d0509' }}
+      style={{ flex: 1, backgroundColor: colors.bg.primary }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <BackgroundGlow />
@@ -106,10 +108,10 @@ export function LoginScreen() {
           }}
         >
           {/* Heading */}
-          <Text style={{ color: '#f1f2f2', fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 20, fontWeight: '600', letterSpacing: -0.3 }}>
             {t('auth.signInTitle')}
           </Text>
-          <Text style={{ color: '#71717a', fontSize: 12, marginTop: 4 }}>
+          <Text style={{ color: colors.text.tertiary, fontSize: 12, marginTop: 4 }}>
             {t('auth.signInSubtitle')}
           </Text>
 
@@ -120,11 +122,11 @@ export function LoginScreen() {
 
           {/* OR Divider */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
-            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border.subtle }} />
             <Text style={{ color: '#52525b', fontSize: 10, fontWeight: '500', letterSpacing: 1.5 }}>
               {t('auth.or').toUpperCase()}
             </Text>
-            <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border.subtle }} />
           </View>
 
           {/* Email */}
@@ -210,7 +212,7 @@ export function LoginScreen() {
             }
             style={{ marginTop: 12, alignItems: 'center' }}
           >
-            <Text style={{ color: '#71717a', fontSize: 11 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
               {t('auth.forgotPassword', 'Forgot password?')}
             </Text>
           </Pressable>
@@ -228,7 +230,7 @@ export function LoginScreen() {
               gap: 6,
             }}
           >
-            <Text style={{ color: '#71717a', fontSize: 12 }}>{t('auth.noAccount')}</Text>
+            <Text style={{ color: colors.text.tertiary, fontSize: 12 }}>{t('auth.noAccount')}</Text>
             <Pressable onPress={() => nav.navigate('Signup')}>
               <Text style={{ color: '#ff1039', fontSize: 12, fontWeight: '500' }}>
                 {t('auth.signUp')}
@@ -280,7 +282,7 @@ export function LoginScreen() {
 
 const LABEL = {
   fontSize: 10,
-  color: '#71717a',
+  color: colors.text.tertiary,
   letterSpacing: 1.6,
   marginBottom: 4,
 } as const;
