@@ -130,8 +130,21 @@ export const de: Record<string, string> = {
   'settings.languageDescription': 'Wähle die bevorzugte App-Sprache. Änderungen werden sofort übernommen.',
   'settings.languageLabel':       'App-Sprache',
 
+  // Settings — Updates (Phase D2)
+  'settings.checkUpdates':     'Nach Updates suchen',
+  'settings.updateReadyTitle': 'Update bereit',
+  'settings.updateReadyBody':  'Ein Update wurde geladen. Jetzt neustarten, um es anzuwenden?',
+  'settings.updateRestart':    'Neustarten',
+  'settings.updateNoneTitle':  'Aktuell',
+  'settings.updateNoneBody':   'Du hast bereits die neueste Version.',
+  'settings.updateDevTitle':   'Dev-Build',
+  'settings.updateDevBody':    'Over-the-Air-Updates sind nur in Produktions-Builds aktiv.',
+  'settings.updateErrorTitle': 'Fehlgeschlagen',
+  'settings.updateErrorBody':  'Update-Prüfung fehlgeschlagen — prüfe deine Internetverbindung.',
+
   // Common
   'common.new': 'NEU',
+  'common.later': 'Später',
 
   // ─── Phase 3b — extended ──────────────────────────────
   'help.pageTitle':       'Hilfe & Über',
