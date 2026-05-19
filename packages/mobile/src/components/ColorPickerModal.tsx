@@ -12,7 +12,7 @@
  * updates sofort, kein "Apply"-Confirm nötig. Done schließt nur.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -27,6 +27,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SimpleSlider } from './SimpleSlider';
 import { haptic } from '../lib/haptics';
+import { useColors, type ColorPalette } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -44,6 +45,8 @@ const PRESET_GRID = [
 ];
 
 export function ColorPickerModal({ visible, value, title = 'Farbe wählen', onClose, onChange }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [draft, setDraft] = useState(value);
   const rgb = parseHex(value) ?? { r: 255, g: 255, b: 255 };
 
@@ -183,6 +186,8 @@ function ChannelSlider({
   onChange: (c: 'r' | 'g' | 'b', v: number) => void;
   accent: string;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       <Text style={[styles.channelLabel, { color: accent }]}>{label}</Text>
@@ -211,6 +216,8 @@ export function ColorPickerButton({
   value: string;
   onChange: (next: string) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -281,147 +288,100 @@ function toHex(n: number): string {
 
 /* ─── Styles ──────────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
-  sheetWrap: {
-    width: '100%',
-  },
-  sheet: {
-    backgroundColor: '#0d0509',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 28,
-    maxHeight: '85%',
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    marginBottom: 14,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  previewBlock: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-  title: {
-    color: '#f1f2f2',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#71717a',
-    fontSize: 12,
-    marginTop: 2,
-    fontFamily: 'monospace',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    color: '#71717a',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-  },
-  hexInput: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-    color: '#f1f2f2',
-    fontSize: 16,
-    fontFamily: 'monospace',
-  },
-  presetGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  presetCell: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-  },
-  channelLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    width: 18,
-    textAlign: 'center',
-  },
-  channelValue: {
-    color: '#a1a1aa',
-    fontSize: 12,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    minWidth: 32,
-    textAlign: 'right',
-  },
-  doneBtn: {
-    backgroundColor: '#ff1039',
-    borderRadius: 14,
-    paddingVertical: 14,
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  doneLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  triggerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  triggerLabel: {
-    color: '#f1f2f2',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  triggerHex: {
-    color: '#71717a',
-    fontSize: 12,
-    fontFamily: 'monospace',
-  },
-  triggerSwatch: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
-  },
-});
+// Phase B3.9 (2026-05-19): theme-aware styles.
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: colors.bg.backdrop, justifyContent: 'flex-end' },
+    sheetWrap: { width: '100%' },
+    sheet: {
+      backgroundColor: colors.bg.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: colors.border.subtle,
+      paddingHorizontal: 18,
+      paddingTop: 8,
+      paddingBottom: 28,
+      maxHeight: '85%',
+    },
+    handle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border.strong,
+      marginBottom: 14,
+    },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+    previewBlock: {
+      width: 48,
+      height: 48,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border.strong,
+    },
+    title: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
+    subtitle: { color: colors.text.tertiary, fontSize: 12, marginTop: 2, fontFamily: 'monospace' },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.bg.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    label: { color: colors.text.tertiary, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
+    hexInput: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: colors.bg.elevated,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+      color: colors.text.primary,
+      fontSize: 16,
+      fontFamily: 'monospace',
+    },
+    presetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    presetCell: { width: 44, height: 44, borderRadius: 10 },
+    channelLabel: { fontSize: 13, fontWeight: '800', width: 18, textAlign: 'center' },
+    channelValue: {
+      color: colors.text.secondary,
+      fontSize: 12,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+      minWidth: 32,
+      textAlign: 'right',
+    },
+    doneBtn: {
+      backgroundColor: colors.accent.base,
+      borderRadius: 14,
+      paddingVertical: 14,
+      marginTop: 12,
+      alignItems: 'center',
+    },
+    doneLabel: { color: colors.text.onAccent, fontSize: 14, fontWeight: '700' },
+    triggerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderRadius: 12,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    triggerLabel: { color: colors.text.primary, fontSize: 13, fontWeight: '600' },
+    triggerHex: { color: colors.text.tertiary, fontSize: 12, fontFamily: 'monospace' },
+    triggerSwatch: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border.strong,
+    },
+  });
+}

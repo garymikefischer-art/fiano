@@ -37,6 +37,7 @@ import { scheduleLocalNotification } from '../lib/pushNotifications';
 import { useT } from '../lib/i18n';
 import * as sounds from '../lib/sounds';
 import type { RootStackParamList } from '../navigation/types';
+import { useColors } from '../lib/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Export'>;
 type R = RouteProp<RootStackParamList, 'Export'>;
@@ -111,6 +112,7 @@ function chunkCueByWords(
 }
 
 export function ExportScreen() {
+  const colors = useColors();
   const nav = useNavigation<Nav>();
   const t = useT();
   const { params } = useRoute<R>();
@@ -559,7 +561,7 @@ export function ExportScreen() {
   const meta = phaseMeta(phase, t, params.mode === 'builder');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -581,9 +583,9 @@ export function ExportScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: pressed ? 0.6 : 1,
@@ -591,7 +593,7 @@ export function ExportScreen() {
         >
           <Ionicons name="close" size={18} color="#f1f2f2" />
         </Pressable>
-        <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700' }}>
+        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>
           {t('export.title', 'Export')}
         </Text>
         <View style={{ width: 40 }} />
@@ -601,9 +603,9 @@ export function ExportScreen() {
         {/* Status-Card */}
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 22,
             padding: 22,
             gap: 16,
@@ -626,13 +628,13 @@ export function ExportScreen() {
           </View>
 
           <View style={{ alignItems: 'center', gap: 4 }}>
-            <Text style={{ color: '#f1f2f2', fontSize: 18, fontWeight: '700', letterSpacing: -0.3 }}>
+            <Text style={{ color: colors.text.primary, fontSize: 18, fontWeight: '700', letterSpacing: -0.3 }}>
               {meta.title}
             </Text>
             {meta.subtitle && (
               <Text
                 style={{
-                  color: '#a1a1aa',
+                  color: colors.text.secondary,
                   fontSize: 12,
                   textAlign: 'center',
                   lineHeight: 17,
@@ -649,7 +651,7 @@ export function ExportScreen() {
               <ProgressBar percent={job?.percent ?? 0} />
               <Text
                 style={{
-                  color: '#a1a1aa',
+                  color: colors.text.secondary,
                   fontSize: 12,
                   textAlign: 'center',
                   fontVariant: ['tabular-nums'],
@@ -679,7 +681,7 @@ export function ExportScreen() {
                 {t('export.planLimitTitle', 'Plan limit reached')}
               </Text>
             </View>
-            <Text style={{ color: '#f1f2f2', fontSize: 13, lineHeight: 19 }}>
+            <Text style={{ color: colors.text.primary, fontSize: 13, lineHeight: 19 }}>
               {planLimit.reason === 'subscription_required'
                 ? t(
                     'export.planLimitSubscription',
@@ -716,8 +718,8 @@ export function ExportScreen() {
             <Text style={{ color: '#ff5571', fontSize: 12, fontWeight: '700' }}>
               {t('export.errorDetail', 'Error detail')}
             </Text>
-            <Text style={{ color: '#f1f2f2', fontSize: 12, lineHeight: 18 }}>{error}</Text>
-            <Text style={{ color: '#71717a', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
+            <Text style={{ color: colors.text.primary, fontSize: 12, lineHeight: 18 }}>{error}</Text>
+            <Text style={{ color: colors.text.tertiary, fontSize: 11, lineHeight: 16, marginTop: 4 }}>
               {t(
                 'export.phaseNote',
                 'Check ob EXPO_PUBLIC_RENDER_WORKER_URL gesetzt ist und der /health-Endpoint antwortet (siehe services/render-worker/README.md).',
@@ -775,7 +777,7 @@ export function ExportScreen() {
         {savedAssetUri && (
           <Text
             numberOfLines={1}
-            style={{ color: '#52525b', fontSize: 10, textAlign: 'center' }}
+            style={{ color: colors.text.muted, fontSize: 10, textAlign: 'center' }}
           >
             {savedAssetUri}
           </Text>
@@ -839,8 +841,8 @@ function phaseMeta(
       return {
         icon: 'close-circle-outline',
         iconColor: '#a1a1aa',
-        iconBg: 'rgba(255,255,255,0.06)',
-        ringColor: 'rgba(255,255,255,0.12)',
+        iconBg: colors.bg.elevated,
+        ringColor: colors.border.strong,
         title: t('export.phaseCanceled', 'Canceled'),
       };
     case 'failed':
@@ -855,8 +857,8 @@ function phaseMeta(
       return {
         icon: 'ellipse-outline',
         iconColor: '#a1a1aa',
-        iconBg: 'rgba(255,255,255,0.06)',
-        ringColor: 'rgba(255,255,255,0.12)',
+        iconBg: colors.bg.elevated,
+        ringColor: colors.border.strong,
         title: t('export.phaseIdle', 'Ready'),
       };
   }

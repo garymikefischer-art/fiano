@@ -26,6 +26,7 @@ import { FianoLogo } from '../components/FianoLogo';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { useAppStore } from '../stores/appStore';
 import { useT } from '../lib/i18n';
+import { useColors } from '../lib/theme';
 
 interface Slide {
   icon?: keyof typeof Ionicons.glyphMap;
@@ -88,6 +89,7 @@ const SLIDES: Slide[] = [
 ];
 
 export function OnboardingScreen() {
+  const colors = useColors();
   const { width } = useWindowDimensions();
   const t = useT();
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
@@ -111,7 +113,7 @@ export function OnboardingScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -134,7 +136,7 @@ export function OnboardingScreen() {
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Text style={{ color: '#a1a1aa', fontSize: 13, fontWeight: '600' }}>
+          <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '600' }}>
             {t('onboarding.skip', 'Skip')}
           </Text>
         </Pressable>
@@ -243,7 +245,7 @@ function SlideView({
       <View style={{ gap: 10, alignItems: 'center', maxWidth: 320 }}>
         <Text
           style={{
-            color: '#f1f2f2',
+            color: colors.text.primary,
             fontSize: 28,
             fontWeight: '700',
             letterSpacing: -0.6,
@@ -255,7 +257,7 @@ function SlideView({
         </Text>
         <Text
           style={{
-            color: '#a1a1aa',
+            color: colors.text.secondary,
             fontSize: 14,
             lineHeight: 21,
             textAlign: 'center',

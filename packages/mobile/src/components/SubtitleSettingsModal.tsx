@@ -17,7 +17,7 @@
  * Save → updateProject(id, { subtitles }). Reset → DEFAULT_SUBTITLES.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -48,6 +48,7 @@ import { haptic } from '../lib/haptics';
 // Phase A5: Feature-Locks
 import { useFeature } from '../lib/features';
 import { useUpgradeModal } from '../stores/upgradeModalStore';
+import { useColors, type ColorPalette } from '../lib/theme';
 
 interface Props {
   visible: boolean;
@@ -102,6 +103,8 @@ const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = [
 ];
 
 export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: Props) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [cueEditorOpen, setCueEditorOpen] = useState(false);
   const [savePresetOpen, setSavePresetOpen] = useState(false);
   const [presetNameInput, setPresetNameInput] = useState('');
@@ -235,7 +238,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 >
                   <Text
                     style={{
-                      color: '#a1a1aa',
+                      color: colors.text.secondary,
                       fontSize: 11,
                       fontWeight: '700',
                       letterSpacing: 0.6,
@@ -273,7 +276,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                   </Pressable>
                 </View>
                 {customPresets.length === 0 ? (
-                  <Text style={{ color: '#52525b', fontSize: 10, lineHeight: 14 }}>
+                  <Text style={{ color: colors.text.muted, fontSize: 10, lineHeight: 14 }}>
                     Tap "Save Current" to store your styling as a re-usable preset for future
                     projects. Cues + enable-state stay per-project; only font/colors/effects
                     are saved.
@@ -325,11 +328,11 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                       >
                         <Text
                           numberOfLines={1}
-                          style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}
+                          style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}
                         >
                           {p.name}
                         </Text>
-                        <Text style={{ color: '#71717a', fontSize: 9 }}>
+                        <Text style={{ color: colors.text.tertiary, fontSize: 9 }}>
                           {p.settings.style} · {p.settings.fontFamily ?? 'helvetica'}
                         </Text>
                       </Pressable>
@@ -723,10 +726,10 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
               borderColor: 'rgba(255,255,255,0.10)',
             }}
           >
-            <Text style={{ color: '#f1f2f2', fontSize: 15, fontWeight: '700' }}>
+            <Text style={{ color: colors.text.primary, fontSize: 15, fontWeight: '700' }}>
               Save preset
             </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 11, lineHeight: 15 }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 15 }}>
               Save current styling (font, colors, glow, shadow, …) as a re-usable
               preset. Cues are NOT included.
             </Text>
@@ -742,7 +745,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                 borderRadius: 8,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
-                color: '#f1f2f2',
+                color: colors.text.primary,
                 fontSize: 13,
                 borderWidth: 1,
                 borderColor: 'rgba(255,255,255,0.10)',
@@ -758,7 +761,7 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange }: 
                   opacity: pressed ? 0.6 : 1,
                 })}
               >
-                <Text style={{ color: '#a1a1aa', fontSize: 12, fontWeight: '700' }}>
+                <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '700' }}>
                   Cancel
                 </Text>
               </Pressable>
@@ -948,6 +951,8 @@ function CustomFontInput({
   value: string;
   onCommit: (v: SubtitleFontFamily) => void;
 }) {
+  const colors = useColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [draft, setDraft] = useState(value);
   return (
     <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -969,7 +974,7 @@ function CustomFontInput({
           borderRadius: 8,
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.10)',
-          color: '#f1f2f2',
+          color: colors.text.primary,
           fontSize: 13,
         }}
       />
@@ -1004,217 +1009,134 @@ function ToggleRow({
 
 /* ─── Styles ──────────────────────────────────────────────────── */
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
-  sheetWrap: {
-    width: '100%',
-  },
-  sheet: {
-    backgroundColor: '#0d0509',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 28,
-    maxHeight: '95%',
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    marginBottom: 14,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,16,57,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,16,57,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    color: '#f1f2f2',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#71717a',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  resetBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    color: '#a1a1aa',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-  },
-  subLabel: {
-    color: '#a1a1aa',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  optionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  optionCard: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  optionCardActive: {
-    backgroundColor: 'rgba(255,16,57,0.12)',
-    borderColor: 'rgba(255,16,57,0.45)',
-  },
-  optionLabel: {
-    color: '#f1f2f2',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  optionDesc: {
-    color: '#71717a',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  pillActive: {
-    backgroundColor: 'rgba(255,16,57,0.16)',
-    borderColor: 'rgba(255,16,57,0.5)',
-  },
-  pillText: {
-    color: '#a1a1aa',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  pillTextActive: {
-    color: '#ff1039',
-  },
-  sliderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sliderValue: {
-    color: '#71717a',
-    fontSize: 11,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-  },
-  toggleTrack: {
-    width: 38,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleTrackOn: {
-    backgroundColor: '#ff1039',
-  },
-  toggleThumb: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#fff',
-  },
-  toggleThumbOn: {
-    transform: [{ translateX: 16 }],
-  },
-  helper: {
-    color: '#52525b',
-    fontSize: 10,
-    fontStyle: 'italic',
-  },
-  enableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,16,57,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,16,57,0.18)',
-  },
-  enableTitle: {
-    color: '#f1f2f2',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  enableSub: {
-    color: '#a1a1aa',
-    fontSize: 11,
-    marginTop: 3,
-    lineHeight: 15,
-  },
-  doneBtn: {
-    backgroundColor: '#ff1039',
-    borderRadius: 14,
-    paddingVertical: 14,
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  doneLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});
+// Phase B3.9 (2026-05-19): theme-aware styles via makeStyles(colors).
+function makeStyles(colors: ColorPalette) {
+  return StyleSheet.create({
+    backdrop: { flex: 1, backgroundColor: colors.bg.backdrop, justifyContent: 'flex-end' },
+    sheetWrap: { width: '100%' },
+    sheet: {
+      backgroundColor: colors.bg.card,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      borderTopWidth: 1,
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: colors.border.subtle,
+      paddingHorizontal: 18,
+      paddingTop: 8,
+      paddingBottom: 28,
+      maxHeight: '95%',
+    },
+    handle: {
+      alignSelf: 'center',
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border.strong,
+      marginBottom: 14,
+    },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,16,57,0.15)',
+      borderWidth: 1,
+      borderColor: colors.accent.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    title: { color: colors.text.primary, fontSize: 16, fontWeight: '700' },
+    subtitle: { color: colors.text.tertiary, fontSize: 11, marginTop: 2 },
+    resetBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.bg.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    closeBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: colors.bg.elevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sectionTitle: { color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
+    subLabel: { color: colors.text.secondary, fontSize: 12, fontWeight: '600' },
+    optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    optionCard: {
+      flexGrow: 1,
+      flexBasis: '30%',
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+      borderRadius: 10,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    optionCardActive: { backgroundColor: colors.accent.subtle, borderColor: colors.accent.border },
+    optionLabel: { color: colors.text.primary, fontSize: 12, fontWeight: '700' },
+    optionDesc: { color: colors.text.tertiary, fontSize: 10, marginTop: 2 },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    pill: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      backgroundColor: colors.bg.elevated,
+      borderWidth: 1,
+      borderColor: colors.border.subtle,
+    },
+    pillActive: { backgroundColor: colors.accent.subtle, borderColor: colors.accent.border },
+    pillText: { color: colors.text.secondary, fontSize: 11, fontWeight: '600' },
+    pillTextActive: { color: colors.accent.base },
+    sliderHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    sliderValue: {
+      color: colors.text.tertiary,
+      fontSize: 11,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+    },
+    toggleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+    },
+    toggleTrack: {
+      width: 38,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: colors.border.subtle,
+      padding: 2,
+      justifyContent: 'center',
+    },
+    toggleTrackOn: { backgroundColor: colors.accent.base },
+    toggleThumb: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff' },
+    toggleThumbOn: { transform: [{ translateX: 16 }] },
+    helper: { color: colors.text.muted, fontSize: 10, fontStyle: 'italic' },
+    enableRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderRadius: 14,
+      backgroundColor: colors.accent.subtle,
+      borderWidth: 1,
+      borderColor: colors.accent.border,
+    },
+    enableTitle: { color: colors.text.primary, fontSize: 13, fontWeight: '700' },
+    enableSub: { color: colors.text.secondary, fontSize: 11, marginTop: 3, lineHeight: 15 },
+    doneBtn: {
+      backgroundColor: colors.accent.base,
+      borderRadius: 14,
+      paddingVertical: 14,
+      marginTop: 12,
+      alignItems: 'center',
+    },
+    doneLabel: { color: colors.text.onAccent, fontSize: 14, fontWeight: '700' },
+  });
+}
