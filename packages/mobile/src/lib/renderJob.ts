@@ -92,6 +92,11 @@ export interface ClientRenderSpec {
     saturation?: number;
     sharpen?: number;
     motionBlur?: 'off' | 'low' | 'medium' | 'high';
+    colorWheels?: {
+      liftR?: number; liftG?: number; liftB?: number;
+      gammaR?: number; gammaG?: number; gammaB?: number;
+      gainR?: number; gainG?: number; gainB?: number;
+    };
   };
   /** Phase C5 (2026-05-19): Watermark-Overlay (path wird vom Worker resolved). */
   watermark?: {

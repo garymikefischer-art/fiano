@@ -28,15 +28,35 @@ export interface ClipEffectsValues {
   sharpen?: number;
   /** Motion-Blur Preset für "240Hz look". tmix=frames=N. */
   motionBlur?: 'off' | 'low' | 'medium' | 'high';
+  /** Phase C6 (2026-05-19): DaVinci-style Color-Wheels. Per-Channel lift
+   *  (shadow shift), gamma (midtone curve), gain (highlight shift). Werte
+   *  jeweils 0..2.0, neutral=1.0 → kein Effekt. */
+  colorWheels?: {
+    /** Lift adds color to shadows. -0.3..0.3 per channel, default 0. */
+    liftR?: number;
+    liftG?: number;
+    liftB?: number;
+    /** Gamma curves midtones. 0.5..2.0 per channel, default 1.0. */
+    gammaR?: number;
+    gammaG?: number;
+    gammaB?: number;
+    /** Gain stretches highlights. 0.5..1.5 per channel, default 1.0. */
+    gainR?: number;
+    gainG?: number;
+    gainB?: number;
+  };
 }
 
 /**
  * Generiert einen FFmpeg-vfilter-String aus Effects-Werten. Returns leeren
  * String wenn keine Effekte aktiv (alle bei Default).
  *
+ * @param fps Frames-per-second der Output-Pipeline. Wird für motion-blur
+ *            minterpolate genutzt (fps*2 → blend → fps zurück). Default 30.
+ *
  * Beispiel-Output: "eq=brightness=0.1:contrast=1.2:saturation=1.1,unsharp=5:5:1.5:5:5:0.0"
  */
-export function buildEffectsFilter(e?: ClipEffectsValues | null): string {
+export function buildEffectsFilter(e?: ClipEffectsValues | null, fps: number = 30): string {
   if (!e) return '';
   const eqParts: string[] = [];
   if (e.brightness != null && Math.abs(e.brightness) > 0.001) {
@@ -55,21 +75,57 @@ export function buildEffectsFilter(e?: ClipEffectsValues | null): string {
     // unsharp=lx:ly:la:cx:cy:ca — luma matrix 5x5, amount=sharpen, chroma off.
     parts.push(`unsharp=5:5:${clampedFx(e.sharpen, 0, 5).toFixed(2)}:5:5:0.0`);
   }
-  // Phase C1.A.2 (2026-05-19) + Bug-Fix C1.B.2 (2026-05-19):
-  // Motion-blur via tmix (temporal-weighted-average). Uniform weights gaben
-  // heavy ghosting / "Verzerrung" — jetzt biased zur aktuellen frame mit
-  // tail-off Gewichten. Resultat: subtile motion blur, kein heavy ghosting.
-  //   - low:    2 frames, weights "2 1"     → subtle echo (~33% prev)
-  //   - medium: 3 frames, weights "3 2 1"   → moderate trail
-  //   - high:   4 frames, weights "4 3 2 1" → strong trail (current dominant)
+  // Phase C6 (2026-05-19): Color-Wheels (Lift/Gamma/Gain × R/G/B).
+  // colorlevels für Lift+Gain (output min/max per channel), eq=gamma_r/g/b
+  // für midtone-curve. Werte werden hier auf FFmpeg-Spezifikation gemappt.
+  if (e.colorWheels) {
+    const cw = e.colorWheels;
+    const lr = clampedFx(cw.liftR ?? 0, -0.3, 0.3);
+    const lg = clampedFx(cw.liftG ?? 0, -0.3, 0.3);
+    const lb = clampedFx(cw.liftB ?? 0, -0.3, 0.3);
+    const gnr = clampedFx(cw.gainR ?? 1, 0.5, 1.5);
+    const gng = clampedFx(cw.gainG ?? 1, 0.5, 1.5);
+    const gnb = clampedFx(cw.gainB ?? 1, 0.5, 1.5);
+    const gmr = clampedFx(cw.gammaR ?? 1, 0.5, 2);
+    const gmg = clampedFx(cw.gammaG ?? 1, 0.5, 2);
+    const gmb = clampedFx(cw.gammaB ?? 1, 0.5, 2);
+    const anyLift = Math.abs(lr) > 0.001 || Math.abs(lg) > 0.001 || Math.abs(lb) > 0.001;
+    const anyGain =
+      Math.abs(gnr - 1) > 0.001 || Math.abs(gng - 1) > 0.001 || Math.abs(gnb - 1) > 0.001;
+    const anyGamma =
+      Math.abs(gmr - 1) > 0.001 || Math.abs(gmg - 1) > 0.001 || Math.abs(gmb - 1) > 0.001;
+    if (anyLift || anyGain) {
+      // FFmpeg colorlevels: romin/gomin/bomin = output minimum (lift),
+      // romax/gomax/bomax = output maximum (gain). 0..1 range.
+      parts.push(
+        `colorlevels=romin=${lr.toFixed(3)}:gomin=${lg.toFixed(3)}:bomin=${lb.toFixed(3)}:` +
+          `romax=${gnr.toFixed(3)}:gomax=${gng.toFixed(3)}:bomax=${gnb.toFixed(3)}`,
+      );
+    }
+    if (anyGamma) {
+      parts.push(`eq=gamma_r=${gmr.toFixed(3)}:gamma_g=${gmg.toFixed(3)}:gamma_b=${gmb.toFixed(3)}`);
+    }
+  }
+
+  // Phase C1.A.4 (2026-05-19) — Motion-Blur via Optical-Flow (minterpolate).
+  // Analog zu DaVinci Resolve's "OpticalFlow + VectorMotionBlur" Combo:
+  //  1. minterpolate generiert mit `mi_mode=mci:me_mode=bidir` motion-
+  //     kompensierte Zwischenframes via bidirectional motion estimation.
+  //  2. tmix=frames=N averaged das hochfrequente Sample sliding-window — gibt
+  //     einen weichen Trail in Bewegungsrichtung statt ghosting.
+  //  3. fps={fps} bringt's auf die Output-Framerate zurück.
+  // Bias: 2x upscale immer (kosteneffizient); tmix-frames variiert die Trail-
+  // Länge → low/medium/high. Performance: minterpolate ist CPU-intensiv, aber
+  // mci:bidir ohne aobmc bleibt unter 5x slowdown.
   if (e.motionBlur && e.motionBlur !== 'off') {
-    const cfg =
-      e.motionBlur === 'low'
-        ? { frames: 2, weights: '2 1' }
-        : e.motionBlur === 'medium'
-          ? { frames: 3, weights: '3 2 1' }
-          : { frames: 4, weights: '4 3 2 1' };
-    parts.push(`tmix=frames=${cfg.frames}:weights=${cfg.weights}`);
+    const tmixFrames =
+      e.motionBlur === 'low' ? 2 : e.motionBlur === 'medium' ? 3 : 4;
+    const upscaleFps = Math.max(60, fps * 2);
+    parts.push(
+      `minterpolate=fps=${upscaleFps}:mi_mode=mci:me_mode=bidir:me=epzs`,
+    );
+    parts.push(`tmix=frames=${tmixFrames}`);
+    parts.push(`fps=${fps}`);
   }
   return parts.join(',');
 }
@@ -571,7 +627,7 @@ export function buildTikTokExportArgs(
   // eq (brightness/contrast/saturation) + unsharp (sharpen) + tmix (motion-blur)
   // werden hier auf das post-Layout Composite angewendet. Subtitle-Burn-In und
   // Intro-Overlay folgen DANACH → bleiben visuell unverändert.
-  const effectsFilterStr = buildEffectsFilter(opts.effects);
+  const effectsFilterStr = buildEffectsFilter(opts.effects, fps);
   if (effectsFilterStr) {
     filters.push(`${videoComposed}${effectsFilterStr}[vfx]`);
     videoComposed = '[vfx]';
@@ -749,11 +805,19 @@ export function buildTikTokExportArgs(
         `enable='between(t,0,${overlayDur.toFixed(2)})'[vfinal]`,
     );
 
-    // Original [introV] label nicht mehr generated — wir nutzen introLabel direkt.
-    // (vermeide dangling reference)
-    void '[introV]';
     finalVideo = '[vfinal]';
-    finalAudio = '[aMain]'; // overlay-Mode behält source-audio (kein intro-audio).
+    // Phase C5.2 Bug-Fix (2026-05-19): Intro-Audio im overlay-mode mit
+    // einmischen. Vorher: finalAudio = [aMain] → kein intro-Ton im Export.
+    // Jetzt: intro-audio wird via amix dem [aMain] zugemischt — amix-
+    // duration=first sorgt dafür dass output bei aMain-Ende stoppt (intro
+    // typically shorter, läuft sound silently aus).
+    filters.push(
+      `[${introInputIdx}:a]aresample=async=1,volume=1[introOverlayA]`,
+    );
+    filters.push(
+      `[aMain][introOverlayA]amix=inputs=2:duration=first:normalize=0[aOverlayMix]`,
+    );
+    finalAudio = '[aOverlayMix]';
   } else if (opts.intro && introInputIdx >= 0) {
     // 'before' = Intro spielt komplett, dann Main-Composition. Beide auf 9:16/16:9.
     //

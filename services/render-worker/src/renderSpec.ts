@@ -301,6 +301,26 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     if (typeof eff.motionBlur === 'string' && VALID_MOTION_BLUR.includes(eff.motionBlur as any)) {
       effects.motionBlur = eff.motionBlur as 'off' | 'low' | 'medium' | 'high';
     }
+    // Phase C6 (2026-05-19): Color-Wheels per-channel validation.
+    if (eff.colorWheels && typeof eff.colorWheels === 'object') {
+      const cw = eff.colorWheels as Record<string, unknown>;
+      const num = (k: string, def: number, lo: number, hi: number): number => {
+        const v = cw[k];
+        if (typeof v !== 'number' || !isFinite(v)) return def;
+        return Math.max(lo, Math.min(hi, v));
+      };
+      effects.colorWheels = {
+        liftR: num('liftR', 0, -0.3, 0.3),
+        liftG: num('liftG', 0, -0.3, 0.3),
+        liftB: num('liftB', 0, -0.3, 0.3),
+        gammaR: num('gammaR', 1, 0.5, 2),
+        gammaG: num('gammaG', 1, 0.5, 2),
+        gammaB: num('gammaB', 1, 0.5, 2),
+        gainR: num('gainR', 1, 0.5, 1.5),
+        gainG: num('gainG', 1, 0.5, 1.5),
+        gainB: num('gainB', 1, 0.5, 1.5),
+      };
+    }
     spec.effects = effects;
   }
 

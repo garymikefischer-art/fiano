@@ -189,6 +189,16 @@ export function ClipEffectsSection({ value, onChange }: Props) {
             colors={colors}
           />
 
+          {/* Phase C6 (2026-05-19): Color-Wheels (Lift/Gamma/Gain × R/G/B).
+              Pro-locked. 9 Sliders organized in 3 groups. */}
+          <ColorWheelsBlock
+            effects={effects}
+            colors={colors}
+            locked={!advancedUnlocked}
+            onLockedPress={onAdvancedSliderTouch}
+            onChange={(cw) => patch({ colorWheels: cw })}
+          />
+
           {/* Phase C1.A.2 (2026-05-19): Motion-Blur Preset für "240Hz look".
               tmix=frames=N temporal-average. Pro-locked. */}
           <View style={{ gap: 6 }}>
@@ -273,6 +283,191 @@ export function ClipEffectsSection({ value, onChange }: Props) {
           </View>
         </View>
       )}
+    </View>
+  );
+}
+
+function ColorWheelsBlock({
+  effects,
+  colors,
+  locked,
+  onLockedPress,
+  onChange,
+}: {
+  effects: ClipEffects;
+  colors: ReturnType<typeof useColors>;
+  locked: boolean;
+  onLockedPress: () => boolean;
+  onChange: (cw: NonNullable<ClipEffects['colorWheels']>) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const cw = effects.colorWheels ?? {};
+  const patchCw = (p: Partial<NonNullable<ClipEffects['colorWheels']>>) => {
+    onChange({ ...cw, ...p });
+  };
+  const hasActive =
+    Object.values(cw).some(
+      (v) => typeof v === 'number' && Math.abs(v - (v && v < 0.4 ? 0 : 1)) > 0.01,
+    );
+
+  return (
+    <View style={{ gap: 6 }}>
+      <Pressable
+        onPress={() => {
+          if (locked) {
+            onLockedPress();
+            return;
+          }
+          setExpanded((v) => !v);
+        }}
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          paddingHorizontal: 10,
+          paddingVertical: 8,
+          borderRadius: 10,
+          backgroundColor: pressed ? colors.bg.elevated : 'transparent',
+          opacity: locked ? 0.55 : 1,
+        })}
+      >
+        <Ionicons
+          name="color-palette-outline"
+          size={14}
+          color={hasActive ? '#ff1039' : colors.text.secondary}
+        />
+        <Text style={{ color: colors.text.secondary, fontSize: 12, fontWeight: '600', flex: 1 }}>
+          Color Wheels {hasActive ? '·' : ''}
+        </Text>
+        {locked && (
+          <View
+            style={{
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              borderRadius: 6,
+              backgroundColor: 'rgba(255,16,57,0.18)',
+              borderWidth: 1,
+              borderColor: colors.accent.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 3,
+            }}
+          >
+            <Ionicons name="lock-closed" size={8} color={colors.accent.base} />
+            <Text style={{ color: colors.accent.base, fontSize: 9, fontWeight: '700' }}>PRO</Text>
+          </View>
+        )}
+        <Ionicons
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={14}
+          color={colors.text.tertiary}
+        />
+      </Pressable>
+
+      {expanded && !locked && (
+        <View style={{ gap: 10, paddingTop: 4 }}>
+          <WheelGroup
+            label="Lift (Shadows)"
+            colors={colors}
+            r={cw.liftR ?? 0} g={cw.liftG ?? 0} b={cw.liftB ?? 0}
+            min={-0.3} max={0.3} step={0.01} neutral={0}
+            onR={(v) => patchCw({ liftR: v })}
+            onG={(v) => patchCw({ liftG: v })}
+            onB={(v) => patchCw({ liftB: v })}
+          />
+          <WheelGroup
+            label="Gamma (Midtones)"
+            colors={colors}
+            r={cw.gammaR ?? 1} g={cw.gammaG ?? 1} b={cw.gammaB ?? 1}
+            min={0.5} max={2} step={0.02} neutral={1}
+            onR={(v) => patchCw({ gammaR: v })}
+            onG={(v) => patchCw({ gammaG: v })}
+            onB={(v) => patchCw({ gammaB: v })}
+          />
+          <WheelGroup
+            label="Gain (Highlights)"
+            colors={colors}
+            r={cw.gainR ?? 1} g={cw.gainG ?? 1} b={cw.gainB ?? 1}
+            min={0.5} max={1.5} step={0.01} neutral={1}
+            onR={(v) => patchCw({ gainR: v })}
+            onG={(v) => patchCw({ gainG: v })}
+            onB={(v) => patchCw({ gainB: v })}
+          />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function WheelGroup({
+  label,
+  colors,
+  r, g, b,
+  min, max, step, neutral,
+  onR, onG, onB,
+}: {
+  label: string;
+  colors: ReturnType<typeof useColors>;
+  r: number; g: number; b: number;
+  min: number; max: number; step: number; neutral: number;
+  onR: (v: number) => void;
+  onG: (v: number) => void;
+  onB: (v: number) => void;
+}) {
+  const channelRow = (
+    chName: 'R' | 'G' | 'B',
+    chColor: string,
+    val: number,
+    onCh: (v: number) => void,
+  ) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View
+        style={{
+          width: 20,
+          height: 20,
+          borderRadius: 10,
+          backgroundColor: chColor,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{chName}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <SimpleSlider value={val} min={min} max={max} step={step} onChange={onCh} />
+      </View>
+      <Text
+        style={{
+          color: colors.text.tertiary,
+          fontSize: 10,
+          fontWeight: '600',
+          fontVariant: ['tabular-nums'],
+          minWidth: 40,
+          textAlign: 'right',
+        }}
+      >
+        {neutral === 0
+          ? `${val > 0 ? '+' : ''}${(val * 100).toFixed(0)}`
+          : `${Math.round(val * 100)}%`}
+      </Text>
+    </View>
+  );
+  return (
+    <View
+      style={{
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.02)',
+        gap: 6,
+      }}
+    >
+      <Text style={{ color: colors.text.secondary, fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
+        {label.toUpperCase()}
+      </Text>
+      {channelRow('R', '#ef4444', r, onR)}
+      {channelRow('G', '#22c55e', g, onG)}
+      {channelRow('B', '#3b82f6', b, onB)}
     </View>
   );
 }

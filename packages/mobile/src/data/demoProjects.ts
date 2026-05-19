@@ -50,6 +50,12 @@ export interface ClipEffects {
    *  look" für Gaming-Content. FFmpeg tmix=frames=N temporal-average.
    *  off=0, low=2, medium=4, high=6. */
   motionBlur?: 'off' | 'low' | 'medium' | 'high';
+  /** Phase C6 (2026-05-19): DaVinci-style Color-Wheels. */
+  colorWheels?: {
+    liftR?: number; liftG?: number; liftB?: number;
+    gammaR?: number; gammaG?: number; gammaB?: number;
+    gainR?: number; gainG?: number; gainB?: number;
+  };
 }
 
 /** Default-Effects ("identität" — kein Filter aktiv). */

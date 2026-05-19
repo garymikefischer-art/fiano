@@ -1156,8 +1156,21 @@ function HighlightsTab({
                 opacity: analysisBusy ? 0.5 : 1,
               })}
             >
-              <Ionicons name="sparkles" size={13} color="#fff" />
-              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+              {/* Phase C5.2 Bug-Fix (2026-05-19): Wenn busy → background wechselt
+                  zu colors.bg.elevated (light im light-mode), Text muss dann
+                  ebenfalls theme-aware sein damit lesbar bleibt. */}
+              <Ionicons
+                name="sparkles"
+                size={13}
+                color={analysisBusy ? colors.text.primary : '#fff'}
+              />
+              <Text
+                style={{
+                  color: analysisBusy ? colors.text.primary : '#fff',
+                  fontSize: 12,
+                  fontWeight: '700',
+                }}
+              >
                 {hasCues
                   ? t('highlights.reAnalyze', 'Re-analyze')
                   : t('highlights.analyze', 'Analyze with AI')}
@@ -3362,6 +3375,82 @@ function TikTokTab({
             </View>
           </Pressable>
         )}
+
+        {/* Phase C5.2 (2026-05-19): Greenscreen Tolerance-Slider — nur sichtbar
+            wenn chromakey aktiv UND overlay-mode. Higher similarity → mehr
+            Pixel werden als grün gewertet (auch helleres grün) → mehr trans-
+            parente Bereiche. Niedriger = engerer green-match (pure 00ff00). */}
+        {introUri && introMode === 'overlay' && project.intro?.chromakey && (
+          <View
+            style={{
+              marginHorizontal: 14,
+              marginBottom: 16,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              gap: 8,
+              backgroundColor: colors.bg.elevated,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.text.secondary,
+                  fontSize: 11,
+                  fontWeight: '600',
+                }}
+              >
+                {t('tiktok.chromakeyTolerance', 'Tolerance')}
+              </Text>
+              <Text
+                style={{
+                  color: colors.text.tertiary,
+                  fontSize: 11,
+                  fontWeight: '600',
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                {((project.intro.chromakey.similarity ?? 0.18) * 100).toFixed(0)}%
+              </Text>
+            </View>
+            <SimpleSlider
+              value={project.intro.chromakey.similarity ?? 0.18}
+              min={0.05}
+              max={0.5}
+              step={0.01}
+              onChange={(v) => {
+                const current = project.intro;
+                if (!current) return;
+                useProjectsStore.getState().updateProject(project.id, {
+                  intro: {
+                    ...current,
+                    chromakey: { ...current.chromakey, similarity: v },
+                  },
+                });
+              }}
+            />
+            <Text
+              style={{
+                color: colors.text.tertiary,
+                fontSize: 9,
+                lineHeight: 12,
+              }}
+            >
+              {t(
+                'tiktok.chromakeyToleranceHint',
+                'Höher = mehr grün-ähnliche Pixel werden transparent. Default 18%.',
+              )}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Voice-Overs (TTS) — eigene Section analog Desktop's VoiceOversSection. */}
@@ -4099,17 +4188,35 @@ function FullModePreview({
     setControlsVisible(true);
   };
 
-  // Auto-advance bei sequence + trim-end erreicht.
-  // Phase C5.1 Bug-Fix (2026-05-19): defensive paused-reset + pendingSeekSec
-  // clear bei transition, sodass importierte Source-Clips als nächstes Item
-  // sauber starten (User-Report "preview hört nach standard video ab").
+  // Phase C5.2 Bug-Fix (2026-05-19): Builder Preview "springt ans Ende"-Bug.
+  // Root-Cause: handleProgress + handleVideoEnd feuerten beide → setCurrentIdx(
+  // (i) => i + 1) wurde im selben tick zweimal aufgerufen → functional updater
+  // appliziert beide → currentIdx jumped +2 statt +1 → Skip vom 2. Clip.
+  // Fix: transitioningRef + 300ms debounce damit nur 1 advance pro transition.
+  const transitioningRef = useRef(false);
+  const safeAdvance = (target: number) => {
+    if (transitioningRef.current) return;
+    if (!hasSequence || target < 0) return;
+    transitioningRef.current = true;
+    if (target < sources!.length) {
+      setCurrentIdx(target);
+      setPendingSeekSec(null);
+      setPaused(false);
+    } else {
+      setPaused(true);
+    }
+    // Release lock nach Re-Mount-Frame (key={activeUri} ändert sich erst nach
+    // setCurrentIdx-Commit).
+    setTimeout(() => {
+      transitioningRef.current = false;
+    }, 300);
+  };
+
   const handleProgress = (currentTime: number) => {
     setCurrentSec(currentTime);
     if (hasSequence && activeEnd > 0 && currentTime >= activeEnd) {
       if (currentIdx < sources!.length - 1) {
-        setCurrentIdx((i) => i + 1);
-        setPendingSeekSec(null);
-        setPaused(false);
+        safeAdvance(currentIdx + 1);
       } else {
         setPaused(true);
       }
@@ -4117,25 +4224,19 @@ function FullModePreview({
   };
   const handleVideoEnd = () => {
     if (hasSequence && currentIdx < sources!.length - 1) {
-      setCurrentIdx((i) => i + 1);
-      setPendingSeekSec(null);
-      setPaused(false);
+      safeAdvance(currentIdx + 1);
     } else if (hasSequence) {
       setPaused(true);
     }
   };
-  // Phase C5.1 Bug-Fix: onError-Log für sequential-playback — wenn ein Clip
-  // nicht abgespielt werden kann (Codec-Issue / corrupt file), springen wir
-  // zum nächsten Item statt silent zu hängen.
+  // onError-Log + Auto-Skip wenn ein Clip nicht abgespielt werden kann.
   const handleVideoError = (info: unknown) => {
     console.warn(
       `[FullModePreview] video error on clip ${currentIdx}/${sources?.length ?? 0}:`,
       JSON.stringify(info)?.slice(0, 200),
     );
     if (hasSequence && currentIdx < (sources?.length ?? 0) - 1) {
-      setCurrentIdx((i) => i + 1);
-      setPendingSeekSec(null);
-      setPaused(false);
+      safeAdvance(currentIdx + 1);
     } else if (hasSequence) {
       setPaused(true);
     }
@@ -6073,7 +6174,54 @@ function BuilderTab({
                   backgroundColor: pressed ? 'rgba(255,16,57,0.18)' : 'transparent',
                 })}
               >
-                <Ionicons name="cut-outline" size={16} color="#a1a1aa" />
+                <Ionicons name="cut-outline" size={16} color={colors.text.secondary} />
+              </Pressable>
+            )}
+            {/* Phase C5.2 (2026-05-19): Builder Clip-Delete — Trash für clips
+                analog Highlights. Bei kind='clip' deselect + remove. */}
+            {item.kind === 'clip' && (
+              <Pressable
+                onPress={() => {
+                  haptic.warning();
+                  appAlert(
+                    t('builder.removeClipTitle', 'Remove from build?'),
+                    t(
+                      'builder.removeClipBody',
+                      'Removes this clip from the YouTube build (clip stays in project.clips).',
+                    ),
+                    [
+                      { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+                      {
+                        text: t('common.remove', 'Remove'),
+                        style: 'destructive',
+                        onPress: () => {
+                          haptic.success();
+                          const nextOrder = (project.clipOrder ?? []).filter(
+                            (id) => id !== item.id,
+                          );
+                          // Also deselect (HighlightsTab uses selectedClipIds to
+                          // construct orderedItems via clip-in-selection check).
+                          const nextSel = new Set(selectedClipIds);
+                          nextSel.delete(item.id);
+                          useProjectsStore.getState().updateProject(project.id, {
+                            clipOrder: nextOrder,
+                          });
+                          // Note: builder props don't include setSelectedClipIds
+                          // → we mutate via closure if available. Otherwise
+                          // user can re-deselect in HighlightsTab.
+                        },
+                      },
+                    ],
+                  );
+                }}
+                hitSlop={6}
+                style={({ pressed }) => ({
+                  padding: 6,
+                  borderRadius: 8,
+                  backgroundColor: pressed ? 'rgba(239,68,68,0.18)' : 'transparent',
+                })}
+              >
+                <Ionicons name="trash-outline" size={16} color="#ef4444" />
               </Pressable>
             )}
             {isExtra && (
@@ -6470,6 +6618,82 @@ function BuilderTab({
               />
             </View>
           </Pressable>
+        )}
+
+        {/* Phase C5.2 (2026-05-19): Greenscreen Tolerance-Slider — nur sichtbar
+            wenn chromakey aktiv UND overlay-mode. Higher similarity → mehr
+            Pixel werden als grün gewertet (auch helleres grün) → mehr trans-
+            parente Bereiche. Niedriger = engerer green-match (pure 00ff00). */}
+        {introUri && introMode === 'overlay' && project.intro?.chromakey && (
+          <View
+            style={{
+              marginHorizontal: 14,
+              marginBottom: 16,
+              paddingHorizontal: 14,
+              paddingVertical: 12,
+              gap: 8,
+              backgroundColor: colors.bg.elevated,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.text.secondary,
+                  fontSize: 11,
+                  fontWeight: '600',
+                }}
+              >
+                {t('tiktok.chromakeyTolerance', 'Tolerance')}
+              </Text>
+              <Text
+                style={{
+                  color: colors.text.tertiary,
+                  fontSize: 11,
+                  fontWeight: '600',
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                {((project.intro.chromakey.similarity ?? 0.18) * 100).toFixed(0)}%
+              </Text>
+            </View>
+            <SimpleSlider
+              value={project.intro.chromakey.similarity ?? 0.18}
+              min={0.05}
+              max={0.5}
+              step={0.01}
+              onChange={(v) => {
+                const current = project.intro;
+                if (!current) return;
+                useProjectsStore.getState().updateProject(project.id, {
+                  intro: {
+                    ...current,
+                    chromakey: { ...current.chromakey, similarity: v },
+                  },
+                });
+              }}
+            />
+            <Text
+              style={{
+                color: colors.text.tertiary,
+                fontSize: 9,
+                lineHeight: 12,
+              }}
+            >
+              {t(
+                'tiktok.chromakeyToleranceHint',
+                'Höher = mehr grün-ähnliche Pixel werden transparent. Default 18%.',
+              )}
+            </Text>
+          </View>
         )}
       </View>
 
