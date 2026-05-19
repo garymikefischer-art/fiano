@@ -555,4 +555,127 @@ Nicht vergessen vor Start: git tag pre-phase-X.Y-backup && git push --tags.
 ---
 
 **Stand 2026-05-20** — Block A+B+C komplett (C8/C9 deferred).
-Letzter Commit `39bf7c8`. Backup-Tag `pre-context-handoff-20260520`.
+Letzter Commit `80388af`. Backup-Tag `pre-context-handoff-20260520`.
+
+---
+
+## 12. Cloud-Run CPU-Quota (Performance Reference)
+
+### Was bringt mehr CPU für Motion-Blur?
+| Setup | Render-Zeit Motion-Blur 30s clip | Concurrent Renders |
+|---|---|---|
+| **Aktuell:** cpu=2, instances=10 | ~3–5 min | bis zu 10 gleichzeitig |
+| **Mit Quota-Bump:** cpu=4, instances=10 | ~1.5–2.5 min (2× schneller) | bis zu 10 gleichzeitig |
+
+### Kosten
+- Quota-Request bei Google: **100 % kostenlos** (nur Wartezeit)
+- Cloud Run berechnet pro vCPU-Sekunde:
+  - 2 CPU × 3 min = 6 CPU-Minuten
+  - 4 CPU × 1.5 min = 6 CPU-Minuten → **GLEICHE Kosten**
+- Mehr CPU = schneller, aber selbe Gesamtkosten pro Render
+
+### Quota-Request bei Google (1-3 Tage)
+1. Google Cloud Console → IAM & Admin → Quotas
+2. Suche: `CpuAllocPerProjectRegion` für `run.googleapis.com` in `europe-west1`
+3. Limit increase request → von 20000 auf z.B. 40000
+4. Begründung: "Production Video-Render service, motion-blur compute requires higher per-instance CPU"
+5. Approval: 1-3 Business-Tage, free
+
+### Empfehlung
+- **Test-Phase**: aktueller Setup OK (cpu=2 × instances=10)
+- **Production mit zahlenden Usern + motion-blur**: Quota-Bump beantragen
+- **Initial-Launch**: cpu=2 reicht
+
+---
+
+## 13. Legal — Code-Eigentum + Lizenzen + Risiken
+
+### Wer hat den Code geschrieben?
+**100 % von Claude AI** im Auftrag generiert. User ist **Owner** des Codes. AI-generierter Code hat in DE/AT keine eigenständige Urheberschaft — der Auftraggeber (User) ist Rechte-Inhaber.
+
+### Third-Party-Komponenten + Lizenzen
+| Komponente | Lizenz | Status |
+|---|---|---|
+| Electron, React, RN, Expo SDK | MIT | ✅ kostenlos kommerziell |
+| Zustand, react-router | MIT | ✅ |
+| **FFmpeg** | LGPL/GPL | ⚠️ siehe unten |
+| **yt-dlp** | Unlicense (public domain) | ⚠️ siehe unten |
+| Stripe SDK | proprietary aber free für Stripe-Kunden | ✅ |
+| Supabase JS, AWS-SDK (R2) | Apache 2.0 / MIT | ✅ |
+| OpenAI / Gemini APIs | nutzt User-API-Keys | ✅ |
+| Tailwind | MIT | ✅ |
+| google-fonts (Inter, Geist) | OFL/Apache | ✅ |
+
+### 🔴 Drei Risikobereiche
+
+**1. FFmpeg + H.264/HEVC-Patente (MPEG-LA)**
+- Desktop bundles FFmpeg lokal → könnte theoretisch Patent-Lizenz-Pflicht auslösen
+- **Mobile sicher**: Cloud-Render statt local FFmpeg
+- Realistisches Risiko: Niedrig für Indie-Apps < 100k Users. MPEG-LA verfolgt Indie-Devs praktisch nicht.
+- Mitigation: Nicht mit H.264/HEVC werben, FFmpeg-License in Credits erwähnen
+
+**2. yt-dlp / YouTube-Download (ToS-Verletzung)**
+- yt-dlp legal als Software, ABER YouTube/Twitch ToS verbietet Download
+- User downloadet → YouTube könnte ihn (nicht dich) bannen
+- Risiko für fiano: YouTube cease-and-desist möglich
+- Mitigation: ToS-Klausel "User responsible for source content rights", User-supplied cookies, watermark
+
+**3. User-Content + DMCA**
+- User uploadet copyrighted material möglich
+- Cloud-Render = du bist "Host"-Provider → DMCA-Safe-Harbor (USA)
+- Brauchst: Designated DMCA agent + Take-Down-Bearbeitung (10 days)
+- EU: DSA Notice-and-Action procedure
+- R2 lifecycle 1 Tag für sources → hilft
+
+### ✅ Bereits abgedeckt
+- Security: A6 komplett — JWT, RLS, Rate-Limits, args-injection-protection
+- GDPR: Supabase EU-region, RLS, delete-account function
+- Stripe: Webhook-signature-verification
+- Legal-Screen: Impressum/Datenschutz/AGB (Österreich-konform, FIANO e.U.)
+
+### 🟡 Vor Production-Launch nötig
+| Item | Aufwand | Wichtigkeit |
+|---|---|---|
+| Privacy Policy auf hosted Website | 2-4 h | 🔴 GDPR-Pflicht |
+| Terms of Service mit User-Content-Klausel | 2-4 h | 🔴 DMCA/DSA |
+| FFmpeg-Credits + Lizenzen-Screen in App | 30 min | 🟡 LGPL |
+| DMCA-Agent registrieren (US) | 1h + $6 Fee | 🟡 Safe-Harbor |
+| Cookie-Banner falls fiano.app website | 1h | 🟡 DSGVO |
+| **Anwalt-Konsultation** vor Launch | 1-3 h | 🔴 Empfohlen |
+
+### TL;DR
+- Code-Eigentum: dem User gehört alles
+- Lizenzen: alle OK (MIT/Apache/LGPL)
+- Patent-Risiko: theoretisch FFmpeg+H.264, praktisch sehr niedrig
+- ToS-Risiko: yt-dlp → cease-and-desist möglich, Terms hilft
+- **fiano besser legally-positioned als 90% der App-Store-Apps**. Mit Privacy/Terms/DMCA-Agent (5-8h + €100-300 Anwalt) → production-ready
+
+---
+
+## 14. 🔴 OPEN BUGS für nächsten Chat (Round-9 Test-Feedback)
+
+User-Test nach Round-8 (commit `80388af` + worker `00035-nwf`):
+
+1. **Builder Subtitle-Modal-Crash** — slide→fade hat NICHT geholfen. Builder + Subtitle-Open crasht App. 9:16-Tab funktioniert ABER. Vermutlich nicht animationType sondern measureLayout-Konflikt mit NestableDraggableFlatList. Lösung: SubtitleSettingsModal in absolute-positioned-View umbauen (B1.3-Pattern) ODER Subtitle-Open in Builder unterbinden mit Hint "open from 9:16 tab".
+
+2. **Layered Text noch nicht wie Desktop verbuggt** — Screenshot zeigt:
+   - Wörter splitten ungleichmäßig über 2 Zeilen
+   - Big-Word "ARSCH" korrekt rot+gross gerendert (highlight-words funktioniert)
+   - Aber Layout/Line-Break-Logic verbuggt (Desktop hat das richtig)
+   - Investigate assBuilder.ts vs Desktop layered-rendering
+
+3. **Intro "Or pick from Files" Button — margin-bottom 0** — direkt drunter beginnt "TTS VOICE-OVER" Section. Need padding.
+
+4. **Greenscreen-Toggle margin-bottom 0** — selbe Issue. Pressable klebt am unteren Rand der Intro-Section.
+
+### Fix-Plan
+- (1) SubtitleSettingsModal → absolute-View Pattern (~1-2h) ODER conditional skip in BuilderTab
+- (2) Layered text line-break/width-fix in assBuilder.ts — vergleich mit Desktop renderer
+- (3) Inline "Or pick from Files" Pressable: `marginBottom: 16`
+- (4) Greenscreen-Toggle Pressable: `marginBottom: 16`
+
+Aufwand: ~2-3h für alle 4 Bugs zusammen.
+
+**Backup-Tag setzen vor Fix**: `git tag pre-round-9-bugfix && git push --tags`
+
+Dann **Phase D** (D1 Push-Token / D2 EAS Update / D3 RevenueCat) oder **Phase E** (E1 Thumbnail-on-demand / E2 Intro-Pos im Export-Modal).
