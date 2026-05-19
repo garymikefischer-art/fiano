@@ -7,6 +7,7 @@
 
 import { type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useColors } from '../lib/theme';
 
 interface Props {
   title: string;
@@ -20,6 +21,12 @@ interface Props {
 export function BrandButton({ title, onPress, variant = 'primary', disabled, loading, icon }: Props) {
   const isPrimary = variant === 'primary';
   const isDimmed = disabled || loading;
+  const colors = useColors();
+  // Phase C5.2 Bug-Fix (2026-05-19): Secondary-variant text war hardcoded
+  // '#f1f2f2' → im Light-Mode auf hellem Glas-Hintergrund unsichtbar.
+  // Jetzt theme-aware: primary bleibt '#fff' (immer auf rotem Hintergrund),
+  // secondary nutzt colors.text.primary (dunkel im light, hell im dark).
+  const labelColor = isPrimary ? '#fff' : colors.text.primary;
 
   return (
     <Pressable
@@ -36,19 +43,21 @@ export function BrandButton({ title, onPress, variant = 'primary', disabled, loa
               shadowOffset: { width: 0, height: 4 },
             }
           : {
-              backgroundColor: pressed && !isDimmed ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.06)',
+              backgroundColor: pressed && !isDimmed
+                ? colors.bg.elevated
+                : colors.bg.elevated,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.12)',
+              borderColor: colors.border.subtle,
             },
         isDimmed && { opacity: 0.5 },
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? '#fff' : '#f1f2f2'} />
+        <ActivityIndicator color={labelColor} />
       ) : (
         <View style={styles.row}>
           {icon}
-          <Text style={[styles.label, { color: isPrimary ? '#fff' : '#f1f2f2' }]}>{title}</Text>
+          <Text style={[styles.label, { color: labelColor }]}>{title}</Text>
         </View>
       )}
     </Pressable>
