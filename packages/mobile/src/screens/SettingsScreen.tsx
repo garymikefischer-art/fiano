@@ -809,7 +809,7 @@ function ExportPickerRow<T extends string | number>({
             >
               <Text
                 style={{
-                  color: active ? '#ff1039' : '#f1f2f2',
+                  color: active ? colors.accent.base : colors.text.primary,
                   fontSize: 12,
                   fontWeight: '700',
                 }}

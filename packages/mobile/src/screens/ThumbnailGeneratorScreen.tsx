@@ -43,6 +43,7 @@ import { haptic } from '../lib/haptics';
 import { useT } from '../lib/i18n';
 import { useFeature } from '../lib/features';
 import { useUpgradeModal } from '../stores/upgradeModalStore';
+import { useColors } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ThumbnailGenerator'>;
@@ -274,6 +275,7 @@ export function ThumbnailGeneratorScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<R>();
   const t = useT();
+  const colors = useColors();
   const project = useProject(route.params.projectId);
   const updateProject = useProjectsStore((s) => s.updateProject);
   const geminiKey = useAppStore((s) => s.geminiKey);
@@ -395,8 +397,8 @@ export function ThumbnailGeneratorScreen() {
 
   if (!project) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: '#a1a1aa' }}>Project not found.</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: colors.text.secondary }}>Project not found.</Text>
       </SafeAreaView>
     );
   }
@@ -404,7 +406,7 @@ export function ThumbnailGeneratorScreen() {
   // Phase A5: Pro-Feature-Lock. Free/Creator-User sehen Lock-Screen.
   if (!thumbUnlocked) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
         <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
         <BackgroundGlow />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
@@ -428,10 +430,10 @@ export function ThumbnailGeneratorScreen() {
           >
             <Ionicons name="lock-closed" size={32} color="#ff1039" />
           </View>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: '#f1f2f2', textAlign: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text.primary, textAlign: 'center', marginBottom: 8 }}>
             {t('features.thumbnail_generator', 'Thumbnail Generator')}
           </Text>
-          <Text style={{ fontSize: 13, color: '#a1a1aa', textAlign: 'center', lineHeight: 19, marginBottom: 28 }}>
+          <Text style={{ fontSize: 13, color: colors.text.secondary, textAlign: 'center', lineHeight: 19, marginBottom: 28 }}>
             {t('upgradeModal.body', 'This feature is part of {plan}. Upgrade now to unlock it.').replace(
               '{plan}',
               t('pricing.proName', 'Pro'),
@@ -456,7 +458,7 @@ export function ThumbnailGeneratorScreen() {
             </Text>
           </Pressable>
           <Pressable onPress={() => nav.goBack()} style={{ marginTop: 14, paddingVertical: 8 }}>
-            <Text style={{ color: '#71717a', fontSize: 12 }}>
+            <Text style={{ color: colors.text.tertiary, fontSize: 12 }}>
               {t('common.cancel', 'Cancel')}
             </Text>
           </Pressable>
@@ -466,7 +468,7 @@ export function ThumbnailGeneratorScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -480,7 +482,7 @@ export function ThumbnailGeneratorScreen() {
           paddingTop: 4,
           paddingBottom: 8,
           borderBottomWidth: 1,
-          borderBottomColor: 'rgba(255,255,255,0.06)',
+          borderBottomColor: colors.bg.elevated,
         }}
       >
         <Pressable
@@ -490,7 +492,7 @@ export function ThumbnailGeneratorScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.bg.elevated,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: pressed ? 0.6 : 1,
@@ -499,10 +501,10 @@ export function ThumbnailGeneratorScreen() {
           <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: '#f1f2f2', fontSize: 14, fontWeight: '700' }} numberOfLines={1}>
+          <Text style={{ color: colors.text.primary, fontSize: 14, fontWeight: '700' }} numberOfLines={1}>
             Thumbnail Generator
           </Text>
-          <Text style={{ color: '#71717a', fontSize: 11 }} numberOfLines={1}>
+          <Text style={{ color: colors.text.tertiary, fontSize: 11 }} numberOfLines={1}>
             {project.title}
           </Text>
         </View>
@@ -526,7 +528,7 @@ export function ThumbnailGeneratorScreen() {
             <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '700' }}>
               ⚠ Gemini API key required
             </Text>
-            <Text style={{ color: '#a1a1aa', fontSize: 11, marginTop: 4 }}>
+            <Text style={{ color: colors.text.secondary, fontSize: 11, marginTop: 4 }}>
               Set it in Settings → API Keys before generating thumbnails.
             </Text>
           </View>
@@ -559,10 +561,10 @@ export function ThumbnailGeneratorScreen() {
                     backgroundColor: active
                       ? 'rgba(255,16,57,0.16)'
                       : pressed
-                        ? 'rgba(255,255,255,0.10)'
-                        : 'rgba(255,255,255,0.04)',
+                        ? colors.border.subtle
+                        : colors.bg.elevated,
                     borderWidth: 1,
-                    borderColor: active ? 'rgba(255,16,57,0.45)' : 'rgba(255,255,255,0.08)',
+                    borderColor: active ? 'rgba(255,16,57,0.45)' : colors.border.subtle,
                   })}
                 >
                   <Ionicons name={g.icon} size={14} color={active ? '#ff1039' : '#a1a1aa'} />
@@ -603,10 +605,10 @@ export function ThumbnailGeneratorScreen() {
                         backgroundColor: active
                           ? 'rgba(255,16,57,0.16)'
                           : pressed
-                            ? 'rgba(255,255,255,0.10)'
-                            : 'rgba(255,255,255,0.04)',
+                            ? colors.border.subtle
+                            : colors.bg.elevated,
                         borderWidth: 1,
-                        borderColor: active ? 'rgba(255,16,57,0.45)' : 'rgba(255,255,255,0.08)',
+                        borderColor: active ? 'rgba(255,16,57,0.45)' : colors.border.subtle,
                         alignItems: 'center',
                       })}
                     >
@@ -638,7 +640,7 @@ export function ThumbnailGeneratorScreen() {
                 placeholderTextColor="#52525b"
                 style={INPUT_STYLE}
               />
-              <Text style={{ color: '#71717a', fontSize: 10, lineHeight: 14 }}>
+              <Text style={{ color: colors.text.tertiary, fontSize: 10, lineHeight: 14 }}>
                 Using a real game name? You are responsible for trademark compliance.
               </Text>
             </View>
@@ -691,11 +693,11 @@ export function ThumbnailGeneratorScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 10,
-                backgroundColor: 'rgba(255,255,255,0.04)',
+                backgroundColor: colors.bg.elevated,
                 padding: 10,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.08)',
+                borderColor: colors.border.subtle,
               }}
             >
               <Image
@@ -703,7 +705,7 @@ export function ThumbnailGeneratorScreen() {
                 style={{ width: 60, height: 60, borderRadius: 8 }}
                 resizeMode="cover"
               />
-              <Text style={{ flex: 1, color: '#a1a1aa', fontSize: 11 }}>
+              <Text style={{ flex: 1, color: colors.text.secondary, fontSize: 11 }}>
                 Reference will guide style + composition.
               </Text>
               <Pressable
@@ -728,14 +730,14 @@ export function ThumbnailGeneratorScreen() {
                 paddingVertical: 12,
                 paddingHorizontal: 14,
                 borderRadius: 12,
-                backgroundColor: pressed ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
+                backgroundColor: pressed ? colors.border.subtle : colors.bg.elevated,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.10)',
+                borderColor: colors.border.subtle,
                 borderStyle: 'dashed',
               })}
             >
               <Ionicons name="image-outline" size={16} color="#a1a1aa" />
-              <Text style={{ color: '#a1a1aa', fontSize: 12 }}>Pick reference image (optional)</Text>
+              <Text style={{ color: colors.text.secondary, fontSize: 12 }}>Pick reference image (optional)</Text>
             </Pressable>
           )}
         </View>
@@ -752,7 +754,7 @@ export function ThumbnailGeneratorScreen() {
             paddingVertical: 14,
             borderRadius: 12,
             backgroundColor: busy || !geminiKey?.trim()
-              ? 'rgba(255,255,255,0.06)'
+              ? colors.bg.elevated
               : pressed
                 ? '#cc0d2e'
                 : '#ff1039',
@@ -807,14 +809,14 @@ export function ThumbnailGeneratorScreen() {
                 gap: 6,
                 paddingVertical: 10,
                 borderRadius: 10,
-                backgroundColor: 'rgba(255,255,255,0.06)',
+                backgroundColor: colors.bg.elevated,
                 borderWidth: 1,
-                borderColor: 'rgba(255,255,255,0.10)',
+                borderColor: colors.border.subtle,
                 opacity: pressed ? 0.7 : 1,
               })}
             >
               <Ionicons name="download-outline" size={14} color="#f1f2f2" />
-              <Text style={{ color: '#f1f2f2', fontSize: 12, fontWeight: '700' }}>
+              <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '700' }}>
                 Save to gallery
               </Text>
             </Pressable>
@@ -842,7 +844,7 @@ export function ThumbnailGeneratorScreen() {
                     overflow: 'hidden',
                     backgroundColor: '#000',
                     borderWidth: 1,
-                    borderColor: latestUri === uri ? '#ff1039' : 'rgba(255,255,255,0.10)',
+                    borderColor: latestUri === uri ? '#ff1039' : colors.border.subtle,
                   }}
                 >
                   <Image source={{ uri }} style={{ flex: 1 }} resizeMode="cover" />
@@ -860,7 +862,7 @@ export function ThumbnailGeneratorScreen() {
 }
 
 const SECTION_LABEL = {
-  color: '#a1a1aa',
+  color: colors.text.secondary,
   fontSize: 11,
   fontWeight: '700' as const,
   letterSpacing: 0.6,
@@ -871,10 +873,10 @@ const INPUT_STYLE = {
   borderRadius: 10,
   paddingHorizontal: 12,
   paddingVertical: 10,
-  color: '#f1f2f2',
+  color: colors.text.primary,
   fontSize: 12,
   borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.08)',
+  borderColor: colors.border.subtle,
 };
 
 const MULTILINE_STYLE = {

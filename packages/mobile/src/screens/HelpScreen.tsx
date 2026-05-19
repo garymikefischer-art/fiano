@@ -11,6 +11,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { BackgroundGlow } from '../components/BackgroundGlow';
+import { useColors } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Help'>;
@@ -49,6 +50,7 @@ const FAQS: FaqItem[] = [
 
 export function HelpScreen() {
   const nav = useNavigation<Nav>();
+  const colors = useColors();
   const [openId, setOpenId] = useState<number | null>(0);
 
   const onContact = () => {
@@ -58,7 +60,7 @@ export function HelpScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0d0509' }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar barStyle="light-content" backgroundColor="#0a0a0a" />
       <BackgroundGlow />
 
@@ -80,9 +82,9 @@ export function HelpScreen() {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             alignItems: 'center',
             justifyContent: 'center',
             opacity: pressed ? 0.6 : 1,
@@ -90,7 +92,7 @@ export function HelpScreen() {
         >
           <Ionicons name="chevron-back" size={18} color="#f1f2f2" />
         </Pressable>
-        <Text style={{ color: '#f1f2f2', fontSize: 16, fontWeight: '700' }}>Help & Support</Text>
+        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>Help & Support</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -99,10 +101,10 @@ export function HelpScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View>
-          <Text style={{ color: '#f1f2f2', fontSize: 26, fontWeight: '700', letterSpacing: -0.6 }}>
+          <Text style={{ color: colors.text.primary, fontSize: 26, fontWeight: '700', letterSpacing: -0.6 }}>
             How can we help?
           </Text>
-          <Text style={{ color: '#a1a1aa', fontSize: 13, marginTop: 6, lineHeight: 19 }}>
+          <Text style={{ color: colors.text.secondary, fontSize: 13, marginTop: 6, lineHeight: 19 }}>
             Browse the most common questions, or reach out — we usually reply within a few hours
             on weekdays.
           </Text>
@@ -110,9 +112,9 @@ export function HelpScreen() {
 
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 16,
             overflow: 'hidden',
           }}
@@ -121,7 +123,7 @@ export function HelpScreen() {
             const open = openId === i;
             return (
               <View key={i}>
-                {i > 0 && <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />}
+                {i > 0 && <View style={{ height: 1, backgroundColor: colors.bg.elevated }} />}
                 <Pressable
                   onPress={() => setOpenId(open ? null : i)}
                   style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
@@ -135,7 +137,7 @@ export function HelpScreen() {
                       paddingHorizontal: 14,
                     }}
                   >
-                    <Text style={{ flex: 1, color: '#f1f2f2', fontSize: 13, fontWeight: '600' }}>
+                    <Text style={{ flex: 1, color: colors.text.primary, fontSize: 13, fontWeight: '600' }}>
                       {f.q}
                     </Text>
                     <Ionicons
@@ -147,7 +149,7 @@ export function HelpScreen() {
                 </Pressable>
                 {open && (
                   <View style={{ paddingHorizontal: 14, paddingBottom: 14 }}>
-                    <Text style={{ color: '#a1a1aa', fontSize: 12, lineHeight: 18 }}>{f.a}</Text>
+                    <Text style={{ color: colors.text.secondary, fontSize: 12, lineHeight: 18 }}>{f.a}</Text>
                   </View>
                 )}
               </View>
@@ -157,9 +159,9 @@ export function HelpScreen() {
 
         <View
           style={{
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            backgroundColor: colors.bg.elevated,
             borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)',
+            borderColor: colors.border.subtle,
             borderRadius: 16,
             padding: 18,
             gap: 12,
@@ -180,12 +182,12 @@ export function HelpScreen() {
           >
             <Ionicons name="mail-outline" size={22} color="#ff1039" />
           </View>
-          <Text style={{ color: '#f1f2f2', fontSize: 15, fontWeight: '700' }}>
+          <Text style={{ color: colors.text.primary, fontSize: 15, fontWeight: '700' }}>
             Still need help?
           </Text>
           <Text
             style={{
-              color: '#a1a1aa',
+              color: colors.text.secondary,
               fontSize: 12,
               textAlign: 'center',
               lineHeight: 17,
@@ -211,7 +213,7 @@ export function HelpScreen() {
             <Ionicons name="mail" size={14} color="#fff" />
             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Contact support</Text>
           </Pressable>
-          <Text style={{ color: '#71717a', fontSize: 11 }}>support@fiano.app</Text>
+          <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>support@fiano.app</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
