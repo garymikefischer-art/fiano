@@ -294,6 +294,9 @@ function SolidTabBar({ state, navigation }: BottomTabBarProps) {
           innerHorizontalPadding={innerHorizontalPadding}
         />
       </View>
+      {/* Phase R9: roter Akzent-Streifen unten — Brand-Akzent + etwas mehr
+          Höhe für die Bar (User-Wunsch). */}
+      <View style={{ height: 4, backgroundColor: '#ff1039', marginTop: 2 }} />
     </View>
   );
 }
