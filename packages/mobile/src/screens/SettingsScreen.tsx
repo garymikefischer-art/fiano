@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View, StatusBar as RNStatusBar } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, TextInput, View, StatusBar as RNStatusBar } from 'react-native';
 import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -32,6 +32,7 @@ import { RegionPreview } from '../components/RegionPreview';
 import { RegionPickerModal } from '../components/RegionPickerModal';
 import { YouTubeLoginModal } from '../components/YouTubeLoginModal';
 import { haptic } from '../lib/haptics';
+import { checkForOtaUpdate, applyOtaUpdate } from '../lib/updates';
 import { useT, useLanguage, LANGUAGES } from '../lib/i18n';
 import { ensureNotificationPermissions, scheduleLocalNotification } from '../lib/pushNotifications';
 import * as sounds from '../lib/sounds';
@@ -100,8 +101,43 @@ export function SettingsScreen() {
         : 'Free';
 
   const version = (Constants.expoConfig?.version ?? '0.0.1') as string;
+  const [updateChecking, setUpdateChecking] = useState(false);
   const currentLangCode = useLanguage();
   const currentLangName = LANGUAGES.find((l) => l.code === currentLangCode)?.nativeName ?? 'English';
+
+  // Phase D2 (2026-05-20): manueller OTA-Update-Check.
+  const onCheckUpdates = async () => {
+    if (updateChecking) return;
+    haptic.light();
+    setUpdateChecking(true);
+    const result = await checkForOtaUpdate();
+    setUpdateChecking(false);
+    if (result === 'downloaded') {
+      appAlert(
+        t('settings.updateReadyTitle', 'Update ready'),
+        t('settings.updateReadyBody', 'An update was downloaded. Restart now to apply it?'),
+        [
+          { text: t('common.later', 'Later'), style: 'cancel' },
+          { text: t('settings.updateRestart', 'Restart'), onPress: () => void applyOtaUpdate() },
+        ],
+      );
+    } else if (result === 'none') {
+      appAlert(
+        t('settings.updateNoneTitle', 'Up to date'),
+        t('settings.updateNoneBody', 'You already have the latest version.'),
+      );
+    } else if (result === 'dev') {
+      appAlert(
+        t('settings.updateDevTitle', 'Dev build'),
+        t('settings.updateDevBody', 'Over-the-air updates are only active in production builds.'),
+      );
+    } else {
+      appAlert(
+        t('settings.updateErrorTitle', 'Check failed'),
+        t('settings.updateErrorBody', 'Update check failed — check your internet connection.'),
+      );
+    }
+  };
 
   const onSignOut = () => {
     appAlert(
@@ -649,6 +685,17 @@ export function SettingsScreen() {
             icon="information-circle-outline"
             label={t('settings.versionLabel', 'Version')}
             value={version}
+          />
+          <Divider />
+          <Row
+            icon="cloud-download-outline"
+            label={t('settings.checkUpdates', 'Check for updates')}
+            onPress={() => void onCheckUpdates()}
+            right={
+              updateChecking ? (
+                <ActivityIndicator size="small" color={colors.text.secondary} />
+              ) : undefined
+            }
           />
           <Divider />
           <Row

@@ -130,8 +130,21 @@ export const en: Record<string, string> = {
   'settings.languageDescription': 'Choose your preferred app language. Changes apply immediately.',
   'settings.languageLabel':       'App Language',
 
+  // Settings — Updates (Phase D2)
+  'settings.checkUpdates':     'Check for updates',
+  'settings.updateReadyTitle': 'Update ready',
+  'settings.updateReadyBody':  'An update was downloaded. Restart now to apply it?',
+  'settings.updateRestart':    'Restart',
+  'settings.updateNoneTitle':  'Up to date',
+  'settings.updateNoneBody':   'You already have the latest version.',
+  'settings.updateDevTitle':   'Dev build',
+  'settings.updateDevBody':    'Over-the-air updates are only active in production builds.',
+  'settings.updateErrorTitle': 'Check failed',
+  'settings.updateErrorBody':  'Update check failed — check your internet connection.',
+
   // Common
   'common.new': 'NEW',
+  'common.later': 'Later',
 
   // ─── Phase 3b — extended ──────────────────────────────
   // Help-Page
