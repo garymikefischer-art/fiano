@@ -3,7 +3,7 @@
  *
  * UI:
  *  - Header: project.title + Close-Button
- *  - Genre-Chips: 4 Optionen (Battle Royale, Modern Combat, Tactical Shooter, Custom)
+ *  - Genre-Chips: Custom (erster Chip + Default) + 7 Spiel-Genres
  *  - 3 Prompt-Fields: Background, Effects, Weapons/Skins
  *  - Reference-Image-Picker (optional)
  *  - Generate-Button (mit Spinner während API-Call)
@@ -283,7 +283,8 @@ export function ThumbnailGeneratorScreen() {
   const { unlocked: thumbUnlocked } = useFeature('thumbnail_generator');
   const openUpgrade = useUpgradeModal((s) => s.open);
 
-  const [genre, setGenre] = useState<Genre>('battle_royale');
+  // Phase R10: Default 'custom' — der Custom-Chip steht ganz vorn in der Leiste und ist sofort ausgewählt (User-Wunsch).
+  const [genre, setGenre] = useState<Genre>('custom');
   const [customStyle, setCustomStyle] = useState<CustomStyle>('default');
   const [background, setBackground] = useState('');
   const [effects, setEffects] = useState('');
