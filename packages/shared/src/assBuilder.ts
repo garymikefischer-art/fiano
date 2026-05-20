@@ -322,7 +322,7 @@ function buildLayeredEvents(
   // Big-Event (Layer 0 — hinten). highlight-Style + Zoom-Animation.
   let bigTags =
     `{\\pos(${cx},${yBig})${cueOverridesInline}` +
-    `\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx110\\fscy110)`;
+    `\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx100\\fscy100)`;
   if ((settings.highlightDropShadow ?? 0) > 0) {
     bigTags += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
   }
