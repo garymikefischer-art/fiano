@@ -260,7 +260,10 @@ export function TrimModal({
         elevation: 24,
       }}
     >
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
+      {/* edges=[] — der ProjectDetailScreen-Root-SafeAreaView macht jetzt
+          top+bottom-Insets; eine eigene SafeAreaView hier würde doppelt
+          einrücken (Phase R9). */}
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={[]}>
         {/* Phase B1.4 (2026-05-18): BackgroundGlow entfernt — SVG-Component
             verursachte measureLayout-Warning + verlangsamte Modal-Open. Modal
             ist eh focused-UI, der Hintergrund-Glow lenkt nur ab. */}

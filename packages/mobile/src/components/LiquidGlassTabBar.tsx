@@ -270,7 +270,9 @@ function SolidTabBar({ state, navigation }: BottomTabBarProps) {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: colors.bg.card,
+        // Dunkler als die Page (bg.primary #0d0509) → die Bar "schwebt" nicht
+        // hervor, sondern sitzt ruhig am Rand. Light-Mode: weiß (bg.card) ist OK.
+        backgroundColor: isLight ? colors.bg.card : '#070509',
         borderTopWidth: 1,
         borderTopColor: colors.border.subtle,
         paddingBottom: Math.max(insets.bottom, 8),
