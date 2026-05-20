@@ -438,6 +438,11 @@ function LayeredText({
             metallic={metallic}
             strokeWidth={0}
             strokeColor="#000000"
+            /* Phase R10 (Bug-5): big-word-Glow auch im Gradient/Metallic-Pfad zeigen — sonst stellt der User ihn blind zu hoch ein. */
+            glowEnabled={highlightGlow}
+            glowColor={highlightGlowColor}
+            glowBlur={Math.round(20 * highlightGlowStrength)}
+            glowStrength={highlightGlowStrength}
           />
         ) : (
           <Text

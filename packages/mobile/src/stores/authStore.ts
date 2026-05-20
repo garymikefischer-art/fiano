@@ -153,7 +153,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   fetchSubscription: async () => {
-    const userId = get().user?.id;
+    // Phase R10 (Bug-3): Session wie in init() auffrischen — nach dem externen Stripe-Checkout ist der in-memory Token oft stale, sonst hängt die Paywall bis zum App-Neustart.
+    let userId = get().user?.id;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session?.user) {
+        userId = sessionData.session.user.id;
+        set({ session: sessionData.session, user: sessionData.session.user });
+      }
+    } catch (e) {
+      console.warn('[auth] fetchSubscription: Session-Refresh fehlgeschlagen', e);
+    }
     if (!userId) return;
     // Phase C5.5 Bug-Fix (2026-05-19): network-retry. Beim App-Start ist
     // network ggf. noch nicht ready → "TypeError: Network request failed".

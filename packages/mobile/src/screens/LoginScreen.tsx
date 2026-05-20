@@ -96,7 +96,8 @@ export function LoginScreen() {
         {/* Glass-Card — Desktop .glass class */}
         <View
           style={{
-            backgroundColor: colors.bg.card,
+            // Phase R10 (Bug-4): bg.elevated (translucent glass) statt bg.card (opak) — matcht den glasigen SignupScreen-Look.
+            backgroundColor: colors.bg.elevated,
             borderRadius: 16,
             borderWidth: 1,
             borderColor: colors.border.subtle,

@@ -185,8 +185,9 @@ export function ProjectDetailScreen() {
     );
   }
 
+  // Phase R10 (Bug-1): edges top-only → BackgroundGlow läuft edge-to-edge bis zur System-Nav (Tab-ScrollViews haben paddingBottom:140 → Content bleibt über der Nav).
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar
         barStyle={mode === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.bg.secondary}
