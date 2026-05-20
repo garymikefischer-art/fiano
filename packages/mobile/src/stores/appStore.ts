@@ -169,7 +169,9 @@ export const useAppStore = create<AppState>((set) => ({
   exportSettings: DEFAULT_EXPORT,
   lastOpenedProjectId: null,
   introDefaults: null,
-  themeMode: 'system',
+  // Phase R9 (2026-05-20): Default ist 'dark' — nicht 'system'. Beim ersten
+  // App-Start soll die App immer im Dark-Mode starten (User-Wunsch).
+  themeMode: 'dark',
 
   init: async () => {
     try {
@@ -249,7 +251,7 @@ export const useAppStore = create<AppState>((set) => ({
       const themeMode: ThemeMode =
         themeModeRaw === 'light' || themeModeRaw === 'dark' || themeModeRaw === 'system'
           ? themeModeRaw
-          : 'system';
+          : 'dark';
       set({
         onboardingCompleted: onboarding === '1',
         facecamRegion: parseRegion(facecam, FACECAM_PRESETS, DEFAULT_FACECAM),

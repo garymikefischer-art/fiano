@@ -26,6 +26,12 @@ import { UpgradeModal } from './src/components/UpgradeModal';
 import { AppAlertHost } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
 import { useColors, useResolvedMode } from './src/lib/theme';
+import * as WebBrowser from 'expo-web-browser';
+
+// Phase R9 (2026-05-20): OAuth-Redirect-Dispatcher initialisieren. Ohne diesen
+// Modul-Level-Call öffnet sich der Google-Sign-in-Browser in Release-Builds
+// nicht (Dev-Builds tolerieren das Fehlen).
+WebBrowser.maybeCompleteAuthSession();
 
 // Phase B1.4 (2026-05-18) / B1.5 (2026-05-19): known-harmless Reanimated v3
 // warning, triggert bei NestableDraggableFlatList + TrimModal open. Reanimated
