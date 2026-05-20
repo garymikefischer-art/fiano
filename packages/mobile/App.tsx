@@ -11,8 +11,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
+import * as NavigationBar from 'expo-navigation-bar';
 
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/stores/authStore';
@@ -86,6 +87,17 @@ export default function App() {
     }),
     [resolvedMode, colors],
   );
+
+  // Phase R10: Android System-Nav-Bar einfärben — schwarz (dark) / weiß (light), passend zur App. Greift auf älteren Android-Versionen; auf Android 15 (edge-to-edge erzwungen) no-op via .catch.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    void NavigationBar.setBackgroundColorAsync(
+      resolvedMode === 'dark' ? '#070509' : '#ffffff',
+    ).catch(() => {});
+    void NavigationBar.setButtonStyleAsync(
+      resolvedMode === 'dark' ? 'light' : 'dark',
+    ).catch(() => {});
+  }, [resolvedMode]);
 
   useEffect(() => {
     void initLanguage();
