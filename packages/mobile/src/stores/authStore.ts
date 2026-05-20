@@ -14,6 +14,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { ENV } from '../lib/env';
+import { getExpoPushToken } from '../lib/pushNotifications';
 
 export type Plan = 'creator' | 'pro' | 'studio_lifetime' | null;
 
@@ -49,6 +50,34 @@ interface AuthState {
   updatePassword: (newPassword: string) => Promise<void>;
 }
 
+// Phase D1 (2026-05-20): Expo-Push-Token bei Login einmalig in profiles
+// schreiben. pushTokenSyncedFor dedupt — onAuthStateChange feuert auch bei
+// Token-Refresh, wir wollen aber nur einen Sync pro App-Session + User.
+let pushTokenSyncedFor: string | null = null;
+
+async function syncPushToken(userId: string): Promise<void> {
+  if (pushTokenSyncedFor === userId) return;
+  pushTokenSyncedFor = userId;
+  try {
+    const token = await getExpoPushToken();
+    if (!token) {
+      pushTokenSyncedFor = null; // kein Token → nächstes Auth-Event neu versuchen
+      return;
+    }
+    const { error } = await supabase
+      .from('profiles')
+      .update({ expo_push_token: token })
+      .eq('id', userId);
+    if (error) {
+      pushTokenSyncedFor = null;
+      console.warn('[auth] Push-Token-Write fehlgeschlagen:', error.message);
+    }
+  } catch (e) {
+    pushTokenSyncedFor = null;
+    console.warn('[auth] Push-Token-Registrierung fehlgeschlagen:', e);
+  }
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   initializing: true,
   session: null,
@@ -64,8 +93,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ session, user: session?.user ?? null });
       if (session?.user) {
         get().fetchSubscription();
+        // Phase D1: Expo-Push-Token registrieren (fire-and-forget).
+        void syncPushToken(session.user.id);
       } else {
         set({ subscription: null });
+        pushTokenSyncedFor = null;
       }
     });
 
