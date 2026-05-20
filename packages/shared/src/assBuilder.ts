@@ -18,6 +18,11 @@
 
 import type { SubtitleSettings, SubtitleHighlightWord } from './types';
 import type { SubtitleCue } from './subtitles';
+import {
+  resolveSubtitleFontPx,
+  LAYERED_SMALL_SCALE,
+  LAYERED_SMALL_OFFSET,
+} from './subtitleLayout';
 
 export interface AssBuildOpts {
   settings: SubtitleSettings;
@@ -152,9 +157,10 @@ function blendHex(a: string, b: string, t: number): string {
 
 function buildDefaultStyle(settings: SubtitleSettings, w: number, h: number): StyleParts {
   const baseFontSize = settings.fontSize ?? 26;
-  // SubtitleSettings.fontSize sind UI-Tokens (14..48) — auf Output-Resolution
-  // skalieren. 26 → ~5% der Frame-Höhe ist tiktok-typisch.
-  const fontsize = Math.round((baseFontSize / 26) * (h * 0.06));
+  // Phase R9-layered: fontSize-Skalierung über den geteilten Helfer — exakt
+  // dieselbe Formel nutzt die Live-Preview (SubtitleOverlay), damit Preview
+  // und Export proportional übereinstimmen.
+  const fontsize = resolveSubtitleFontPx(baseFontSize, h);
 
   // Primary-Color-Resolve (Phase Builder-5):
   // - useGradient: gradientFrom als single-color (libass kann keine Gradient-Fill)
@@ -261,11 +267,11 @@ function isHighlightWord(word: string, hwords: SubtitleHighlightWord[] | undefin
  * Big-word hinten (Layer 0), small-words vorne (Layer 1) — der small-Text
  * überlappt die untere Hälfte des big-words ("layered" = überlappende Ebenen).
  *
- * Geometrie (Desktop-nah, R9-getuned für stärkere Überlappung):
- *   bigFs   = styleFontSize × highlightFontScale   (default 1.8×)
- *   smallFs = styleFontSize × 0.7
- *   yBig    = cy − smallFs/4         (big-word leicht über Cue-Center)
- *   ySmall  = yBig + bigFs × 0.20    (small steht tief im big-word drin)
+ * Geometrie — geteilt mit der Live-Preview via ./subtitleLayout:
+ *   bigFs   = styleFontSize × highlightFontScale       (default 1.8×)
+ *   smallFs = styleFontSize × LAYERED_SMALL_SCALE
+ *   yBig    = cy − smallFs/4                           (big leicht über Center)
+ *   ySmall  = yBig + bigFs × LAYERED_SMALL_OFFSET      (small im big-word drin)
  *
  * Phase R9-bugfix2 (2026-05-20): Vorher \N-2-Zeilen-Layout — falsch. "Layered"
  * heißt überlappende Ebenen (roter big hinten, weißer small vorne), nicht zwei
@@ -289,7 +295,7 @@ function buildLayeredEvents(
     : assColor(settings.highlightColor ?? '#ff1039');
   const bigScale = settings.highlightFontScale ?? 1.8;
   const bigFs = Math.round(styleFontSize * bigScale);
-  const smallFs = Math.round(styleFontSize * 0.7);
+  const smallFs = Math.round(styleFontSize * LAYERED_SMALL_SCALE);
 
   // Words in big/small splitten — Reihenfolge in jeder Gruppe erhalten.
   const bigWords: string[] = [];
@@ -311,7 +317,7 @@ function buildLayeredEvents(
 
   // Geometrie: big leicht über center, small steht tief im big-word drin.
   const yBig = Math.round(cy - smallFs / 4);
-  const ySmall = Math.round(yBig + bigFs * 0.20);
+  const ySmall = Math.round(yBig + bigFs * LAYERED_SMALL_OFFSET);
 
   // Big-Event (Layer 0 — hinten). highlight-Style + Zoom-Animation.
   let bigTags =
