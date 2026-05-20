@@ -23,7 +23,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
-import { useResolvedMode } from '../lib/theme';
+import { useColors, useResolvedMode } from '../lib/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -248,10 +248,11 @@ function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
-/** Android — am unteren Rand verankerte Tab-Bar, transparent: der BackgroundGlow läuft edge-to-edge durch (Phase R10, Bug-1). */
+/** Android — solide, am unteren Rand verankerte Tab-Bar (dark: schwarz #070509, light: card). iOS bekommt stattdessen die Liquid-Glass-Bar. */
 function SolidTabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const colors = useColors();
   const mode = useResolvedMode();
   const isLight = mode === 'light';
   const innerHorizontalPadding = 6;
@@ -259,15 +260,17 @@ function SolidTabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View
-      pointerEvents="box-none"
       style={{
         position: 'absolute',
         left: 0,
         right: 0,
         bottom: 0,
-        // Phase R10 (Bug-1): transparent statt solid #070509 — der BackgroundGlow läuft edge-to-edge durch, kein schwarzer Balken. paddingBottom hebt die Icons über die System-Nav.
-        backgroundColor: 'transparent',
+        // Phase R10: solide schwarze Bar auf Android (User-Wunsch). paddingBottom = Safe-Area → die Fläche läuft bis unter die System-Nav.
+        backgroundColor: isLight ? colors.bg.card : '#070509',
+        borderTopWidth: 1,
+        borderTopColor: colors.border.subtle,
         paddingBottom: Math.max(insets.bottom, 8),
+        elevation: 12,
       }}
     >
       <View
