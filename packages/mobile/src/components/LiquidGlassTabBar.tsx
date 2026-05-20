@@ -23,7 +23,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
-import { useColors, useResolvedMode } from '../lib/theme';
+import { useResolvedMode } from '../lib/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -248,16 +248,10 @@ function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
-/**
- * Android — solide, am unteren Rand verankerte Bar (Material-konventionell).
- * Voll-breit, opaker Hintergrund läuft bis zum physischen Bildschirmrand durch
- * (paddingBottom = Safe-Area) → die System-Nav-Buttons sitzen über der soliden
- * Fläche. configureAndroidNavBar in App.tsx hält die System-Nav transparent.
- */
+/** Android — am unteren Rand verankerte Tab-Bar, transparent: der BackgroundGlow läuft edge-to-edge durch (Phase R10, Bug-1). */
 function SolidTabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const colors = useColors();
   const mode = useResolvedMode();
   const isLight = mode === 'light';
   const innerHorizontalPadding = 6;
@@ -265,18 +259,15 @@ function SolidTabBar({ state, navigation }: BottomTabBarProps) {
 
   return (
     <View
+      pointerEvents="box-none"
       style={{
         position: 'absolute',
         left: 0,
         right: 0,
         bottom: 0,
-        // Dunkler als die Page (bg.primary #0d0509) → die Bar "schwebt" nicht
-        // hervor, sondern sitzt ruhig am Rand. Light-Mode: weiß (bg.card) ist OK.
-        backgroundColor: isLight ? colors.bg.card : '#070509',
-        borderTopWidth: 1,
-        borderTopColor: colors.border.subtle,
+        // Phase R10 (Bug-1): transparent statt solid #070509 — der BackgroundGlow läuft edge-to-edge durch, kein schwarzer Balken. paddingBottom hebt die Icons über die System-Nav.
+        backgroundColor: 'transparent',
         paddingBottom: Math.max(insets.bottom, 8),
-        elevation: 12,
       }}
     >
       <View
