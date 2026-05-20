@@ -492,7 +492,7 @@ function PlanCard({
                 color={isHighlight ? '#ff1039' : '#22c55e'}
               />
             </View>
-            <Text style={{ flex: 1, color: '#d4d4d8', fontSize: 13, lineHeight: 18 }}>{t(fk)}</Text>
+            <Text style={{ flex: 1, color: colors.text.secondary, fontSize: 13, lineHeight: 18 }}>{t(fk)}</Text>
           </View>
         ))}
       </View>

@@ -282,7 +282,7 @@ function SolidTabBar({ state, navigation }: BottomTabBarProps) {
       <View
         style={{
           flexDirection: 'row',
-          paddingVertical: 7,
+          paddingVertical: 10,
           paddingHorizontal: innerHorizontalPadding,
         }}
       >
@@ -293,10 +293,20 @@ function SolidTabBar({ state, navigation }: BottomTabBarProps) {
           tabWidth={tabWidth}
           innerHorizontalPadding={innerHorizontalPadding}
         />
+        {/* Phase R9: roter Akzent-Strich NUR unter dem aktiven Tab — analog
+            der oberen Tab-Navigation im Projekt (User-Wunsch). */}
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: innerHorizontalPadding + state.index * tabWidth + tabWidth * 0.32,
+            width: tabWidth * 0.36,
+            height: 3,
+            borderRadius: 2,
+            backgroundColor: '#ff1039',
+          }}
+        />
       </View>
-      {/* Phase R9: roter Akzent-Streifen unten — Brand-Akzent + etwas mehr
-          Höhe für die Bar (User-Wunsch). */}
-      <View style={{ height: 4, backgroundColor: '#ff1039', marginTop: 2 }} />
     </View>
   );
 }
