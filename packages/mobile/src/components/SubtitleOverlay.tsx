@@ -14,6 +14,7 @@
  * kommt beim FFmpeg-Render (Phase 9.6).
  */
 
+import { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -35,6 +36,11 @@ import type {
   SubtitleSettings,
   SubtitleStyle,
 } from '../data/demoProjects';
+import {
+  resolveSubtitleFontPx,
+  LAYERED_SMALL_SCALE,
+  LAYERED_SMALL_OFFSET,
+} from '@fiano/shared/subtitleLayout';
 
 interface Props {
   settings: SubtitleSettings;
@@ -52,12 +58,19 @@ export function SubtitleOverlay({
   containerStyle,
   forceVisible = false,
 }: Props) {
+  // Phase R9-layered (2026-05-20): Container-Höhe messen → fontSize relativ
+  // skalieren (gleiche Formel wie der Export) statt absoluter px-Wert. Sorgt
+  // dafür dass Modal-Preview, 9:16-Preview und Export proportional gleich sind.
+  const [frameH, setFrameH] = useState(0);
+
   if (!forceVisible && !settings.enabled) return null;
 
   const isLayered = settings.style === 'layered';
   const upper = settings.uppercase ?? settings.style === 'fiano';
   const fontFamily = mapFontFamily(settings.fontFamily ?? defaultFontFor(settings.style));
-  const fontSize = settings.fontSize ?? defaultFontSizeFor(settings.style);
+  const uiFontSize = settings.fontSize ?? defaultFontSizeFor(settings.style);
+  // 0 solange der Container noch nicht gemessen ist → es wird nichts gerendert.
+  const fontSize = frameH > 0 ? resolveSubtitleFontPx(uiFontSize, frameH) : 0;
   const textColor = settings.textColor ?? '#ffffff';
   const highlightColor = settings.highlightColor ?? '#ff1039';
   const letterSpacing = (settings.letterSpacing ?? 0) * fontSize;
@@ -91,7 +104,13 @@ export function SubtitleOverlay({
   const demoText = upper ? 'SUBTITLE' : 'Subtitle';
 
   return (
-    <View style={[styles.positioner, positionStyle, containerStyle]} pointerEvents="none">
+    <View
+      style={StyleSheet.absoluteFill}
+      onLayout={(e) => setFrameH(e.nativeEvent.layout.height)}
+      pointerEvents="none"
+    >
+      {fontSize > 0 && (
+      <View style={[styles.positioner, positionStyle, containerStyle]}>
       {isLayered ? (
         <LayeredText
           big={upper ? demoBig.toUpperCase() : demoBig}
@@ -151,6 +170,8 @@ export function SubtitleOverlay({
         />
       ) : (
         <Text style={[baseTextStyle, shadowStyle, strokeApprox]}>{demoText}</Text>
+      )}
+      </View>
       )}
     </View>
   );
@@ -215,7 +236,9 @@ function SvgGradientText({
   );
   const h = Math.ceil(fontSize * 1.7 + extraPad);
   const cx = w / 2;
-  const cy = h * 0.7;
+  // Phase R9-layered: Glyph vertikal in der Svg-Box zentrieren (vorher h*0.7
+  // → Glyph saß tief, was das Layered-Overlap unberechenbar machte).
+  const cy = h / 2 + fontSize * 0.35;
   const gradId = `grad-${text.length}-${metallic ? 'm' : 'g'}`;
   const glowFilterId = `glow-${text.length}`;
   const shadowFilterId = `shadow-${text.length}`;
@@ -369,9 +392,19 @@ function LayeredText({
   upper: boolean;
 }) {
   const bigSize = Math.round(fontSize * highlightFontScale);
-  // Phase R9-bugfix2 (2026-05-20): small = 0.7× fontSize + überlappt big's
-  // untere Hälfte ("layered" = überlappende Ebenen, Desktop-Parität).
-  const smallSize = Math.round(fontSize * 0.7);
+  const smallSize = Math.round(fontSize * LAYERED_SMALL_SCALE);
+
+  // Phase R9-layered (2026-05-20): deterministisches absolute-Layout.
+  // Big- und Small-Wort werden je in eine fixe-Höhe-Box absolut positioniert
+  // (Glyph darin zentriert) → die Überlappung hängt NICHT mehr von der
+  // intrinsischen Box-Höhe ab. Vorher brach Gradient/Metallic den Overlap,
+  // weil die SVG-Box ~1.7× hoch ist, die Text-Box nur ~1.2×.
+  const bigBoxH = Math.round(bigSize * 1.6);
+  const smallBoxH = Math.round(smallSize * 1.6);
+  const bigCenterY = bigBoxH / 2;
+  const smallCenterY = bigCenterY + bigSize * LAYERED_SMALL_OFFSET;
+  const blockH = Math.ceil(smallCenterY + smallBoxH / 2);
+
   const bigGlow: TextStyle | undefined = highlightGlow
     ? {
         textShadowColor: highlightGlowColor,
@@ -381,46 +414,61 @@ function LayeredText({
     : undefined;
 
   return (
-    <View style={{ alignItems: 'center' }}>
-      {useGradientRender ? (
-        <SvgGradientText
-          text={big}
-          fontFamily={fontFamily}
-          fontSize={bigSize}
-          letterSpacing={0}
-          gradientFrom={gradientFrom}
-          gradientTo={gradientTo}
-          metallic={metallic}
-          strokeWidth={0}
-          strokeColor="#000000"
-        />
-      ) : (
-        <Text
-          style={[
-            baseTextStyle,
-            strokeApprox,
-            bigGlow ?? shadowStyle,
-            { fontSize: bigSize, color: highlightColor },
-          ]}
-        >
-          {big}
-        </Text>
-      )}
-      {/* small-word überlappt big's untere Hälfte — späteres Sibling = VORNE
-          (roter big-Text hinten, weißer small-Text davor). */}
-      <Text
-        style={[
-          baseTextStyle,
-          shadowStyle,
-          strokeApprox,
-          {
-            fontSize: smallSize,
-            marginTop: -Math.round(bigSize * 0.4 + smallSize * 0.6),
-          },
-        ]}
+    <View style={{ width: '100%', height: blockH }}>
+      {/* Big-Wort (hinten) — Glyph-Mitte bei bigCenterY. */}
+      <View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: bigCenterY - bigBoxH / 2,
+          height: bigBoxH,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
-        {small}
-      </Text>
+        {useGradientRender ? (
+          <SvgGradientText
+            text={big}
+            fontFamily={fontFamily}
+            fontSize={bigSize}
+            letterSpacing={0}
+            gradientFrom={gradientFrom}
+            gradientTo={gradientTo}
+            metallic={metallic}
+            strokeWidth={0}
+            strokeColor="#000000"
+          />
+        ) : (
+          <Text
+            style={[
+              baseTextStyle,
+              strokeApprox,
+              bigGlow ?? shadowStyle,
+              { fontSize: bigSize, color: highlightColor },
+            ]}
+          >
+            {big}
+          </Text>
+        )}
+      </View>
+      {/* Small-Wort (vorne — späteres Sibling rendert über big). Glyph-Mitte
+          bei smallCenterY = big-Mitte + bigSize × LAYERED_SMALL_OFFSET. */}
+      <View
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: smallCenterY - smallBoxH / 2,
+          height: smallBoxH,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text style={[baseTextStyle, shadowStyle, strokeApprox, { fontSize: smallSize }]}>
+          {small}
+        </Text>
+      </View>
     </View>
   );
 }
