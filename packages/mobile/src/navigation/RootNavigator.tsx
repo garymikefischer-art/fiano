@@ -52,17 +52,19 @@ export function RootNavigator() {
   // render kostet uns monatlich → muss durch monatliches Revenue gedeckt sein).
   // Phase A6.3.6: status='trialing' wird auch erlaubt (Stripe gibt das bei
   // Trial-Subs zurück). 'active' bleibt der Default.
-  const periodEnd = subscription?.current_period_end
-    ? new Date(subscription.current_period_end)
-    : null;
   // Phase R10 (Bug-3): __DEV__ → Paywall im Dev-Build (expo run:android) überspringen. Release-Builds (eas build) haben __DEV__=false → Paywall greift normal.
+  // Phase R10-Bug3b (2026-05-20): Gate NUR auf Stripe-status + plan. KEIN
+  // `current_period_end > now`-Check mehr — `status='active'` bedeutet bei
+  // Stripe bereits "aktuell bezahlt". Der zusätzliche periodEnd-Check sperrte
+  // zahlende User aus, sobald unser gespeichertes current_period_end veraltet
+  // /leer war (verpasster Renewal-Webhook) → grüne Karte sichtbar, aber Gate
+  // zu. Muss konsistent bleiben mit PricingScreen (subActive/currentPlan).
   const hasActiveMobileSub =
     __DEV__ ||
     ((subscription?.status === 'active' || subscription?.status === 'trialing') &&
-      (subscription?.plan === 'creator' || subscription?.plan === 'pro') &&
-      (periodEnd === null || periodEnd > new Date()));
+      (subscription?.plan === 'creator' || subscription?.plan === 'pro'));
   console.log(
-    `[RootNavigator] subscription state: status=${subscription?.status} plan=${subscription?.plan} periodEnd=${subscription?.current_period_end} → hasActiveMobileSub=${hasActiveMobileSub}`,
+    `[RootNavigator] subscription state: status=${subscription?.status} plan=${subscription?.plan} → hasActiveMobileSub=${hasActiveMobileSub}`,
   );
 
   return (

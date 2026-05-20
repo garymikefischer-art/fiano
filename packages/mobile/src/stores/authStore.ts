@@ -135,7 +135,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    await supabase.auth.signOut();
+    // Phase R10-Bug3b (2026-05-20): lokalen State IMMER leeren — auch wenn der
+    // Remote-signOut scheitert (Netzwerk / bereits invalide Session). Sonst
+    // hängt der User in der App fest und kommt nicht zum Login-Screen.
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('[auth] signOut: Remote-Call fehlgeschlagen, leere lokale Session trotzdem', e);
+    }
     set({ session: null, user: null, subscription: null, recoveryMode: false });
   },
 
