@@ -55,10 +55,12 @@ export function RootNavigator() {
   const periodEnd = subscription?.current_period_end
     ? new Date(subscription.current_period_end)
     : null;
+  // Phase R10 (Bug-3): __DEV__ → Paywall im Dev-Build (expo run:android) überspringen. Release-Builds (eas build) haben __DEV__=false → Paywall greift normal.
   const hasActiveMobileSub =
-    (subscription?.status === 'active' || subscription?.status === 'trialing') &&
-    (subscription?.plan === 'creator' || subscription?.plan === 'pro') &&
-    (periodEnd === null || periodEnd > new Date());
+    __DEV__ ||
+    ((subscription?.status === 'active' || subscription?.status === 'trialing') &&
+      (subscription?.plan === 'creator' || subscription?.plan === 'pro') &&
+      (periodEnd === null || periodEnd > new Date()));
   console.log(
     `[RootNavigator] subscription state: status=${subscription?.status} plan=${subscription?.plan} periodEnd=${subscription?.current_period_end} → hasActiveMobileSub=${hasActiveMobileSub}`,
   );

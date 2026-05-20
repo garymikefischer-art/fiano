@@ -37,13 +37,8 @@ export async function checkForOtaUpdate(): Promise<OtaCheckResult> {
   }
 }
 
-/** Startet die App mit dem heruntergeladenen Update neu. */
-export async function applyOtaUpdate(): Promise<void> {
-  // Phase R10 (Bug-2): warten bis das AppAlert-<Modal> fertig fade-out ist — reloadAsync() mid-Modal → weißer Screen nach dem Reload (Android, Expo SDK 52).
-  await new Promise((r) => setTimeout(r, 450));
-  try {
-    await Updates.reloadAsync();
-  } catch (err) {
-    console.warn('[updates] reloadAsync fehlgeschlagen:', err);
-  }
-}
+// Phase R10 (Bug-2): applyOtaUpdate/Updates.reloadAsync() entfernt — reloadAsync
+// white-screen-t zuverlässig auf Expo SDK 52 + New Architecture. Das per
+// fetchUpdateAsync() heruntergeladene Update wird stattdessen vom nächsten
+// Kaltstart automatisch übernommen (force-close + reopen). Das ist der einzig
+// stabile Apply-Pfad.

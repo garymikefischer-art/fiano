@@ -32,7 +32,7 @@ import { RegionPreview } from '../components/RegionPreview';
 import { RegionPickerModal } from '../components/RegionPickerModal';
 import { YouTubeLoginModal } from '../components/YouTubeLoginModal';
 import { haptic } from '../lib/haptics';
-import { checkForOtaUpdate, applyOtaUpdate } from '../lib/updates';
+import { checkForOtaUpdate } from '../lib/updates';
 import { useT, useLanguage, LANGUAGES } from '../lib/i18n';
 import { ensureNotificationPermissions, scheduleLocalNotification } from '../lib/pushNotifications';
 import * as sounds from '../lib/sounds';
@@ -113,13 +113,13 @@ export function SettingsScreen() {
     const result = await checkForOtaUpdate();
     setUpdateChecking(false);
     if (result === 'downloaded') {
+      // Phase R10 (Bug-2): kein reloadAsync() mehr (white-screen auf SDK 52) — das Update wird beim nächsten Kaltstart automatisch aktiv.
       appAlert(
         t('settings.updateReadyTitle', 'Update ready'),
-        t('settings.updateReadyBody', 'An update was downloaded. Restart now to apply it?'),
-        [
-          { text: t('common.later', 'Later'), style: 'cancel' },
-          { text: t('settings.updateRestart', 'Restart'), onPress: () => void applyOtaUpdate() },
-        ],
+        t(
+          'settings.updateReadyBody',
+          'Update downloaded. Fully close fiano (swipe it from recent apps) and reopen it — the update applies on the next start.',
+        ),
       );
     } else if (result === 'none') {
       appAlert(

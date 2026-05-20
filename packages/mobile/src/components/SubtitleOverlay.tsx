@@ -91,7 +91,7 @@ export function SubtitleOverlay({
     fontFamily,
     fontSize,
     color: textColor,
-    fontWeight: '900',
+    fontWeight: '700', // Phase R10 (Bug-5): 700 = ASS-Bold-Stärke vom Export — Preview/Export ziehen gleich.
     letterSpacing,
     textTransform: upper ? 'uppercase' : undefined,
   };
@@ -287,7 +287,7 @@ function SvgGradientText({
           textAnchor="middle"
           fontFamily={fontFamily}
           fontSize={fontSize}
-          fontWeight="900"
+          fontWeight="700"
           fill={shadowColor}
           opacity={0.6}
           letterSpacing={letterSpacing}
@@ -305,7 +305,7 @@ function SvgGradientText({
           textAnchor="middle"
           fontFamily={fontFamily}
           fontSize={fontSize}
-          fontWeight="900"
+          fontWeight="700"
           fill={`${glowColor}${glowAlpha}`}
           letterSpacing={letterSpacing}
           filter={`url(#${glowFilterId})`}
@@ -324,7 +324,7 @@ function SvgGradientText({
           textAnchor="middle"
           fontFamily={fontFamily}
           fontSize={fontSize}
-          fontWeight="900"
+          fontWeight="700"
           fill="none"
           stroke={strokeColor}
           strokeWidth={strokeWidth * 2 /* ×2 weil halb wird vom fill ueberdeckt */}
@@ -342,7 +342,7 @@ function SvgGradientText({
         textAnchor="middle"
         fontFamily={fontFamily}
         fontSize={fontSize}
-        fontWeight="900"
+        fontWeight="700"
         fill={`url(#${gradId})`}
         letterSpacing={letterSpacing}
       >
