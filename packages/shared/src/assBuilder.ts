@@ -217,13 +217,15 @@ function buildDefaultStyle(settings: SubtitleSettings, w: number, h: number): St
  * Hier landen Effekte die im Style nicht abbildbar sind (Glow via \blur,
  * separate XY-Shadow, Per-Cue-Highlight-Color für Layered).
  */
-function buildCueOverrides(settings: SubtitleSettings): string {
+function buildCueOverrides(settings: SubtitleSettings, includeGlow = true): string {
   const tags: string[] = [];
 
   // Glow: simulieren via blur auf der outline. Wir setzen \bord >0 (Glow-Color
   // bekommt eigene outline-color) + \blur. Bei aktivem Stroke addieren wir die
   // glow-Stärke auf den outline-Width drauf.
-  if (settings.glowEnabled === true) {
+  // Phase R9: includeGlow=false → für das layered big-word, das seinen eigenen
+  // highlight-glow hat (sonst doppelter Glow im Export).
+  if (includeGlow && settings.glowEnabled === true) {
     const glowBlur = Math.max(0, settings.glowBlur ?? 8);
     const glowStrength = Math.max(0, Math.min(1, settings.glowStrength ?? 0.7));
     const baseStroke = settings.strokeEnabled === true ? settings.strokeWidth ?? 3 : 0;
@@ -320,8 +322,15 @@ function buildLayeredEvents(
   const ySmall = Math.round(yBig + bigFs * LAYERED_SMALL_OFFSET);
 
   // Big-Event (Layer 0 — hinten). highlight-Style + Zoom-Animation.
+  // Phase R9: wenn das big-word seinen eigenen highlight-glow hat, NICHT
+  // zusätzlich den cue-glow draufpacken — sonst doppelter Glow (Export sah
+  // viel glowiger aus als die Preview).
+  const bigOverrides =
+    settings.highlightGlow === true
+      ? buildCueOverrides(settings, false).replace(/^\{|\}$/g, '')
+      : cueOverridesInline;
   let bigTags =
-    `{\\pos(${cx},${yBig})${cueOverridesInline}` +
+    `{\\pos(${cx},${yBig})${bigOverrides}` +
     `\\fs${bigFs}\\b1\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx100\\fscy100)`;
   if ((settings.highlightDropShadow ?? 0) > 0) {
     bigTags += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
@@ -329,7 +338,8 @@ function buildLayeredEvents(
   if (settings.highlightGlow === true) {
     const hgStrength = settings.highlightGlowStrength ?? 0.7;
     const hgColor = assColor(settings.highlightGlowColor ?? settings.highlightColor ?? '#ff1039');
-    bigTags += `\\bord${Math.round(2 + hgStrength * 3)}\\3c${hgColor}\\blur6`;
+    // \blur proportional zur Glow-Stärke statt hart \blur6.
+    bigTags += `\\bord${Math.round(2 + hgStrength * 3)}\\3c${hgColor}\\blur${Math.round(2 + hgStrength * 4)}`;
   }
   bigTags += '}';
   const bigEvent = { layer: 0, text: `${bigTags}${escapeAss(bigWords.join(' '))}` };
