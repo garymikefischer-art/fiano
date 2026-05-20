@@ -26,6 +26,7 @@
     },
     "android": {
       "package": "app.fiano.video",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#090b0c"
