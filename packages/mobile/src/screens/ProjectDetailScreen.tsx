@@ -980,6 +980,7 @@ function HighlightsTab({
 
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 140, paddingTop: 16, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
@@ -2095,6 +2096,7 @@ function ManualTab({
 
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
@@ -2664,6 +2666,7 @@ function TikTokTab({
 
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 16 }}
       showsVerticalScrollIndicator={false}
     >
@@ -3502,36 +3505,6 @@ function TikTokTab({
       {/* Phase C5 (2026-05-19): Watermark-Section. */}
       <WatermarkSection project={project} t={t} />
 
-      {/* Aktive Add-Ons Live-Indicator */}
-      {(musicTracks.length > 0 || introUri || hasVoiceOvers || subtitles) && (
-        <View
-          style={{
-            backgroundColor: 'rgba(255,16,57,0.06)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,16,57,0.18)',
-            borderRadius: 14,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            gap: 6,
-          }}
-        >
-          <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
-            LIVE-PREVIEW APPLIES
-          </Text>
-          <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 16 }}>
-            {[
-              subtitles && t('tiktok.subtitles', 'Subtitles'),
-              hasVoiceOvers && `${(project.voiceOvers ?? []).length} ${(project.voiceOvers ?? []).length === 1 ? 'TTS' : 'TTS tracks'}`,
-              musicTracks.length > 0 && `${musicTracks.length} ${musicTracks.length === 1 ? 'track' : 'tracks'}${musicShuffle ? ' (shuffle)' : ''}`,
-              introUri && `Intro · ${introMode}${introMode === 'overlay' ? ` · ${introPosition}` : ''}`,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-            {' '}— {t('tiktok.previewHint', 'mixed into the final render via FFmpeg-native (Phase 9.6).')}
-          </Text>
-        </View>
-      )}
-
       {/* Phase C1.A (2026-05-19): Effects Section. Applies to all 9:16 exports. */}
       <ClipEffectsSection
         value={project.effectsAll}
@@ -3552,6 +3525,38 @@ function TikTokTab({
           'Layout & add-ons are wired up — actual rendering ships with the FFmpeg native module (Phase 9.4.x).',
         )}
       </Text>
+
+      {/* Phase R9: Aktive Add-Ons Live-Indicator — direkt über dem Export-
+          Button (vorher über der Effects-Section). */}
+      {(musicTracks.length > 0 || introUri || hasVoiceOvers || subtitles) && (
+        <View
+          style={{
+            backgroundColor: 'rgba(255,16,57,0.06)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,16,57,0.18)',
+            borderRadius: 14,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            gap: 6,
+            marginTop: 6,
+          }}
+        >
+          <Text style={{ color: '#ff1039', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 }}>
+            LIVE-PREVIEW APPLIES
+          </Text>
+          <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 16 }}>
+            {[
+              subtitles && t('tiktok.subtitles', 'Subtitles'),
+              hasVoiceOvers && `${(project.voiceOvers ?? []).length} ${(project.voiceOvers ?? []).length === 1 ? 'TTS' : 'TTS tracks'}`,
+              musicTracks.length > 0 && `${musicTracks.length} ${musicTracks.length === 1 ? 'track' : 'tracks'}${musicShuffle ? ' (shuffle)' : ''}`,
+              introUri && `Intro · ${introMode}${introMode === 'overlay' ? ` · ${introPosition}` : ''}`,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            {' '}— {t('tiktok.previewHint', 'mixed into the final render via FFmpeg-native (Phase 9.6).')}
+          </Text>
+        </View>
+      )}
 
       <Pressable
         onPress={() => {
@@ -6297,6 +6302,7 @@ function BuilderTab({
     // Layout (Scissors-Bug aus B1-Test).
     <>
     <NestableScrollContainer
+      style={{ flex: 1 }}
       contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 14 }}
       showsVerticalScrollIndicator={false}
     >

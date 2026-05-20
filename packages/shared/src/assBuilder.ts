@@ -322,7 +322,7 @@ function buildLayeredEvents(
   // Big-Event (Layer 0 — hinten). highlight-Style + Zoom-Animation.
   let bigTags =
     `{\\pos(${cx},${yBig})${cueOverridesInline}` +
-    `\\fs${bigFs}\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx100\\fscy100)`;
+    `\\fs${bigFs}\\b1\\1c${highlightColor}\\fscx80\\fscy80\\t(0,120,\\fscx100\\fscy100)`;
   if ((settings.highlightDropShadow ?? 0) > 0) {
     bigTags += `\\yshad${Math.round(settings.highlightDropShadow!)}`;
   }
@@ -340,7 +340,7 @@ function buildLayeredEvents(
   }
 
   // Small-Event (Layer 1 — vorne, überlappt big). normal-Style.
-  const smallTags = `{\\pos(${cx},${ySmall})${cueOverridesInline}\\fs${smallFs}\\1c${normalColor}}`;
+  const smallTags = `{\\pos(${cx},${ySmall})${cueOverridesInline}\\fs${smallFs}\\b1\\1c${normalColor}}`;
   const smallEvent = { layer: 1, text: `${smallTags}${escapeAss(smallWords.join(' '))}` };
 
   return [bigEvent, smallEvent];
