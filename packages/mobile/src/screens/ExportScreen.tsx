@@ -379,17 +379,77 @@ export function ExportScreen() {
         }
       })();
 
-      // 5b. ASS-Subtitle (Phase 9.6.7h): jetzt mit echten W/H bauen. PlayResX/Y
-      //     in der .ass-Datei = Output-Resolution, libass scaliert die Schrift-
-      //     Größen entsprechend.
-      const assContent = useAss
-        ? buildAssSubtitle({
-            settings: subSettings!,
-            cues: chunkedCues,
-            width: w,
-            height: h,
-          })
-        : undefined;
+      // 5b. Phase D1 (2026-05-20): Cue→PNG-Subtitle-Pipeline.
+      //     libass (.ass) kann KEINE vertikalen Gradients, keinen 7-Stop-
+      //     Metallic-Sheen, keinen Multi-Layer-Glow — der Desktop löst das
+      //     indem er jeden Cue zu einem PNG rendert. Der Cloud-Worker macht
+      //     jetzt dasselbe: bei `subtitlePng` rendert er pro Cue ein PNG und
+      //     overlayed sie in einem zweiten FFmpeg-Pass.
+      //
+      //     Für ALLE Subtitle-Styles wird jetzt der PNG-Weg genutzt — daher
+      //     KEIN `.ass` und KEIN drawtext-`subtitle` mehr im spec, wenn
+      //     subtitlePng gesetzt ist.
+      const subtitlePng: NonNullable<ClientRenderSpec['subtitlePng']> | undefined =
+        subEnabled && subSettings
+          ? {
+              settings: {
+                style: subSettings.style,
+                position: subSettings.position,
+                customY: subSettings.customY,
+                fontFamily: subSettings.fontFamily,
+                fontSize: subSettings.fontSize,
+                letterSpacing: subSettings.letterSpacing,
+                uppercase: subSettings.uppercase,
+                textColor: subSettings.textColor,
+                highlightColor: subSettings.highlightColor,
+                useGradient: subSettings.useGradient,
+                gradientFrom: subSettings.gradientFrom,
+                gradientTo: subSettings.gradientTo,
+                // strokeWidth nur wenn der User Stroke explizit aktiviert hat —
+                // sonst 0 (sonst zeichnet der Worker einen Default-Stroke).
+                strokeWidth:
+                  subSettings.strokeEnabled === true ? subSettings.strokeWidth ?? 4 : 0,
+                strokeColor: subSettings.strokeColor,
+                glowEnabled: subSettings.glowEnabled,
+                glowBlur: subSettings.glowBlur,
+                glowStrength: subSettings.glowStrength,
+                glowColor: subSettings.glowColor,
+                shadowEnabled: subSettings.shadowEnabled,
+                shadowOffsetX: subSettings.shadowOffsetX,
+                shadowOffsetY: subSettings.shadowOffsetY,
+                shadowColor: subSettings.shadowColor,
+                shadowBlur: subSettings.shadowBlur,
+                metallic: subSettings.metallic,
+                highlightFontScale: subSettings.highlightFontScale,
+                highlightUseGradient: subSettings.highlightUseGradient,
+                highlightGradientFrom: subSettings.highlightGradientFrom,
+                highlightGradientTo: subSettings.highlightGradientTo,
+                highlightDropShadow: subSettings.highlightDropShadow,
+                highlightMetallic: subSettings.highlightMetallic,
+                highlightGlow: subSettings.highlightGlow,
+                highlightGlowColor: subSettings.highlightGlowColor,
+                highlightGlowStrength: subSettings.highlightGlowStrength,
+              },
+              highlightWords: subSettings.highlightWords,
+              cues: chunkedCues.map((c) => ({
+                startSec: c.startSec,
+                endSec: c.endSec,
+                text: subSettings.uppercase ? c.text.toUpperCase() : c.text,
+              })),
+            }
+          : undefined;
+
+      // ASS-Subtitle: nur als Fallback wenn subtitlePng NICHT genutzt wird.
+      // Mit subtitlePng braucht der Worker weder `.ass` noch drawtext.
+      const assContent =
+        useAss && !subtitlePng
+          ? buildAssSubtitle({
+              settings: subSettings!,
+              cues: chunkedCues,
+              width: w,
+              height: h,
+            })
+          : undefined;
 
       // 6. Phase A6.4 (2026-05-18): typed RenderSpec statt args[].
       //    Worker validiert + baut args[] selber → keine Command-Injection
@@ -409,31 +469,35 @@ export function ExportScreen() {
         fullOffsetX: project?.fullOffsetX,
         trimStart: params.trimStart,
         trimEnd: params.trimEnd,
-        subtitle: subEnabled
-          ? {
-              useAss,
-              text: '',
-              cues: useAss
-                ? undefined
-                : chunkedCues.map((c) => ({
-                    startSec: c.startSec,
-                    endSec: c.endSec,
-                    text: subSettings!.uppercase ? c.text.toUpperCase() : c.text,
-                  })),
-              fontSize: useAss ? undefined : subSettings!.fontSize ?? 64,
-              color: useAss ? undefined : fontColor,
-              strokeColor: useAss ? undefined : subSettings!.strokeColor ?? '#000000',
-              strokeWidth: useAss
-                ? undefined
-                : subSettings!.strokeEnabled === true
-                  ? subSettings!.strokeWidth ?? 4
-                  : 0,
-              position: useAss
-                ? undefined
-                : (subSettings!.position as 'top' | 'center' | 'bottom' | undefined),
-              uppercase: false,
-            }
-          : undefined,
+        // Phase D1 (2026-05-20): bei subtitlePng übernimmt der Cue→PNG-Pass
+        // ALLE Subtitle-Styles — dann KEIN `.ass`/drawtext-`subtitle` mehr.
+        subtitle:
+          subEnabled && !subtitlePng
+            ? {
+                useAss,
+                text: '',
+                cues: useAss
+                  ? undefined
+                  : chunkedCues.map((c) => ({
+                      startSec: c.startSec,
+                      endSec: c.endSec,
+                      text: subSettings!.uppercase ? c.text.toUpperCase() : c.text,
+                    })),
+                fontSize: useAss ? undefined : subSettings!.fontSize ?? 64,
+                color: useAss ? undefined : fontColor,
+                strokeColor: useAss ? undefined : subSettings!.strokeColor ?? '#000000',
+                strokeWidth: useAss
+                  ? undefined
+                  : subSettings!.strokeEnabled === true
+                    ? subSettings!.strokeWidth ?? 4
+                    : 0,
+                position: useAss
+                  ? undefined
+                  : (subSettings!.position as 'top' | 'center' | 'bottom' | undefined),
+                uppercase: false,
+              }
+            : undefined,
+        subtitlePng,
         music: musicTracks.map((m) => ({ volume: m.volume })),
         voiceOvers: voiceOvers.map((vo) => ({
           startSec: vo.startSec,

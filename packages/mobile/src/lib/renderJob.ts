@@ -75,6 +75,51 @@ export interface ClientRenderSpec {
     position?: 'top' | 'center' | 'bottom' | number;
     uppercase?: boolean;
   };
+  /** Phase D1 (2026-05-20): Cue→PNG-Subtitle-Pipeline. Wenn gesetzt rendert
+   *  der Worker pro Cue ein PNG (Gradient/Metallic/Glow eingebacken via
+   *  Canvas) und overlayed sie in einem zweiten FFmpeg-Pass. libass kann
+   *  diese Styles nicht — daher der Canvas-Weg analog zur Desktop-App.
+   *  Bei subtitlePng sendet Mobile weder `.ass` noch `subtitle`. Alle
+   *  settings-Felder optional — der Worker validiert + clampt server-side. */
+  subtitlePng?: {
+    settings: {
+      style?: 'default' | 'bold' | 'gaming' | 'fiano' | 'layered';
+      position?: 'top' | 'bottom' | 'center' | 'custom';
+      customY?: number;
+      fontFamily?: string;
+      fontSize?: number;
+      letterSpacing?: number;
+      uppercase?: boolean;
+      textColor?: string;
+      highlightColor?: string;
+      useGradient?: boolean;
+      gradientFrom?: string;
+      gradientTo?: string;
+      strokeWidth?: number;
+      strokeColor?: string;
+      glowEnabled?: boolean;
+      glowBlur?: number;
+      glowStrength?: number;
+      glowColor?: string;
+      shadowEnabled?: boolean;
+      shadowOffsetX?: number;
+      shadowOffsetY?: number;
+      shadowColor?: string;
+      shadowBlur?: number;
+      metallic?: boolean;
+      highlightFontScale?: number;
+      highlightUseGradient?: boolean;
+      highlightGradientFrom?: string;
+      highlightGradientTo?: string;
+      highlightDropShadow?: number;
+      highlightMetallic?: boolean;
+      highlightGlow?: boolean;
+      highlightGlowColor?: string;
+      highlightGlowStrength?: number;
+    };
+    highlightWords?: { text: string; big?: boolean }[];
+    cues: { startSec: number; endSec: number; text: string }[];
+  };
   intro?: {
     mode?: 'before' | 'overlay';
     scale?: number;
