@@ -35,7 +35,7 @@ import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { GoogleButton } from '../components/GoogleButton';
 import { useT } from '../lib/i18n';
-import { useColors } from '../lib/theme';
+import { useColors, type ColorPalette } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -96,10 +96,10 @@ export function LoginScreen() {
         {/* Glass-Card — Desktop .glass class */}
         <View
           style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.045)',
+            backgroundColor: colors.bg.card,
             borderRadius: 16,
             borderWidth: 1,
-            borderColor: 'rgba(255, 255, 255, 0.08)',
+            borderColor: colors.border.subtle,
             padding: 28,
             shadowColor: '#000',
             shadowOpacity: 0.35,
@@ -143,7 +143,7 @@ export function LoginScreen() {
               placeholder="you@example.com"
               placeholderTextColor="#52525b"
               editable={!busy}
-              style={inputStyle(emailFocus)}
+              style={inputStyle(emailFocus, colors)}
             />
           </View>
 
@@ -159,7 +159,7 @@ export function LoginScreen() {
               autoComplete="current-password"
               placeholderTextColor="#52525b"
               editable={!busy}
-              style={inputStyle(pwFocus)}
+              style={inputStyle(pwFocus, colors)}
             />
           </View>
 
@@ -290,15 +290,17 @@ const LABEL = {
   marginBottom: 4,
 } as const;
 
-function inputStyle(focused: boolean) {
+// Phase R9 (2026-05-20): theme-aware. Vorher color:'#fff' + weiße bg → im
+// Light-Mode war der eingegebene Text unsichtbar (weiß auf weiß).
+function inputStyle(focused: boolean, colors: ColorPalette) {
   return {
-    backgroundColor: focused ? 'rgba(255, 255, 255, 0.06)' : 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: focused ? colors.bg.elevated : colors.bg.card,
     borderWidth: 1,
-    borderColor: focused ? 'rgba(255, 16, 57, 0.5)' : 'rgba(255, 255, 255, 0.08)',
+    borderColor: focused ? 'rgba(255, 16, 57, 0.5)' : colors.border.subtle,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 9,
-    color: '#fff',
+    color: colors.text.primary,
     fontSize: 13,
-  } as const;
+  };
 }
