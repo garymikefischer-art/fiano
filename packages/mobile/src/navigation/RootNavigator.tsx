@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { useColors } from '../lib/theme';
 import { SplashScreen } from '../screens/SplashScreen';
+import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignupScreen } from '../screens/SignupScreen';
 import { ExportScreen } from '../screens/ExportScreen';
@@ -32,11 +33,17 @@ export function RootNavigator() {
   const appInitializing = useAppStore((s) => s.initializing);
   const session = useAuthStore((s) => s.session);
   const subscription = useAuthStore((s) => s.subscription);
+  const recoveryMode = useAuthStore((s) => s.recoveryMode);
   const onboardingCompleted = useAppStore((s) => s.onboardingCompleted);
   const colors = useColors();
 
   if (authInitializing || appInitializing) {
     return <SplashScreen />;
+  }
+
+  // Phase R10 (Bug-4): Passwort-Recovery überlagert alles — User setzt erst ein neues Passwort.
+  if (recoveryMode) {
+    return <ResetPasswordScreen />;
   }
 
   // Phase A6.3.2 (2026-05-18): App-Paywall-Gate. User OHNE active creator/pro

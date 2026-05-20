@@ -34,6 +34,8 @@ interface AuthState {
   session: Session | null;
   user: User | null;
   subscription: Subscription | null;
+  /** Phase R10 (Bug-4): true wenn der User über einen Passwort-Recovery-Link kam. */
+  recoveryMode: boolean;
 
   init: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -42,6 +44,9 @@ interface AuthState {
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   fetchSubscription: () => Promise<void>;
+  /** Phase R10 (Bug-4): Passwort-Reset-Mail anfordern + neues Passwort setzen. */
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -49,6 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   user: null,
   subscription: null,
+  recoveryMode: false,
 
   init: async () => {
     const { data } = await supabase.auth.getSession();
@@ -130,7 +136,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ session: null, user: null, subscription: null });
+    set({ session: null, user: null, subscription: null, recoveryMode: false });
   },
 
   deleteAccount: async () => {
@@ -149,7 +155,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error(data.error ?? `HTTP ${res.status}`);
     }
     await supabase.auth.signOut();
-    set({ session: null, user: null, subscription: null });
+    set({ session: null, user: null, subscription: null, recoveryMode: false });
   },
 
   fetchSubscription: async () => {
@@ -230,5 +236,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         : null,
     });
+  },
+
+  requestPasswordReset: async (email) => {
+    // Phase R10 (Bug-4): redirectTo muss in Supabase → Auth → URL Configuration als Redirect-URL gewhitelisted sein.
+    const redirectTo = Linking.createURL('auth-callback');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  },
+
+  updatePassword: async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    set({ recoveryMode: false });
   },
 }));

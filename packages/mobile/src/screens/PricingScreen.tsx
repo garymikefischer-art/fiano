@@ -107,13 +107,15 @@ export function PricingScreen() {
   const fetchSubscription = useAuthStore((s) => s.fetchSubscription);
   const [busy, setBusy] = useState<PlanId | null>(null);
 
-  // Lifetime ist nicht mehr im Mobile PLANS array, aber wir lesen die DB-
-  // Subscription weiter — wenn Lifetime gesetzt aber kein creator/pro:
-  // currentPlan bleibt null (= "kein Mobile-tauglicher Plan").
+  // Phase R10 (Bug-3): "current plan" (grüne Karte) nur wenn der Status auch aktiv ist — sonst stand fälschlich grün "current plan" bei inaktivem/abgelaufenem Abo.
+  const subActive =
+    subscription?.status === 'active' || subscription?.status === 'trialing';
   const currentPlan: PlanId | null =
-    subscription?.plan === 'creator' || subscription?.plan === 'pro'
-      ? (subscription.plan as PlanId)
+    subActive && (subscription?.plan === 'creator' || subscription?.plan === 'pro')
+      ? (subscription!.plan as PlanId)
       : null;
+  // Plan-Row existiert (unabhängig vom Status) — für Refresh-Button + Status-Diagnose.
+  const hasPlanRow = subscription?.plan === 'creator' || subscription?.plan === 'pro';
 
   // Phase A6.3.5 (2026-05-18): Stripe Checkout für Mobile via WebBrowser.
   // Flow: Edge-Function /functions/v1/stripe-checkout returnt eine
@@ -361,29 +363,44 @@ export function PricingScreen() {
           />
         ))}
 
-        {/* Phase A6.3.6 (2026-05-18): Manual-Refresh wenn User schon bezahlt
-            hat (currentPlan != null) aber paywall-gate noch zu — bedeutet
-            Webhook ist noch nicht durch. Tap → fetchSubscription → wenn
-            jetzt aktiv, RootNavigator switcht automatisch zu MainTabs. */}
-        {paywallMode && currentPlan && (
-          <Pressable
-            onPress={onRefreshSub}
-            style={({ pressed }) => ({
-              backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
-              borderRadius: 14,
-              paddingVertical: 14,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              marginTop: 6,
-            })}
-          >
-            <Ionicons name="refresh" size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
-              {t('pricing.refreshSub', 'Refresh subscription status')}
-            </Text>
-          </Pressable>
+        {/* Phase R10 (Bug-3): Refresh + echter Abo-Status sobald eine Plan-Row
+            existiert aber das Paywall-Gate noch zu ist (Status nicht aktiv). */}
+        {paywallMode && hasPlanRow && (
+          <View style={{ gap: 8, marginTop: 6 }}>
+            {!currentPlan && (
+              <Text
+                style={{
+                  color: colors.text.tertiary,
+                  fontSize: 11,
+                  textAlign: 'center',
+                  lineHeight: 16,
+                }}
+              >
+                {t('pricing.subStatusLabel', 'Subscription status')}:{' '}
+                {subscription?.status ?? '—'}
+                {subscription?.current_period_end
+                  ? ` · ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                  : ''}
+              </Text>
+            )}
+            <Pressable
+              onPress={onRefreshSub}
+              style={({ pressed }) => ({
+                backgroundColor: pressed ? '#cc0d2e' : '#ff1039',
+                borderRadius: 14,
+                paddingVertical: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              })}
+            >
+              <Ionicons name="refresh" size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>
+                {t('pricing.refreshSub', 'Refresh subscription status')}
+              </Text>
+            </Pressable>
+          </View>
         )}
 
         <Text style={{ color: '#52525b', fontSize: 11, textAlign: 'center', marginTop: 8, lineHeight: 16 }}>

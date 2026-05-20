@@ -32,6 +32,20 @@ const PRICE_TO_PLAN: Record<string, 'creator' | 'pro' | 'studio_lifetime'> = {
   [Deno.env.get('STRIPE_PRICE_STUDIO_LIFETIME') ?? '']: 'studio_lifetime',
 };
 
+// Phase R10 (Bug-3): user_id robust auflösen — Fallback über stripe_customer_id wenn die Subscription-Metadata leer ist (sonst break-t der Handler still und die Row wird nie korrigiert).
+async function resolveUserId(sub: Stripe.Subscription): Promise<string | null> {
+  const fromMeta = sub.metadata?.user_id;
+  if (fromMeta) return fromMeta;
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
+  if (!customerId) return null;
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('user_id')
+    .eq('stripe_customer_id', customerId)
+    .maybeSingle();
+  return data?.user_id ?? null;
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
@@ -136,8 +150,8 @@ serve(async (req) => {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const sub = event.data.object as Stripe.Subscription;
-        const userId = sub.metadata?.user_id;
-        if (!userId) break;
+        const userId = await resolveUserId(sub);
+        if (!userId) { console.warn(`[stripe-webhook] ${event.type}: kein user_id auflösbar`); break; }
         const priceId = sub.items.data[0]?.price.id ?? '';
         const plan = PRICE_TO_PLAN[priceId] ?? 'creator';
 
@@ -160,8 +174,8 @@ serve(async (req) => {
       // ────────────────────────────────────────────────────────
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
-        const userId = sub.metadata?.user_id;
-        if (!userId) break;
+        const userId = await resolveUserId(sub);
+        if (!userId) { console.warn(`[stripe-webhook] ${event.type}: kein user_id auflösbar`); break; }
 
         await supabase.from('subscriptions').update({
           status: 'canceled',
@@ -180,8 +194,8 @@ serve(async (req) => {
         const subId = invoice.subscription as string;
         if (!subId) break;
         const sub = await stripe.subscriptions.retrieve(subId);
-        const userId = sub.metadata?.user_id;
-        if (!userId) break;
+        const userId = await resolveUserId(sub);
+        if (!userId) { console.warn(`[stripe-webhook] ${event.type}: kein user_id auflösbar`); break; }
 
         await supabase.from('subscriptions').update({
           status: 'past_due',

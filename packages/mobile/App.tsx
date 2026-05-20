@@ -149,6 +149,10 @@ export default function App() {
           const refresh_token = params.get('refresh_token');
           if (access_token && refresh_token) {
             await supabase.auth.setSession({ access_token, refresh_token });
+            // Phase R10 (Bug-4): Recovery-Link → ResetPasswordScreen erzwingen.
+            if (params.get('type') === 'recovery') {
+              useAuthStore.setState({ recoveryMode: true });
+            }
             return;
           }
         }

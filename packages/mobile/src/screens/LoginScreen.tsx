@@ -46,6 +46,7 @@ export function LoginScreen() {
   const colors = useColors();
   const signIn = useAuthStore((s) => s.signIn);
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
+  const requestPasswordReset = useAuthStore((s) => s.requestPasswordReset);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -77,6 +78,34 @@ export function LoginScreen() {
       // Bei Erfolg routet der Root-Navigator via onAuthStateChange automatisch.
     } catch (err: any) {
       setError(err?.message ?? String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onForgotPassword = async () => {
+    if (busy) return;
+    const mail = email.trim();
+    if (!mail) {
+      appAlert(
+        t('auth.forgotNeedEmailTitle', 'Email needed'),
+        t('auth.forgotNeedEmailBody', 'Enter your email address above first, then tap "Forgot password".'),
+      );
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await requestPasswordReset(mail);
+      appAlert(
+        t('auth.forgotSentTitle', 'Check your email'),
+        t(
+          'auth.forgotSentBody',
+          'We sent a password reset link to {email}. Open it on this device to set a new password.',
+        ).replace('{email}', mail),
+      );
+    } catch (err: any) {
+      appAlert(t('auth.forgotPasswordTitle', 'Reset password'), err?.message ?? String(err));
     } finally {
       setBusy(false);
     }
@@ -205,12 +234,7 @@ export function LoginScreen() {
 
           {/* Forgot password */}
           <Pressable
-            onPress={() =>
-              appAlert(
-                t('auth.forgotPasswordTitle', 'Reset password'),
-                t('auth.forgotPasswordBodyMobile', 'Reset password flow follows in Phase 9.4.x.'),
-              )
-            }
+            onPress={() => void onForgotPassword()}
             style={{ marginTop: 12, alignItems: 'center' }}
           >
             <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
@@ -295,7 +319,8 @@ const LABEL = {
 // Light-Mode war der eingegebene Text unsichtbar (weiß auf weiß).
 function inputStyle(focused: boolean, colors: ColorPalette) {
   return {
-    backgroundColor: focused ? colors.bg.elevated : colors.bg.card,
+    // Phase R10 (Bug-4): bg.elevated (glasig) statt bg.card (opak grau) — Felder matchen jetzt die Glas-Card; Fokus zeigt der rote Rahmen.
+    backgroundColor: colors.bg.elevated,
     borderWidth: 1,
     borderColor: focused ? 'rgba(255, 16, 57, 0.5)' : colors.border.subtle,
     borderRadius: 8,
