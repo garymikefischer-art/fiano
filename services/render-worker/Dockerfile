@@ -33,6 +33,10 @@ RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+# Phase D-Fonts (2026-05-20): gebündelte Untertitel-Schriften (.ttf) ins
+# Runtime-Image — subtitleCanvas.ts registriert sie aus assets/fonts/.
+COPY assets ./assets
+
 # Cloud Run setzt PORT env-var, Default 8080.
 ENV PORT=8080
 ENV NODE_ENV=production

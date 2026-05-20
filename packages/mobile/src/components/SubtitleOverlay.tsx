@@ -41,6 +41,7 @@ import {
   LAYERED_SMALL_SCALE,
   LAYERED_SMALL_OFFSET,
 } from '@fiano/shared/subtitleLayout';
+import { SUBTITLE_FONT_IDS, defaultSubtitleFont } from '../lib/fonts';
 
 interface Props {
   settings: SubtitleSettings;
@@ -519,13 +520,8 @@ function strokeApproxStyle(s: SubtitleSettings): TextStyle {
 }
 
 function defaultFontFor(style: SubtitleStyle): SubtitleFontFamily {
-  switch (style) {
-    case 'bold':    return 'arial-black';
-    case 'gaming':  return 'impact';
-    case 'fiano':   return 'geist';
-    case 'layered': return 'arial-black';
-    default:        return 'helvetica';
-  }
+  // Phase D-Fonts: gebündelte Defaults (siehe lib/fonts.ts) — synchron zum Worker.
+  return defaultSubtitleFont(style);
 }
 
 function defaultFontSizeFor(style: SubtitleStyle): number {
@@ -539,16 +535,11 @@ function defaultFontSizeFor(style: SubtitleStyle): number {
 }
 
 function mapFontFamily(f: SubtitleFontFamily): string {
-  switch (f) {
-    case 'arial-black': return 'sans-serif-black';
-    case 'helvetica':   return 'sans-serif';
-    case 'impact':      return 'sans-serif-condensed';
-    case 'geist':       return 'sans-serif';
-    case 'georgia':     return 'serif';
-    case 'mono':        return 'monospace';
-    case 'system':      return 'sans-serif';
-  }
-  return f;
+  // Phase D-Fonts: f IST der via expo-font geladene Family-Name (= Font-ID).
+  // Bekannte IDs 1:1 durchreichen; Legacy-/Unbekannt-Werte (helvetica, impact …
+  // aus alten Projekten) → sinnvoller gebündelter Default.
+  if (SUBTITLE_FONT_IDS.has(f)) return f;
+  return 'Inter';
 }
 
 function parseHex(hex: string): { r: number; g: number; b: number } | null {

@@ -17,6 +17,7 @@
 
 import type { TikTokExportOpts, TikTokLayout, Encoder, RegionRect, ClipEffectsValues } from './ffmpegArgs.js';
 import type { SubtitleRenderSettings, SubtitleHighlightWord } from './subtitleCanvas.js';
+import { SUBTITLE_FONT_IDS } from './subtitleCanvas.js';
 
 /**
  * ClientRenderSpec — was Mobile an /v1/render sendet.
@@ -226,8 +227,13 @@ function validateSubtitlePng(
     && VALID_SUBTITLE_POSITIONS.includes(rawSettings.position as NonNullable<SubtitleRenderSettings['position']>)) {
     settings.position = rawSettings.position as SubtitleRenderSettings['position'];
   }
-  // fontFamily wird im Worker ignoriert (nur Liberation Sans installiert) —
-  // daher hier bewusst NICHT übernommen.
+  // Phase D-Fonts (2026-05-20): fontFamily allow-list-validiert — nur eine der
+  // 20 gebündelten Font-IDs wird durchgereicht, sonst gedroppt (Worker nutzt
+  // dann den Style-Default). Konform mit A6.4.
+  if (typeof rawSettings.fontFamily === 'string'
+    && SUBTITLE_FONT_IDS.has(rawSettings.fontFamily)) {
+    settings.fontFamily = rawSettings.fontFamily;
+  }
 
   return { settings, highlightWords, cues };
 }

@@ -20,6 +20,7 @@
  */
 
 import { createCanvas, GlobalFonts, type SKRSContext2D, type CanvasGradient } from '@napi-rs/canvas';
+import * as path from 'node:path';
 
 /** Inline-Variante von @shared/types' SubtitleHighlightWord. */
 export interface SubtitleHighlightWord {
@@ -28,10 +29,10 @@ export interface SubtitleHighlightWord {
 }
 
 // ── Font-Registrierung ──────────────────────────────────────────────────────
-// Der Docker-Runtime installiert `fonts-liberation`. registerFromPath ist
-// idempotent + best-effort: fehlt ein Pfad (z.B. lokaler Dev ohne das apt-
-// Paket), darf das den Worker NICHT crashen — Skia fällt dann auf seinen
-// eingebauten Default-Font zurück.
+// registerFromPath ist idempotent + best-effort: fehlt ein Pfad, darf das den
+// Worker NICHT crashen — Skia fällt auf den eingebauten Default-Font zurück.
+
+// Liberation Sans (Dockerfile installiert `fonts-liberation`) — Ultimate-Fallback.
 const LIBERATION_FONT_PATHS: ReadonlyArray<readonly [string, string]> = [
   ['/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf', 'Liberation Sans'],
   ['/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', 'Liberation Sans'],
@@ -44,8 +45,85 @@ for (const [fontPath, alias] of LIBERATION_FONT_PATHS) {
   }
 }
 
-/** Im Worker fix: nur Liberation Sans ist installiert. settings.fontFamily wird ignoriert. */
-const WORKER_FONT_FAMILY = '"Liberation Sans"';
+/**
+ * Phase D-Fonts (2026-05-20): die 20 gebündelten Untertitel-Schriften.
+ * KOPIE der id-Liste aus `packages/mobile/src/lib/fonts.ts` — bei Änderung
+ * BEIDE syncen, sonst Export ≠ Preview. Die `.ttf` liegen in
+ * `services/render-worker/assets/fonts/` (Dockerfile: COPY assets ./assets).
+ */
+const SUBTITLE_FONT_FILES: ReadonlyArray<readonly [string, string]> = [
+  ['Montserrat', 'Montserrat.ttf'],
+  ['Poppins', 'Poppins.ttf'],
+  ['Inter', 'Inter.ttf'],
+  ['Outfit', 'Outfit.ttf'],
+  ['Sora', 'Sora.ttf'],
+  ['BebasNeue', 'BebasNeue.ttf'],
+  ['Anton', 'Anton.ttf'],
+  ['Oswald', 'Oswald.ttf'],
+  ['Teko', 'Teko.ttf'],
+  ['BarlowCondensed', 'BarlowCondensed.ttf'],
+  ['FjallaOne', 'FjallaOne.ttf'],
+  ['ArchivoBlack', 'ArchivoBlack.ttf'],
+  ['Bungee', 'Bungee.ttf'],
+  ['TitanOne', 'TitanOne.ttf'],
+  ['LuckiestGuy', 'LuckiestGuy.ttf'],
+  ['Bangers', 'Bangers.ttf'],
+  ['RussoOne', 'RussoOne.ttf'],
+  ['Orbitron', 'Orbitron.ttf'],
+  ['ChakraPetch', 'ChakraPetch.ttf'],
+  ['PermanentMarker', 'PermanentMarker.ttf'],
+];
+
+/** Gültige Font-IDs — von renderSpec.ts zur Allow-List-Validierung importiert. */
+export const SUBTITLE_FONT_IDS: ReadonlySet<string> = new Set(
+  SUBTITLE_FONT_FILES.map(([id]) => id),
+);
+
+// Custom-Fonts registrieren. Pfad relativ zu process.cwd(): Docker /app
+// (Dockerfile WORKDIR), lokaler Dev services/render-worker/ — beide Male liegt
+// der Ordner unter assets/fonts/.
+for (const [family, file] of SUBTITLE_FONT_FILES) {
+  try {
+    GlobalFonts.registerFromPath(
+      path.join(process.cwd(), 'assets', 'fonts', file),
+      family,
+    );
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Default-Font pro Subtitle-Style — KOPIE von `defaultSubtitleFont`
+ * (packages/mobile/src/lib/fonts.ts). Greift wenn `settings.fontFamily` fehlt;
+ * MUSS mit der Mobile-Preview übereinstimmen.
+ */
+function defaultWorkerFont(style: SubtitleRenderSettings['style']): string {
+  switch (style) {
+    case 'bold':    return 'ArchivoBlack';
+    case 'gaming':  return 'RussoOne';
+    case 'layered': return 'Anton';
+    case 'fiano':   return 'Montserrat';
+    default:        return 'Inter';
+  }
+}
+
+/**
+ * Löst `settings.fontFamily` in eine registrierte Canvas-Family auf (in Quotes
+ * für `ctx.font`). Unbekannt/fehlend → Style-Default. Ist auch der nicht
+ * registriert (Font-Datei fehlt im Image), fällt Skia selbst auf Liberation
+ * Sans / seinen Default zurück — kein Crash.
+ */
+function resolveWorkerFont(
+  fontFamily: string | undefined,
+  style: SubtitleRenderSettings['style'],
+): string {
+  const id =
+    fontFamily && SUBTITLE_FONT_IDS.has(fontFamily)
+      ? fontFamily
+      : defaultWorkerFont(style);
+  return `"${id}"`;
+}
 
 export interface SubtitleRenderSettings {
   // Style (für non-layered styles wie 'fiano', 'bold', 'gaming', 'default')
@@ -158,7 +236,7 @@ export function renderSimpleSubtitleToPng(
     canvasH,
   );
   const strokeW = (settings.strokeWidth ?? 4) * baseScale;
-  const fontFamily = WORKER_FONT_FAMILY;
+  const fontFamily = resolveWorkerFont(settings.fontFamily, settings.style);
   const textColor = settings.textColor ?? '#ffffff';
   const strokeColor = settings.strokeColor ?? '#000000';
 
@@ -302,7 +380,7 @@ export function renderLayeredSubtitleToPng(
   // vorher 2.0 → Big-Word im Export größer als in der Preview.
   const bigSize = Math.round(fontSizePx * (settings.highlightFontScale ?? 1.8));
   const strokeW = (settings.strokeWidth ?? 4) * baseScale;
-  const fontFamily = WORKER_FONT_FAMILY;
+  const fontFamily = resolveWorkerFont(settings.fontFamily, settings.style);
   const textColor = settings.textColor ?? '#ffffff';
   const strokeColor = settings.strokeColor ?? '#000000';
   const highlightColor = settings.highlightColor ?? '#ff1039';

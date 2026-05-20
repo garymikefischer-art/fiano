@@ -45,6 +45,7 @@ import {
   type SubtitleStyle,
 } from '../data/demoProjects';
 import { useAppStore } from '../stores/appStore';
+import { SUBTITLE_FONTS } from '../lib/fonts';
 import { haptic } from '../lib/haptics';
 // Phase A5: Feature-Locks
 import { useFeature } from '../lib/features';
@@ -79,35 +80,10 @@ const POSITION_OPTIONS: { id: SubtitlePosition; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ];
 
-/** Curated + Android-System-Fonts. Auf Android sind sans-serif* + serif* + monospace
- *  garantiert verfügbar. Custom-Input erlaubt jeden weiteren Font-Namen (System-Query-
- *  API gibt's auf RN nicht von Haus aus — alternativ kann der User ein font-name
- *  per Hand eintippen). */
-const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = [
-  // Curated (1:1 zu Desktop)
-  { id: 'helvetica',           label: 'Helvetica' },
-  { id: 'arial-black',         label: 'Arial Black' },
-  { id: 'impact',              label: 'Impact' },
-  { id: 'geist',               label: 'Geist' },
-  { id: 'georgia',             label: 'Georgia' },
-  { id: 'mono',                label: 'Mono' },
-  // Android System-Fonts
-  { id: 'sans-serif',          label: 'Sans Serif' },
-  { id: 'sans-serif-black',    label: 'Sans Black' },
-  { id: 'sans-serif-condensed',label: 'Sans Condensed' },
-  { id: 'sans-serif-light',    label: 'Sans Light' },
-  { id: 'sans-serif-medium',   label: 'Sans Medium' },
-  { id: 'sans-serif-thin',     label: 'Sans Thin' },
-  { id: 'sans-serif-smallcaps',label: 'Small Caps' },
-  { id: 'serif',               label: 'Serif' },
-  { id: 'serif-monospace',     label: 'Serif Mono' },
-  { id: 'monospace',           label: 'Monospace' },
-  { id: 'cursive',             label: 'Cursive' },
-  { id: 'casual',              label: 'Casual' },
-  { id: 'Roboto',              label: 'Roboto' },
-  { id: 'Roboto-Bold',         label: 'Roboto Bold' },
-  { id: 'Roboto-Italic',       label: 'Roboto Italic' },
-];
+/** Phase D-Fonts (2026-05-20): 20 gebündelte Google Fonts (siehe lib/fonts.ts).
+ *  Preview UND Export rendern dieselben .ttf — keine System-Font-Approximation
+ *  mehr. Das freie Custom-Input darunter bleibt für Edge-Cases erhalten. */
+const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = SUBTITLE_FONTS;
 
 export function SubtitleSettingsModal({ visible, settings, onClose, onChange, isInline = false }: Props) {
   const colors = useColors();
