@@ -44,7 +44,13 @@
         "WRITE_EXTERNAL_STORAGE",
         "READ_MEDIA_VIDEO",
         "READ_MEDIA_AUDIO",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -69,6 +75,17 @@
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "eas": {
+        "projectId": "27f6d175-b3fd-4d87-bff9-f7d4642fae1a"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/27f6d175-b3fd-4d87-bff9-f7d4642fae1a"
     }
   }
 }
