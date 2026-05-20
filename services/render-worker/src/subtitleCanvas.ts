@@ -90,6 +90,35 @@ export interface SubtitleRenderSettings {
   highlightGlowStrength?: number;
 }
 
+/**
+ * fontSize in Pixeln relativ zur Frame-Höhe — KOPIE von
+ * packages/shared/src/subtitleLayout.ts `resolveSubtitleFontPx` (der Worker
+ * hat keine @fiano/shared-dep). MUSS synchron bleiben mit der Mobile-Preview
+ * (SubtitleOverlay) + assBuilder, sonst läuft Export ≠ Preview (Bug 5).
+ *
+ * ⚠️ Bewusst abweichend vom Desktop-`src/renderer/src/lib/subtitleCanvas.ts`:
+ * der Worker bedient die Mobile-Pipeline (auf resolveSubtitleFontPx kalibriert),
+ * der Desktop seine eigene. Nicht "zurück-syncen".
+ */
+function resolveSubtitleFontPx(uiFontSize: number, frameHeight: number): number {
+  return Math.round((uiFontSize / 26) * (frameHeight * 0.06));
+}
+
+/**
+ * Style-abhängiger fontSize-Default — KOPIE von SubtitleOverlay.defaultFontSizeFor.
+ * Greift nur wenn `settings.fontSize` fehlt; hält den Worker-Default synchron
+ * mit dem Preview-Default (sonst Export ≠ Preview je nach Style).
+ */
+function defaultSubtitleFontSize(style: SubtitleRenderSettings['style']): number {
+  switch (style) {
+    case 'gaming':  return 34;
+    case 'fiano':   return 32;
+    case 'bold':
+    case 'layered': return 30;
+    default:        return 26;
+  }
+}
+
 /** Universal-Renderer: dispatcht zu Layered ODER Simple-Style. */
 export function renderSubtitleCueToPng(
   cueText: string,
@@ -119,8 +148,15 @@ export function renderSimpleSubtitleToPng(
   const text = upper ? cueText.toUpperCase() : cueText;
   if (!text.trim()) return Buffer.alloc(0);
 
+  // baseScale skaliert Effekt-Pixel (Stroke/Glow/Shadow) UI-Token → Output-Px.
   const baseScale = canvasW / 540;
-  const fontSizePx = (settings.fontSize ?? 30) * baseScale;
+  // Phase R10-Bug5 (2026-05-20): fontSize über resolveSubtitleFontPx — exakt
+  // dieselbe Formel wie die Mobile-Preview (SubtitleOverlay) + assBuilder.
+  // VORHER `fontSize * baseScale` → Export-Schrift war ~45 % der Preview (9:16).
+  const fontSizePx = resolveSubtitleFontPx(
+    settings.fontSize ?? defaultSubtitleFontSize(settings.style),
+    canvasH,
+  );
   const strokeW = (settings.strokeWidth ?? 4) * baseScale;
   const fontFamily = WORKER_FONT_FAMILY;
   const textColor = settings.textColor ?? '#ffffff';
@@ -253,12 +289,18 @@ export function renderLayeredSubtitleToPng(
     ? words.filter((w) => !bigSet.has(w.replace(/[^\w\säöüÄÖÜß]/g, '')))
     : words.slice(0, -1);
 
-  // Sizes (TikTok-Canvas hat skalierte fontSize relativ zu 540 base — hier nutzen wir
-  // canvasW direkt damit Größe in Output-Pixeln richtig ist)
+  // baseScale skaliert Effekt-Pixel (Stroke/Glow/Shadow) UI-Token → Output-Px.
   const baseScale = canvasW / 540;
-  const fontSizePx = (settings.fontSize ?? 30) * baseScale;
+  // Phase R10-Bug5 (2026-05-20): fontSize über die geteilte Formel (siehe
+  // renderSimpleSubtitleToPng) statt `fontSize * baseScale`.
+  const fontSizePx = resolveSubtitleFontPx(
+    settings.fontSize ?? defaultSubtitleFontSize(settings.style),
+    canvasH,
+  );
   const smallSize = Math.round(fontSizePx * 0.7);
-  const bigSize = Math.round(fontSizePx * (settings.highlightFontScale ?? 2.0));
+  // highlightFontScale-Default 1.8 = identisch zur Preview (SubtitleOverlay);
+  // vorher 2.0 → Big-Word im Export größer als in der Preview.
+  const bigSize = Math.round(fontSizePx * (settings.highlightFontScale ?? 1.8));
   const strokeW = (settings.strokeWidth ?? 4) * baseScale;
   const fontFamily = WORKER_FONT_FAMILY;
   const textColor = settings.textColor ?? '#ffffff';
