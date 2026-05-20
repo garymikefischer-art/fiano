@@ -14,6 +14,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 import { ENV } from '../lib/env';
+import { getExpoPushToken } from '../lib/pushNotifications';
 
 export type Plan = 'creator' | 'pro' | 'studio_lifetime' | null;
 
@@ -34,6 +35,8 @@ interface AuthState {
   session: Session | null;
   user: User | null;
   subscription: Subscription | null;
+  /** Phase R10 (Bug-4): true wenn der User über einen Passwort-Recovery-Link kam. */
+  recoveryMode: boolean;
 
   init: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -42,6 +45,37 @@ interface AuthState {
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   fetchSubscription: () => Promise<void>;
+  /** Phase R10 (Bug-4): Passwort-Reset-Mail anfordern + neues Passwort setzen. */
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
+}
+
+// Phase D1 (2026-05-20): Expo-Push-Token bei Login einmalig in profiles
+// schreiben. pushTokenSyncedFor dedupt — onAuthStateChange feuert auch bei
+// Token-Refresh, wir wollen aber nur einen Sync pro App-Session + User.
+let pushTokenSyncedFor: string | null = null;
+
+async function syncPushToken(userId: string): Promise<void> {
+  if (pushTokenSyncedFor === userId) return;
+  pushTokenSyncedFor = userId;
+  try {
+    const token = await getExpoPushToken();
+    if (!token) {
+      pushTokenSyncedFor = null; // kein Token → nächstes Auth-Event neu versuchen
+      return;
+    }
+    const { error } = await supabase
+      .from('profiles')
+      .update({ expo_push_token: token })
+      .eq('id', userId);
+    if (error) {
+      pushTokenSyncedFor = null;
+      console.warn('[auth] Push-Token-Write fehlgeschlagen:', error.message);
+    }
+  } catch (e) {
+    pushTokenSyncedFor = null;
+    console.warn('[auth] Push-Token-Registrierung fehlgeschlagen:', e);
+  }
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -49,6 +83,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   user: null,
   subscription: null,
+  recoveryMode: false,
 
   init: async () => {
     const { data } = await supabase.auth.getSession();
@@ -58,8 +93,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ session, user: session?.user ?? null });
       if (session?.user) {
         get().fetchSubscription();
+        // Phase D1: Expo-Push-Token registrieren (fire-and-forget).
+        void syncPushToken(session.user.id);
       } else {
         set({ subscription: null });
+        pushTokenSyncedFor = null;
       }
     });
 
@@ -129,8 +167,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signOut: async () => {
-    await supabase.auth.signOut();
-    set({ session: null, user: null, subscription: null });
+    // Phase R10-Bug3b (2026-05-20): lokalen State IMMER leeren — auch wenn der
+    // Remote-signOut scheitert (Netzwerk / bereits invalide Session). Sonst
+    // hängt der User in der App fest und kommt nicht zum Login-Screen.
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn('[auth] signOut: Remote-Call fehlgeschlagen, leere lokale Session trotzdem', e);
+    }
+    set({ session: null, user: null, subscription: null, recoveryMode: false });
   },
 
   deleteAccount: async () => {
@@ -149,11 +194,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error(data.error ?? `HTTP ${res.status}`);
     }
     await supabase.auth.signOut();
-    set({ session: null, user: null, subscription: null });
+    set({ session: null, user: null, subscription: null, recoveryMode: false });
   },
 
   fetchSubscription: async () => {
-    const userId = get().user?.id;
+    // Phase R10 (Bug-3): Session wie in init() auffrischen — nach dem externen Stripe-Checkout ist der in-memory Token oft stale, sonst hängt die Paywall bis zum App-Neustart.
+    let userId = get().user?.id;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session?.user) {
+        userId = sessionData.session.user.id;
+        set({ session: sessionData.session, user: sessionData.session.user });
+      }
+    } catch (e) {
+      console.warn('[auth] fetchSubscription: Session-Refresh fehlgeschlagen', e);
+    }
     if (!userId) return;
     // Phase C5.5 Bug-Fix (2026-05-19): network-retry. Beim App-Start ist
     // network ggf. noch nicht ready → "TypeError: Network request failed".
@@ -220,5 +275,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         : null,
     });
+  },
+
+  requestPasswordReset: async (email) => {
+    // Phase R10 (Bug-4): redirectTo muss in Supabase → Auth → URL Configuration als Redirect-URL gewhitelisted sein.
+    const redirectTo = Linking.createURL('auth-callback');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
+  },
+
+  updatePassword: async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    set({ recoveryMode: false });
   },
 }));

@@ -133,8 +133,7 @@ export const en: Record<string, string> = {
   // Settings — Updates (Phase D2)
   'settings.checkUpdates':     'Check for updates',
   'settings.updateReadyTitle': 'Update ready',
-  'settings.updateReadyBody':  'An update was downloaded. Restart now to apply it?',
-  'settings.updateRestart':    'Restart',
+  'settings.updateReadyBody':  'Update downloaded. Fully close fiano (swipe it from recent apps) and reopen it — it will be active on the next start.',
   'settings.updateNoneTitle':  'Up to date',
   'settings.updateNoneBody':   'You already have the latest version.',
   'settings.updateDevTitle':   'Dev build',

@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
 import { useColors } from '../lib/theme';
 import { SplashScreen } from '../screens/SplashScreen';
+import { ResetPasswordScreen } from '../screens/ResetPasswordScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignupScreen } from '../screens/SignupScreen';
 import { ExportScreen } from '../screens/ExportScreen';
@@ -32,11 +33,17 @@ export function RootNavigator() {
   const appInitializing = useAppStore((s) => s.initializing);
   const session = useAuthStore((s) => s.session);
   const subscription = useAuthStore((s) => s.subscription);
+  const recoveryMode = useAuthStore((s) => s.recoveryMode);
   const onboardingCompleted = useAppStore((s) => s.onboardingCompleted);
   const colors = useColors();
 
   if (authInitializing || appInitializing) {
     return <SplashScreen />;
+  }
+
+  // Phase R10 (Bug-4): Passwort-Recovery überlagert alles — User setzt erst ein neues Passwort.
+  if (recoveryMode) {
+    return <ResetPasswordScreen />;
   }
 
   // Phase A6.3.2 (2026-05-18): App-Paywall-Gate. User OHNE active creator/pro
@@ -45,15 +52,19 @@ export function RootNavigator() {
   // render kostet uns monatlich → muss durch monatliches Revenue gedeckt sein).
   // Phase A6.3.6: status='trialing' wird auch erlaubt (Stripe gibt das bei
   // Trial-Subs zurück). 'active' bleibt der Default.
-  const periodEnd = subscription?.current_period_end
-    ? new Date(subscription.current_period_end)
-    : null;
+  // Phase R10 (Bug-3): __DEV__ → Paywall im Dev-Build (expo run:android) überspringen. Release-Builds (eas build) haben __DEV__=false → Paywall greift normal.
+  // Phase R10-Bug3b (2026-05-20): Gate NUR auf Stripe-status + plan. KEIN
+  // `current_period_end > now`-Check mehr — `status='active'` bedeutet bei
+  // Stripe bereits "aktuell bezahlt". Der zusätzliche periodEnd-Check sperrte
+  // zahlende User aus, sobald unser gespeichertes current_period_end veraltet
+  // /leer war (verpasster Renewal-Webhook) → grüne Karte sichtbar, aber Gate
+  // zu. Muss konsistent bleiben mit PricingScreen (subActive/currentPlan).
   const hasActiveMobileSub =
-    (subscription?.status === 'active' || subscription?.status === 'trialing') &&
-    (subscription?.plan === 'creator' || subscription?.plan === 'pro') &&
-    (periodEnd === null || periodEnd > new Date());
+    __DEV__ ||
+    ((subscription?.status === 'active' || subscription?.status === 'trialing') &&
+      (subscription?.plan === 'creator' || subscription?.plan === 'pro'));
   console.log(
-    `[RootNavigator] subscription state: status=${subscription?.status} plan=${subscription?.plan} periodEnd=${subscription?.current_period_end} → hasActiveMobileSub=${hasActiveMobileSub}`,
+    `[RootNavigator] subscription state: status=${subscription?.status} plan=${subscription?.plan} → hasActiveMobileSub=${hasActiveMobileSub}`,
   );
 
   return (

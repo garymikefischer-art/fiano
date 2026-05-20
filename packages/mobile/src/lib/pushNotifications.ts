@@ -12,6 +12,7 @@
  */
 
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -71,6 +72,34 @@ export async function ensureNotificationPermissions(): Promise<'granted' | 'deni
 
   const next = await N.requestPermissionsAsync();
   return (next.status as 'granted' | 'denied' | 'undetermined') ?? 'undetermined';
+}
+
+/**
+ * Holt den Expo-Push-Token dieses Geräts (Phase D1, 2026-05-20). Stellt vorher
+ * die Notification-Permission sicher. Gibt `null` zurück wenn das Native-Modul
+ * fehlt, die Permission nicht erteilt ist oder der Token nicht ermittelt werden
+ * kann — der Caller behandelt das als no-op (kein Crash).
+ *
+ * ⚠️ Android: getExpoPushTokenAsync braucht FCM-Credentials für das EAS-Projekt
+ * (via `eas credentials`). Fehlen die → wirft → wir geben `null` zurück.
+ */
+export async function getExpoPushToken(): Promise<string | null> {
+  const N = getModule();
+  if (!N) return null;
+  try {
+    const status = await ensureNotificationPermissions();
+    if (status !== 'granted') return null;
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId as
+      | string
+      | undefined;
+    const res = await N.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
+    return res.data ?? null;
+  } catch (e) {
+    console.warn('[push] getExpoPushToken fehlgeschlagen:', e);
+    return null;
+  }
 }
 
 interface ScheduleOpts {

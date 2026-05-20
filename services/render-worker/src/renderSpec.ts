@@ -16,6 +16,7 @@
  */
 
 import type { TikTokExportOpts, TikTokLayout, Encoder, RegionRect, ClipEffectsValues } from './ffmpegArgs.js';
+import type { SubtitleRenderSettings, SubtitleHighlightWord } from './subtitleCanvas.js';
 
 /**
  * ClientRenderSpec — was Mobile an /v1/render sendet.
@@ -65,6 +66,18 @@ export interface ClientRenderSpec {
     uppercase?: boolean;
   };
 
+  /**
+   * Cue→PNG-Subtitle-Pipeline (Gradient/Metallic/Glow). Wenn gesetzt rendert
+   * der Worker pro Cue ein PNG (via subtitleCanvas.ts) und overlayed sie in
+   * einem zweiten FFmpeg-Pass. Pass 1 enthält dann KEINEN Subtitle-Filter —
+   * Mobile sendet bei subtitlePng weder `.ass` noch `subtitle.cues`.
+   */
+  subtitlePng?: {
+    settings: SubtitleRenderSettings;
+    highlightWords?: SubtitleHighlightWord[];
+    cues: { startSec: number; endSec: number; text: string }[];
+  };
+
   /** Intro — path wird vom Worker gesetzt wenn intro-key vorhanden. */
   intro?: {
     mode?: 'before' | 'overlay';
@@ -100,6 +113,124 @@ const VALID_LAYOUTS: TikTokLayout[] = ['stacked', 'split', 'full'];
 const VALID_ENCODERS: Encoder[] = ['software', 'hardware'];
 const VALID_POSITIONS: ReadonlyArray<string | number> = ['top', 'center', 'bottom'];
 const VALID_MOTION_BLUR: ReadonlyArray<'off' | 'low' | 'medium' | 'high'> = ['off', 'low', 'medium', 'high'];
+
+// subtitlePng-Validation: erlaubte Enum-Werte + numerische Slider-Ranges.
+const VALID_SUBTITLE_STYLES: ReadonlyArray<NonNullable<SubtitleRenderSettings['style']>> = [
+  'default', 'bold', 'gaming', 'fiano', 'layered',
+];
+const VALID_SUBTITLE_POSITIONS: ReadonlyArray<NonNullable<SubtitleRenderSettings['position']>> = [
+  'top', 'bottom', 'center', 'custom',
+];
+/** numerische Felder von SubtitleRenderSettings → [min, max]-Clamp-Range. */
+const SUBTITLE_NUMERIC_RANGES: Record<string, readonly [number, number]> = {
+  fontSize: [8, 400],
+  strokeWidth: [0, 40],
+  letterSpacing: [-1, 2],
+  glowBlur: [0, 200],
+  glowStrength: [0, 2],
+  shadowOffsetX: [-100, 100],
+  shadowOffsetY: [-100, 100],
+  shadowBlur: [0, 200],
+  highlightFontScale: [0.5, 4],
+  highlightDropShadow: [0, 100],
+  highlightGlowStrength: [0, 2],
+  customY: [0, 1],
+};
+/** color-string-Felder von SubtitleRenderSettings (6-hex, optionales '#'). */
+const SUBTITLE_COLOR_KEYS: ReadonlyArray<keyof SubtitleRenderSettings> = [
+  'textColor', 'highlightColor', 'gradientFrom', 'gradientTo', 'strokeColor',
+  'glowColor', 'shadowColor', 'highlightGradientFrom', 'highlightGradientTo',
+  'highlightGlowColor',
+];
+/** boolean-Felder von SubtitleRenderSettings (pass-through). */
+const SUBTITLE_BOOLEAN_KEYS: ReadonlyArray<keyof SubtitleRenderSettings> = [
+  'uppercase', 'useGradient', 'glowEnabled', 'shadowEnabled', 'metallic',
+  'highlightUseGradient', 'highlightMetallic', 'highlightGlow',
+];
+
+/**
+ * Validiert ein `subtitlePng`-Objekt vom Client. Baut ein clean validiertes
+ * Objekt — niemals das rohe Client-Objekt durchgereicht. Bei `null`/falschem
+ * Typ → `undefined` (subtitlePng wird gedroppt, kein Hard-Fail).
+ *
+ * cues: max 2000, startSec/endSec geclampt, text auf 500 Zeichen.
+ * highlightWords: max 200, text auf 100 Zeichen, big als boolean.
+ * settings: nur bekannte Keys, numbers finite + geclampt, colors 6-hex,
+ *           booleans pass-through, style/position nur aus Enum-Werten.
+ */
+function validateSubtitlePng(
+  raw: unknown,
+): { settings: SubtitleRenderSettings; highlightWords?: SubtitleHighlightWord[]; cues: { startSec: number; endSec: number; text: string }[] } | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const sp = raw as Record<string, unknown>;
+
+  // ── cues ──────────────────────────────────────────────────────────────
+  if (!Array.isArray(sp.cues)) return undefined;
+  if (sp.cues.length > 2000) return undefined;
+  const clamp = (v: unknown, def: number, max: number): number => {
+    if (typeof v !== 'number' || !isFinite(v) || v < 0) return def;
+    return Math.min(max, v);
+  };
+  const cues = (sp.cues as unknown[]).map((c) => {
+    const cc = (c ?? {}) as Record<string, unknown>;
+    return {
+      startSec: clamp(cc.startSec, 0, 86400),
+      endSec: clamp(cc.endSec, 0, 86400),
+      text: typeof cc.text === 'string' ? cc.text.slice(0, 500) : '',
+    };
+  });
+
+  // ── highlightWords ────────────────────────────────────────────────────
+  let highlightWords: SubtitleHighlightWord[] | undefined;
+  if (Array.isArray(sp.highlightWords)) {
+    if (sp.highlightWords.length > 200) return undefined;
+    highlightWords = (sp.highlightWords as unknown[]).map((hw) => {
+      const h = (hw ?? {}) as Record<string, unknown>;
+      return {
+        text: typeof h.text === 'string' ? h.text.slice(0, 100) : '',
+        big: typeof h.big === 'boolean' ? h.big : undefined,
+      };
+    });
+  }
+
+  // ── settings (allow-list, clean Objekt) ───────────────────────────────
+  const rawSettings = (typeof sp.settings === 'object' && sp.settings !== null)
+    ? (sp.settings as Record<string, unknown>)
+    : {};
+  const settings: SubtitleRenderSettings = {};
+  for (const [key, range] of Object.entries(SUBTITLE_NUMERIC_RANGES)) {
+    const v = rawSettings[key];
+    if (typeof v === 'number' && isFinite(v)) {
+      (settings as Record<string, unknown>)[key] =
+        Math.max(range[0], Math.min(range[1], v));
+    }
+  }
+  const colorRe = /^#?[0-9a-fA-F]{6}$/;
+  for (const key of SUBTITLE_COLOR_KEYS) {
+    const v = rawSettings[key];
+    if (typeof v === 'string' && colorRe.test(v)) {
+      (settings as Record<string, unknown>)[key] = v;
+    }
+  }
+  for (const key of SUBTITLE_BOOLEAN_KEYS) {
+    const v = rawSettings[key];
+    if (typeof v === 'boolean') {
+      (settings as Record<string, unknown>)[key] = v;
+    }
+  }
+  if (typeof rawSettings.style === 'string'
+    && VALID_SUBTITLE_STYLES.includes(rawSettings.style as NonNullable<SubtitleRenderSettings['style']>)) {
+    settings.style = rawSettings.style as SubtitleRenderSettings['style'];
+  }
+  if (typeof rawSettings.position === 'string'
+    && VALID_SUBTITLE_POSITIONS.includes(rawSettings.position as NonNullable<SubtitleRenderSettings['position']>)) {
+    settings.position = rawSettings.position as SubtitleRenderSettings['position'];
+  }
+  // fontFamily wird im Worker ignoriert (nur Liberation Sans installiert) —
+  // daher hier bewusst NICHT übernommen.
+
+  return { settings, highlightWords, cues };
+}
 
 /**
  * Validiert + clampt eine eingehende RenderSpec. Lehnt invalide / suspekte
@@ -226,6 +357,15 @@ export function validateRenderSpec(input: unknown): ValidationResult {
         text: typeof c?.text === 'string' ? c.text.slice(0, 500) : '',
       }));
     }
+  }
+
+  // subtitlePng: Cue→PNG-Pipeline (Gradient/Metallic/Glow). Wir bauen IMMER
+  // ein clean validiertes Objekt — niemals das rohe Client-Objekt durchreichen.
+  // Defensive: bei kaputten Sub-Feldern droppen wir das ganze subtitlePng
+  // (kein Hard-Fail des Renders — Pass 1 läuft dann einfach ohne Subtitles).
+  const validatedSubtitlePng = validateSubtitlePng(s.subtitlePng);
+  if (validatedSubtitlePng) {
+    spec.subtitlePng = validatedSubtitlePng;
   }
 
   // Intro: mode + scale + x/y + duration + chromakey.

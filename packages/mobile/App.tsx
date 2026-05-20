@@ -6,11 +6,12 @@
  */
 
 import { useEffect, useMemo } from 'react';
-import { StatusBar } from 'expo-status-bar';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
+import * as NavigationBar from 'expo-navigation-bar';
 
 import { LogBox, Platform } from 'react-native';
 
@@ -61,35 +62,6 @@ console.error = (...args: unknown[]) => {
   originalConsoleError(...args);
 };
 
-/**
- * Phase R9 (2026-05-20): Edge-to-edge Android-Nav-Bar.
- *
- * Vorher bekam die System-Nav-Bar eine solide Tint-Farbe — das gab unter der
- * Glass-Tab-Bar einen leicht-schwarzen Streifen (solide Fläche vs. App-Glow-
- * Gradient dahinter). Jetzt: System-Nav-Bar TRANSPARENT + edge-to-edge → der
- * App-Hintergrund (inkl. BackgroundGlow) zeigt durchgehend bis zum physischen
- * Bildschirmrand durch. Die Glass-Tab-Bar schwebt sauber darüber.
- *
- * Lazy require → no-op wenn das Native-Modul (noch) nicht verlinkt ist.
- */
-function configureAndroidNavBar(buttonStyle: 'light' | 'dark') {
-  if (Platform.OS !== 'android') return;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const NavigationBar = require('expo-navigation-bar');
-    void NavigationBar.setButtonStyleAsync(buttonStyle).catch(() => {});
-    // Transparent → App-Hintergrund scheint durch (kein schwarzer Streifen).
-    void NavigationBar.setBackgroundColorAsync('#00000000').catch(() => {});
-    // Edge-to-edge: Nav-Bar überlagert den Content statt eigenen Platz zu
-    // beanspruchen. Guard, falls die API in der Modul-Version fehlt.
-    if (typeof NavigationBar.setPositionAsync === 'function') {
-      void NavigationBar.setPositionAsync('absolute').catch(() => {});
-    }
-  } catch {
-    /* expo-navigation-bar nicht installiert oder Native-Build pending — ignorieren */
-  }
-}
-
 export default function App() {
   const initAuth = useAuthStore((s) => s.init);
   const initApp = useAppStore((s) => s.init);
@@ -116,9 +88,15 @@ export default function App() {
     [resolvedMode, colors],
   );
 
-  // Android Nav-Bar follow theme — re-applied bei jedem Theme-Wechsel.
+  // Phase R10: Android System-Nav-Bar einfärben — schwarz (dark) / weiß (light), passend zur App. Greift auf älteren Android-Versionen; auf Android 15 (edge-to-edge erzwungen) no-op via .catch.
   useEffect(() => {
-    configureAndroidNavBar(resolvedMode === 'dark' ? 'light' : 'dark');
+    if (Platform.OS !== 'android') return;
+    void NavigationBar.setBackgroundColorAsync(
+      resolvedMode === 'dark' ? '#070509' : '#ffffff',
+    ).catch(() => {});
+    void NavigationBar.setButtonStyleAsync(
+      resolvedMode === 'dark' ? 'light' : 'dark',
+    ).catch(() => {});
   }, [resolvedMode]);
 
   useEffect(() => {
@@ -149,6 +127,10 @@ export default function App() {
           const refresh_token = params.get('refresh_token');
           if (access_token && refresh_token) {
             await supabase.auth.setSession({ access_token, refresh_token });
+            // Phase R10 (Bug-4): Recovery-Link → ResetPasswordScreen erzwingen.
+            if (params.get('type') === 'recovery') {
+              useAuthStore.setState({ recoveryMode: true });
+            }
             return;
           }
         }
@@ -182,7 +164,8 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
       <SafeAreaProvider>
         <NavigationContainer theme={navTheme}>
-          <StatusBar style={resolvedMode === 'dark' ? 'light' : 'dark'} />
+          {/* Phase R10 (Bug-1): SystemBars (react-native-edge-to-edge) statt expo-status-bar/expo-navigation-bar — steuert beide System-Bar-Icons, edge-to-edge-kompatibel. */}
+          <SystemBars style={resolvedMode === 'dark' ? 'light' : 'dark'} />
           <RootNavigator />
           {/* Phase A5: globaler Upgrade-Modal für Feature-Locks. Liest
               useUpgradeModal-Store, unmounts wenn featureId === null. */}

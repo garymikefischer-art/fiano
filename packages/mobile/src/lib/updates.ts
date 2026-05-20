@@ -37,7 +37,8 @@ export async function checkForOtaUpdate(): Promise<OtaCheckResult> {
   }
 }
 
-/** Startet die App mit dem heruntergeladenen Update neu. */
-export async function applyOtaUpdate(): Promise<void> {
-  await Updates.reloadAsync();
-}
+// Phase R10 (Bug-2): applyOtaUpdate/Updates.reloadAsync() entfernt — reloadAsync
+// white-screen-t zuverlässig auf Expo SDK 52 + New Architecture. Das per
+// fetchUpdateAsync() heruntergeladene Update wird stattdessen vom nächsten
+// Kaltstart automatisch übernommen (force-close + reopen). Das ist der einzig
+// stabile Apply-Pfad.

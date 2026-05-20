@@ -185,8 +185,9 @@ export function ProjectDetailScreen() {
     );
   }
 
+  // Phase R10 (Bug-1): edges top-only — mit Android-edge-to-edge läuft der BackgroundGlow bis zur (transparenten) System-Nav; die Tab-ScrollViews haben paddingBottom:140.
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }} edges={['top']}>
       <RNStatusBar
         barStyle={mode === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.bg.secondary}

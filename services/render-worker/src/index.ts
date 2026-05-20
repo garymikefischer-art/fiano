@@ -30,7 +30,8 @@ import { runFFmpeg } from './render.js';
 import { validateAssContent } from './assValidator.js';
 import { checkAndIncrementRenderQuota } from './planCheck.js';
 import { buildTikTokExportArgs } from './ffmpegArgs.js';
-import { validateRenderSpec, specToTikTokOpts } from './renderSpec.js';
+import { validateRenderSpec, specToTikTokOpts, type ClientRenderSpec } from './renderSpec.js';
+import { renderSubtitleCueToPng } from './subtitleCanvas.js';
 import {
   createOutputDownloadUrl,
   createUploadUrlForKey,
@@ -412,6 +413,10 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     // Args-Pfad (deprecated): legacy clients schicken pre-built args mit
     // Platzhaltern, Worker substituiert sie.
     let finalArgs: string[];
+    // Phase D1 (2026-05-20): validatedSpec wird gehoisted damit der
+    // subtitlePng-2-Pass nach dem Pass-1-Render auf v.spec.subtitlePng
+    // zugreifen kann.
+    let validatedSpec: ClientRenderSpec | undefined;
     if (spec) {
       const v = validateRenderSpec(spec);
       if (!v.ok) {
@@ -422,6 +427,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
           error: `spec invalid: ${v.error}`,
         });
       }
+      validatedSpec = v.spec;
       // Sammle resolved-Pfade in derselben Reihenfolge wie das spec sie
       // erwartet (sources[]-Index → /tmp/jobId-src-N.mp4).
       const sourcePaths: string[] = [];
@@ -469,16 +475,98 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     // user file paths + filter strings (PII-Risk in Cloud Logging).
     console.log(`[${jobId}] ffmpeg start (${finalArgs.length} args)`);
 
-    // ── 3. FFmpeg ausführen ───────────────────────────────────────────
+    // ── 3. FFmpeg ausführen (Pass 1 — Render ohne Subtitles) ──────────
     await runFFmpeg(finalArgs, { maxDurationSec: MAX_DURATION_SEC, jobId });
+
+    // ── 3b. Subtitle-PNG-Overlay (Pass 2) ─────────────────────────────
+    // Phase D1 (2026-05-20): wenn spec.subtitlePng gesetzt ist, rendert der
+    // Worker pro Cue ein PNG (Gradient/Metallic/Glow eingebacken via Canvas)
+    // und overlayed sie in einem zweiten FFmpeg-Pass. libass kann diese
+    // Styles nicht — daher der Canvas-Weg analog zur Desktop-App.
+    //
+    // Robustheit: jeder Fehler hier fällt zurück auf den Pass-1-Output
+    // (outputTmp) — der Render-Job schlägt NICHT komplett fehl, nur die
+    // Subtitles fehlen dann.
+    let uploadTmp = outputTmp;
+    if (validatedSpec?.subtitlePng && validatedSpec.subtitlePng.cues.length > 0) {
+      const sp = validatedSpec.subtitlePng;
+      try {
+        const cuePngPaths: { path: string; startSec: number; endSec: number }[] = [];
+        for (let i = 0; i < sp.cues.length; i++) {
+          const cue = sp.cues[i];
+          const buf = renderSubtitleCueToPng(
+            cue.text,
+            sp.highlightWords,
+            sp.settings,
+            validatedSpec.width,
+            validatedSpec.height,
+          );
+          // Leere Buffer (z.B. Whitespace-only-Cue) überspringen.
+          if (buf.length === 0) continue;
+          const cuePng = path.join(tmpdir(), `${jobId}-cue-${i}.png`);
+          await writeFile(cuePng, buf);
+          tmpFiles.push(cuePng);
+          cuePngPaths.push({ path: cuePng, startSec: cue.startSec, endSec: cue.endSec });
+        }
+
+        if (cuePngPaths.length > 0) {
+          const finalTmp = path.join(tmpdir(), `${jobId}-final.mp4`);
+          tmpFiles.push(finalTmp);
+
+          // filter_complex: pro PNG-Input ein overlay mit enable-zwischen-t.
+          // Input 0 = Pass-1-Video, Inputs 1..N = die Cue-PNGs.
+          const chainSteps: string[] = [];
+          let prevLabel = '0:v';
+          for (let n = 0; n < cuePngPaths.length; n++) {
+            const inputIdx = n + 1; // PNG-Inputs starten bei 1
+            const cue = cuePngPaths[n];
+            const outLabel = n === cuePngPaths.length - 1 ? 'vfinal' : `v${inputIdx}`;
+            chainSteps.push(
+              `[${prevLabel}][${inputIdx}:v]overlay=0:0:enable='between(t,${cue.startSec},${cue.endSec})'[${outLabel}]`,
+            );
+            prevLabel = outLabel;
+          }
+          const filterComplex = chainSteps.join(';');
+
+          const pass2Args: string[] = ['-y', '-i', outputTmp];
+          for (const cue of cuePngPaths) {
+            pass2Args.push('-i', cue.path);
+          }
+          pass2Args.push(
+            '-filter_complex', filterComplex,
+            '-map', '[vfinal]',
+            '-map', '0:a?',
+            '-c:a', 'copy',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-pix_fmt', 'yuv420p',
+            '-b:v', validatedSpec.bitrate,
+            finalTmp,
+          );
+
+          console.log(
+            `[${jobId}] subtitlePng pass-2: ${cuePngPaths.length} cue PNGs overlay`,
+          );
+          await runFFmpeg(pass2Args, { maxDurationSec: MAX_DURATION_SEC, jobId });
+          uploadTmp = finalTmp;
+        } else {
+          console.warn(`[${jobId}] subtitlePng: all cue PNGs empty — skipping pass-2`);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[${jobId}] subtitlePng pass-2 failed, falling back to pass-1 output: ${msg}`);
+        uploadTmp = outputTmp;
+      }
+    }
 
     // ── 4. Output → R2 ────────────────────────────────────────────────
     const outputKey = `outputs/${userId}/${projectId}/${outputName ?? `${jobId}.mp4`}`;
-    await uploadFile(outputTmp, outputKey, 'video/mp4');
+    await uploadFile(uploadTmp, outputKey, 'video/mp4');
     const signedUrl = await createOutputDownloadUrl(outputKey);
 
     // ── 5. Cleanup ────────────────────────────────────────────────────
-    await Promise.allSettled([...tmpFiles, outputTmp].map((p) => unlink(p)));
+    // tmpFiles enthält bereits die Cue-PNGs + finalTmp (falls Pass-2 lief).
+    await Promise.allSettled([...new Set([...tmpFiles, outputTmp])].map((p) => unlink(p)));
 
     const durationMs = Date.now() - start;
     console.log(`[${jobId}] done in ${durationMs}ms output=${outputKey}`);

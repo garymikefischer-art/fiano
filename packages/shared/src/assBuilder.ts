@@ -91,11 +91,6 @@ function resolveFontName(family: string | undefined): string {
   return CURATED_FONT_MAP[family] ?? family;
 }
 
-/** Style-Preset → Default-Bold-Flag. */
-function isBoldStyle(style: string | undefined): number {
-  return style === 'bold' || style === 'gaming' || style === 'fiano' ? 1 : 0;
-}
-
 /** SubtitlePosition → ASS-Alignment. Phase Builder-8: wir nutzen IMMER
  *  middle-center (=5) damit pro-cue `\pos(cx, cy)` den TEXT-CENTER auf
  *  fixem y verankert. So bleibt eine 1-Zeile und 2-Zeilen-Cue auf gleicher
@@ -199,7 +194,7 @@ function buildDefaultStyle(settings: SubtitleSettings, w: number, h: number): St
     secondary: assColor('#000000'),
     outline: assColor(outlineColor),
     back: assColor(shadowColor),
-    bold: isBoldStyle(settings.style),
+    bold: 1, // Phase R10 (Bug-5): immer fett — die Live-Preview rendert durchgängig fett, der Export muss gleichziehen.
     alignment: alignmentFor(settings.position),
     // Phase Builder-8: MarginV=0 — Position kommt via per-cue \pos-override.
     // Damit ist 1-Zeile / 2-Zeilen-Text immer auf gleicher vertikaler Mitte.

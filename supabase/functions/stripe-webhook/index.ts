@@ -32,6 +32,56 @@ const PRICE_TO_PLAN: Record<string, 'creator' | 'pro' | 'studio_lifetime'> = {
   [Deno.env.get('STRIPE_PRICE_STUDIO_LIFETIME') ?? '']: 'studio_lifetime',
 };
 
+// Phase R10 (Bug-3): user_id robust auflösen — Fallback über stripe_customer_id wenn die Subscription-Metadata leer ist (sonst break-t der Handler still und die Row wird nie korrigiert).
+async function resolveUserId(sub: Stripe.Subscription): Promise<string | null> {
+  const fromMeta = sub.metadata?.user_id;
+  if (fromMeta) return fromMeta;
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
+  if (!customerId) return null;
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('user_id')
+    .eq('stripe_customer_id', customerId)
+    .maybeSingle();
+  return data?.user_id ?? null;
+}
+
+/**
+ * Phase R10-Bug3 (2026-05-20): Subscription IMMER frisch von Stripe lesen und
+ * dann upserten. Der `event.data.object` einer Subscription ist ein einge-
+ * frorener Snapshot: `customer.subscription.created` trägt status='incomplete',
+ * `customer.subscription.updated` status='active'. Stripe garantiert KEINE
+ * Event-Reihenfolge — kam `.created` zuletzt an, überschrieb es das bereits
+ * geschriebene 'active' wieder mit 'incomplete' → Paywall öffnete nie.
+ * Mit frischem `retrieve` schreibt JEDER Handler den aktuellen Stripe-Status,
+ * Reihenfolge egal.
+ */
+async function syncSubscriptionById(subId: string, userIdHint?: string): Promise<void> {
+  const sub = await stripe.subscriptions.retrieve(subId);
+  const userId = userIdHint ?? (await resolveUserId(sub));
+  if (!userId) {
+    console.warn(`[stripe-webhook] syncSubscriptionById: kein user_id für ${subId}`);
+    return;
+  }
+  const priceId = sub.items.data[0]?.price.id ?? '';
+  const plan = PRICE_TO_PLAN[priceId] ?? 'creator';
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+  const { error } = await supabase.from('subscriptions').upsert({
+    user_id: userId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: sub.id,
+    plan,
+    status: sub.status,
+    current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+    lifetime: false,
+    cancel_at_period_end: !!sub.cancel_at_period_end,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+  // Fehler NICHT verschlucken — sonst meldet der Webhook fälschlich 200 und
+  // Stripe retry-t nie. throw → 500 → Stripe stellt das Event erneut zu.
+  if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
@@ -110,22 +160,9 @@ serve(async (req) => {
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id' });
         } else if (session.mode === 'subscription') {
-          const subId = session.subscription as string;
-          const sub = await stripe.subscriptions.retrieve(subId);
-          const priceId = sub.items.data[0]?.price.id ?? '';
-          const plan = PRICE_TO_PLAN[priceId] ?? 'creator';
-
-          await supabase.from('subscriptions').upsert({
-            user_id: userId,
-            stripe_customer_id: customerId,
-            stripe_subscription_id: subId,
-            plan,
-            status: sub.status,
-            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-            lifetime: false,
-            cancel_at_period_end: !!sub.cancel_at_period_end,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id' });
+          // R10-Bug3: frisch von Stripe syncen statt den Event-Snapshot zu
+          // schreiben (siehe syncSubscriptionById).
+          await syncSubscriptionById(session.subscription as string, userId);
         }
         break;
       }
@@ -135,23 +172,9 @@ serve(async (req) => {
       // ────────────────────────────────────────────────────────
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription;
-        const userId = sub.metadata?.user_id;
-        if (!userId) break;
-        const priceId = sub.items.data[0]?.price.id ?? '';
-        const plan = PRICE_TO_PLAN[priceId] ?? 'creator';
-
-        await supabase.from('subscriptions').upsert({
-          user_id: userId,
-          stripe_customer_id: sub.customer as string,
-          stripe_subscription_id: sub.id,
-          plan,
-          status: sub.status,
-          current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-          lifetime: false,
-          cancel_at_period_end: !!sub.cancel_at_period_end,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
+        // event.data.object ist ein eingefrorener Snapshot mit evtl. veraltetem
+        // status — syncSubscriptionById liest frisch von Stripe (Bug-3-Fix).
+        await syncSubscriptionById((event.data.object as Stripe.Subscription).id);
         break;
       }
 
@@ -160,8 +183,8 @@ serve(async (req) => {
       // ────────────────────────────────────────────────────────
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
-        const userId = sub.metadata?.user_id;
-        if (!userId) break;
+        const userId = await resolveUserId(sub);
+        if (!userId) { console.warn(`[stripe-webhook] ${event.type}: kein user_id auflösbar`); break; }
 
         await supabase.from('subscriptions').update({
           status: 'canceled',
@@ -180,8 +203,8 @@ serve(async (req) => {
         const subId = invoice.subscription as string;
         if (!subId) break;
         const sub = await stripe.subscriptions.retrieve(subId);
-        const userId = sub.metadata?.user_id;
-        if (!userId) break;
+        const userId = await resolveUserId(sub);
+        if (!userId) { console.warn(`[stripe-webhook] ${event.type}: kein user_id auflösbar`); break; }
 
         await supabase.from('subscriptions').update({
           status: 'past_due',
@@ -201,6 +224,9 @@ serve(async (req) => {
     });
   } catch (err) {
     console.error('Handler error:', err);
+    // R10-Bug3: Dedup-Row entfernen, damit Stripe's Retry das Event erneut
+    // verarbeiten kann — der pre-handle-Insert würde es sonst "verbrennen".
+    await supabase.from('stripe_events_processed').delete().eq('event_id', event.id);
     return new Response(`Handler error: ${(err as Error).message}`, { status: 500 });
   }
 });

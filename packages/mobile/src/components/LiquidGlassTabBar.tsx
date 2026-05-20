@@ -248,12 +248,7 @@ function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
-/**
- * Android — solide, am unteren Rand verankerte Bar (Material-konventionell).
- * Voll-breit, opaker Hintergrund läuft bis zum physischen Bildschirmrand durch
- * (paddingBottom = Safe-Area) → die System-Nav-Buttons sitzen über der soliden
- * Fläche. configureAndroidNavBar in App.tsx hält die System-Nav transparent.
- */
+/** Android — solide, am unteren Rand verankerte Tab-Bar (dark: schwarz #070509, light: card). iOS bekommt stattdessen die Liquid-Glass-Bar. */
 function SolidTabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -270,8 +265,7 @@ function SolidTabBar({ state, navigation }: BottomTabBarProps) {
         left: 0,
         right: 0,
         bottom: 0,
-        // Dunkler als die Page (bg.primary #0d0509) → die Bar "schwebt" nicht
-        // hervor, sondern sitzt ruhig am Rand. Light-Mode: weiß (bg.card) ist OK.
+        // Phase R10: solide schwarze Bar auf Android (User-Wunsch). paddingBottom = Safe-Area → die Fläche läuft bis unter die System-Nav.
         backgroundColor: isLight ? colors.bg.card : '#070509',
         borderTopWidth: 1,
         borderTopColor: colors.border.subtle,
