@@ -1,20 +1,20 @@
 /**
- * LiquidGlassTabBar — schwebende Bottom-Bar im Apple-Liquid-Glass-Stil.
+ * LiquidGlassTabBar — plattform-spezifische Bottom-Tab-Bar.
  *
- * Phase B3.4 (2026-05-18): enhanced liquid-glass look. Mehrere Layer:
- *   1. BlurView intensity 100, dark tint (auch im Light-Mode — User-Wunsch
- *      "Bottom-Nav bleibt schwarz")
- *   2. Reduzierter Background-Tint für mehr glass-Transparenz
- *   3. Outer iridescent ring (LinearGradient subtle multi-color)
- *   4. Inner top highlight (weißer Strich oben für 3D-depth)
- *   5. Multi-layer shadow (outer drop + soft glow)
- *   6. Capsule-Indicator hinter aktivem Tab (Brand-rot)
+ * Phase R9 (2026-05-20): Plattform-Split.
+ *   - iOS:     schwebende Liquid-Glass-Bar (BlurView + iridescent rim +
+ *              Multi-Layer-Shadow). Apple-Look.
+ *   - Android: solide, am unteren Rand verankerte Bar (Material-konventionell).
+ *              Vermeidet die Edge-to-edge/Transparenz-Probleme der Glass-Bar
+ *              auf Android (schwarzer Streifen / "komischer" Safe-Space).
  *
- * Light-Mode: tab-bar bleibt dark (User-Wunsch), aber Capsule + Icons folgen
- * Theme weiterhin.
+ * Der rote Capsule-Indicator für den aktiven Tab bleibt auf BEIDEN Plattformen
+ * (`TabButtons` — geteilter Inhalt).
+ *
+ * Reihenfolge: Home · Projects · Highlights · 9:16 · Builder · Thumbs.
  */
 
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,7 +23,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 import { useT } from '../lib/i18n';
 import { haptic } from '../lib/haptics';
-import { useResolvedMode } from '../lib/theme';
+import { useColors, useResolvedMode } from '../lib/theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -45,13 +45,107 @@ const TAB_I18N_KEYS: Record<string, { key: string; fallback: string }> = {
   Thumbs: { key: 'tab.thumbs', fallback: 'Thumbs' },
 };
 
-export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
+/**
+ * Geteilter Tab-Inhalt — Capsule-Indicator (Brand-rot) + Tab-Buttons.
+ * Identisch auf iOS-Glass und Android-Solid.
+ */
+function TabButtons({
+  state,
+  navigation,
+  isLight,
+  tabWidth,
+  innerHorizontalPadding,
+}: {
+  state: BottomTabBarProps['state'];
+  navigation: BottomTabBarProps['navigation'];
+  isLight: boolean;
+  tabWidth: number;
+  innerHorizontalPadding: number;
+}) {
+  const t = useT();
+  return (
+    <>
+      {/* Capsule-Indicator hinter aktivem Tab — Brand-rot, auf beiden OS. */}
+      <View
+        style={{
+          position: 'absolute',
+          top: 4,
+          bottom: 4,
+          left: innerHorizontalPadding + state.index * tabWidth + tabWidth * 0.08,
+          width: tabWidth * 0.84,
+          borderRadius: 22,
+          backgroundColor: 'rgba(255,16,57,0.18)',
+          borderWidth: 1,
+          borderColor: 'rgba(255,16,57,0.40)',
+        }}
+      />
+
+      {state.routes.map((route, index) => {
+        const focused = state.index === index;
+        const icons = TAB_ICONS[route.name] ?? TAB_ICONS.Home;
+        const labelEntry = TAB_I18N_KEYS[route.name];
+        const label = labelEntry ? t(labelEntry.key, labelEntry.fallback) : route.name;
+
+        return (
+          <Pressable
+            key={route.key}
+            onPress={() => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!focused && !event.defaultPrevented) {
+                haptic.selection();
+                navigation.navigate(route.name);
+              }
+            }}
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 6,
+              gap: 2,
+            }}
+          >
+            <Ionicons
+              name={focused ? icons.active : icons.inactive}
+              size={20}
+              color={
+                focused
+                  ? '#ff1039'
+                  : isLight
+                    ? 'rgba(20,20,25,0.65)'
+                    : 'rgba(255,255,255,0.72)'
+              }
+            />
+            <Text
+              style={{
+                color: focused
+                  ? '#ff1039'
+                  : isLight
+                    ? 'rgba(20,20,25,0.72)'
+                    : 'rgba(255,255,255,0.72)',
+                fontSize: 10,
+                fontWeight: focused ? '700' : '500',
+                letterSpacing: 0.2,
+              }}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * iOS — schwebende Liquid-Glass-Bar (BlurView + iridescent rim).
+ */
+function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const t = useT();
-  // Phase B3.5 (2026-05-18): theme-aware tab-bar (dark→schwarz mit glass,
-  // light→weiß mit glass). User-Wunsch revised von "bleibt schwarz" auf
-  // "auch im light mode hell".
   const mode = useResolvedMode();
   const isLight = mode === 'light';
   const horizontalMargin = 12;
@@ -59,8 +153,6 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
   const barWidth = width - horizontalMargin * 2;
   const innerWidth = barWidth - innerHorizontalPadding * 2;
   const tabWidth = innerWidth / state.routes.length;
-  // Bottom-Position: Safe-Area-Inset (Android Gesture-Bar / iOS Home-Indicator)
-  // plus zusätzlicher Polster-Abstand.
   const bottomPosition = insets.bottom > 0 ? insets.bottom + 4 : 12;
 
   return (
@@ -72,7 +164,6 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
         right: horizontalMargin,
         bottom: bottomPosition,
         borderRadius: 28,
-        // Multi-layer shadow für 3D-depth.
         shadowColor: '#000',
         shadowOpacity: 0.55,
         shadowRadius: 30,
@@ -82,92 +173,27 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
     >
       <View style={{ borderRadius: 28, overflow: 'hidden' }}>
         <BlurView intensity={100} tint={isLight ? 'light' : 'dark'} style={{ flex: 1 }}>
-          {/* Background-Tint — sehr leicht, lässt blur durchscheinen für
-              echten frosted-glass-Look. User-Wunsch B3.6 (2026-05-18): dark
-              mode noch unschärfer → opacity weiter runter auf 0.10. Light
-              mode bleibt bei 0.55 (User: "schöner als dark"). */}
           <View
             style={{
               flexDirection: 'row',
               paddingVertical: 7,
-              paddingHorizontal: 6,
+              paddingHorizontal: innerHorizontalPadding,
               backgroundColor: isLight
                 ? 'rgba(250,250,250,0.55)'
                 : 'rgba(10,10,14,0.10)',
               borderRadius: 28,
             }}
           >
-            {/* Capsule-Indicator hinter aktivem Tab */}
-            <View
-              style={{
-                position: 'absolute',
-                top: 4,
-                bottom: 4,
-                left: innerHorizontalPadding + state.index * tabWidth + tabWidth * 0.08,
-                width: tabWidth * 0.84,
-                borderRadius: 22,
-                backgroundColor: 'rgba(255,16,57,0.18)',
-                borderWidth: 1,
-                borderColor: 'rgba(255,16,57,0.40)',
-              }}
+            <TabButtons
+              state={state}
+              navigation={navigation}
+              isLight={isLight}
+              tabWidth={tabWidth}
+              innerHorizontalPadding={innerHorizontalPadding}
             />
-
-            {state.routes.map((route, index) => {
-              const focused = state.index === index;
-              const icons = TAB_ICONS[route.name] ?? TAB_ICONS.Home;
-              const labelEntry = TAB_I18N_KEYS[route.name];
-              const label = labelEntry ? t(labelEntry.key, labelEntry.fallback) : route.name;
-
-              return (
-                <Pressable
-                  key={route.key}
-                  onPress={() => {
-                    const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                    if (!focused && !event.defaultPrevented) {
-                      haptic.selection();
-                      navigation.navigate(route.name);
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    paddingVertical: 6,
-                    gap: 2,
-                  }}
-                >
-                  <Ionicons
-                    name={focused ? icons.active : icons.inactive}
-                    size={20}
-                    color={
-                      focused
-                        ? '#ff1039'
-                        : isLight
-                          ? 'rgba(20,20,25,0.65)'
-                          : 'rgba(255,255,255,0.72)'
-                    }
-                  />
-                  <Text
-                    style={{
-                      color: focused
-                        ? '#ff1039'
-                        : isLight
-                          ? 'rgba(20,20,25,0.72)'
-                          : 'rgba(255,255,255,0.72)',
-                      fontSize: 10,
-                      fontWeight: focused ? '700' : '500',
-                      letterSpacing: 0.2,
-                    }}
-                  >
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
           </View>
 
-          {/* Inner top-edge highlight — weißer feiner Strich oben für die
-              "glass-rim"-Lichtung (Apple-Look). */}
+          {/* Inner top-edge highlight — glass-rim Lichtung. */}
           <View
             pointerEvents="none"
             style={{
@@ -180,9 +206,7 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
             }}
           />
 
-          {/* Subtle iridescent rim — LinearGradient horizontal mit drei
-              versetzten Stops. Gibt den "Reflexions"-Schimmer des Apple-
-              Beispiels. */}
+          {/* Subtle iridescent rim. */}
           <LinearGradient
             pointerEvents="none"
             colors={[
@@ -206,7 +230,7 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
         </BlurView>
       </View>
 
-      {/* Outer ring border — oberhalb der BlurView, damit es als rim wirkt. */}
+      {/* Outer ring border. */}
       <View
         pointerEvents="none"
         style={{
@@ -222,4 +246,57 @@ export function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
       />
     </View>
   );
+}
+
+/**
+ * Android — solide, am unteren Rand verankerte Bar (Material-konventionell).
+ * Voll-breit, opaker Hintergrund läuft bis zum physischen Bildschirmrand durch
+ * (paddingBottom = Safe-Area) → die System-Nav-Buttons sitzen über der soliden
+ * Fläche. configureAndroidNavBar in App.tsx hält die System-Nav transparent.
+ */
+function SolidTabBar({ state, navigation }: BottomTabBarProps) {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const colors = useColors();
+  const mode = useResolvedMode();
+  const isLight = mode === 'light';
+  const innerHorizontalPadding = 6;
+  const tabWidth = (width - innerHorizontalPadding * 2) / state.routes.length;
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: colors.bg.card,
+        borderTopWidth: 1,
+        borderTopColor: colors.border.subtle,
+        paddingBottom: Math.max(insets.bottom, 8),
+        elevation: 12,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          paddingVertical: 7,
+          paddingHorizontal: innerHorizontalPadding,
+        }}
+      >
+        <TabButtons
+          state={state}
+          navigation={navigation}
+          isLight={isLight}
+          tabWidth={tabWidth}
+          innerHorizontalPadding={innerHorizontalPadding}
+        />
+      </View>
+    </View>
+  );
+}
+
+/** Dispatch: Android → solide Bar, iOS → Liquid-Glass-Bar. */
+export function LiquidGlassTabBar(props: BottomTabBarProps) {
+  return Platform.OS === 'android' ? <SolidTabBar {...props} /> : <GlassTabBar {...props} />;
 }
