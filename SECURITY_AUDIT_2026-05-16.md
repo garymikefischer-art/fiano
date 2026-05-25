@@ -6,6 +6,19 @@
 
 ---
 
+## 🔄 Round-10-Addendum (2026-05-20, Branch `claude/edge-to-edge`)
+
+Security-relevante Änderungen seit dem Audit:
+
+- **Stripe-Webhook gehärtet (Bug 3):** `customer.subscription.*`-Handler lösen `user_id` jetzt auch über `stripe_customer_id` auf (Fallback, nicht nur Metadata) → keine still ge-break-ten Status-Updates. Webhook bleibt Stripe-Signatur-verifiziert + event-id-dedupe (A6.6) unverändert.
+- **Neuer Client-Input `subtitlePng` (Bug 5):** Mobile schickt Subtitle-Settings + Cues für den PNG-Render-Pfad. Server-side allow-list-validiert (`validateSubtitlePng` in `renderSpec.ts`): nur bekannte Keys, Numbers geclampt, Farben gegen 6-hex-Regex, Enums geprüft — das rohe Client-Objekt wird NIE durchgereicht. Canvas-Text-Rendering (`@napi-rs/canvas`) hat keine Injection-Fläche; Cue-Zeiten gehen als geclampte Numbers in den ffmpeg-`overlay`-Filter. Konform mit A6.4 (Worker baut args selbst).
+- **`__DEV__`-Paywall-Bypass:** `RootNavigator` überspringt im Dev-Build (`expo run:android`, `__DEV__=true`) die Paywall. Release-/Preview-Builds haben `__DEV__=false` → **kein** Produktions-Paywall-Loch. Bewusst + sicher.
+- **Neue Deps:** `react-native-edge-to-edge` (Mobile), `@napi-rs/canvas` (Worker) — Supply-Chain-Fläche, in D6 `npm audit` mit abdecken.
+
+**Weiterhin offen aus dem Audit:** D5 (Electron `sandbox=true` + nonce-CSP — A6.8 partial reverted, siehe P1-8/P2-7), D6 (`npm audit` in root + packages/mobile + services/render-worker — P3-12), E3 (R2-lifecycle `sources/*>7d` — P2-1).
+
+---
+
 ## Executive Summary
 
 Das fiano-Fundament ist solide (Supabase RLS gerade gehärtet, encrypted at-rest auf beiden Clients, Stripe-Signature-Verification, ownership-based R2-Key-Scoping). Aber: **der Cloud-Worker hat KEIN Rate Limiting**, mehrere Endpunkte reflektieren PII in Logs, und FFmpeg-args+ASS-Pfade vertrauen Client-Strings tief genug für mehrere ernste Angriffe (financial DoS, libass-arbitrary-file-read, R2-storage-exhaustion).
