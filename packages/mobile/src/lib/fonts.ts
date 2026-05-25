@@ -46,32 +46,10 @@ export const SUBTITLE_FONTS: SubtitleFontDef[] = [
 /** Set der gültigen Font-IDs — schnelle Validierung in Preview/Picker. */
 export const SUBTITLE_FONT_IDS = new Set<string>(SUBTITLE_FONTS.map((f) => f.id));
 
-/**
- * expo-font `useFonts()`-Map: Family-Name → Asset. Keys = Font-IDs, damit der
- * geladene fontFamily-Name 1:1 dem `id` entspricht.
- */
-export const FONT_ASSETS: Record<string, number> = {
-  Montserrat: require('../../assets/fonts/Montserrat.ttf'),
-  Poppins: require('../../assets/fonts/Poppins.ttf'),
-  Inter: require('../../assets/fonts/Inter.ttf'),
-  Outfit: require('../../assets/fonts/Outfit.ttf'),
-  Sora: require('../../assets/fonts/Sora.ttf'),
-  BebasNeue: require('../../assets/fonts/BebasNeue.ttf'),
-  Anton: require('../../assets/fonts/Anton.ttf'),
-  Oswald: require('../../assets/fonts/Oswald.ttf'),
-  Teko: require('../../assets/fonts/Teko.ttf'),
-  BarlowCondensed: require('../../assets/fonts/BarlowCondensed.ttf'),
-  FjallaOne: require('../../assets/fonts/FjallaOne.ttf'),
-  ArchivoBlack: require('../../assets/fonts/ArchivoBlack.ttf'),
-  Bungee: require('../../assets/fonts/Bungee.ttf'),
-  TitanOne: require('../../assets/fonts/TitanOne.ttf'),
-  LuckiestGuy: require('../../assets/fonts/LuckiestGuy.ttf'),
-  Bangers: require('../../assets/fonts/Bangers.ttf'),
-  RussoOne: require('../../assets/fonts/RussoOne.ttf'),
-  Orbitron: require('../../assets/fonts/Orbitron.ttf'),
-  ChakraPetch: require('../../assets/fonts/ChakraPetch.ttf'),
-  PermanentMarker: require('../../assets/fonts/PermanentMarker.ttf'),
-};
+// Die .ttf werden build-time eingebettet (expo-font Config-Plugin in app.json),
+// NICHT zur Laufzeit via useFonts geladen — sonst greift react-native-svg
+// (Gradient/Metallic-Preview) die Schriften auf Android nicht ab. Family-Name
+// auf Android = Dateiname ohne Endung = der `id` oben.
 
 /**
  * Default-Font pro Subtitle-Style (greift wenn `settings.fontFamily` fehlt).

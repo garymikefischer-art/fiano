@@ -406,10 +406,6 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange, is
                     />
                   ))}
                 </ScrollView>
-                <CustomFontInput
-                  value={local.fontFamily ?? ''}
-                  onCommit={(v) => patch({ fontFamily: v })}
-                />
                 <SliderRow
                   label="Font size"
                   value={local.fontSize ?? 26}
@@ -1036,44 +1032,6 @@ function SliderRow({
         <Text style={styles.sliderValue}>{display}</Text>
       </View>
       <SimpleSlider value={value} min={min} max={max} step={step} onChange={onChange} />
-    </View>
-  );
-}
-
-function CustomFontInput({
-  value,
-  onCommit,
-}: {
-  value: string;
-  onCommit: (v: SubtitleFontFamily) => void;
-}) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [draft, setDraft] = useState(value);
-  return (
-    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-      <Text style={[styles.subLabel, { width: 78 }]}>Custom</Text>
-      <TextInput
-        value={draft}
-        onChangeText={setDraft}
-        onBlur={() => {
-          const trimmed = draft.trim();
-          if (trimmed.length > 0 && trimmed !== value) onCommit(trimmed);
-        }}
-        placeholder="z.B. Roboto-Italic"
-        placeholderTextColor="#52525b"
-        style={{
-          flex: 1,
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          backgroundColor: 'rgba(0,0,0,0.4)',
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.10)',
-          color: colors.text.primary,
-          fontSize: 13,
-        }}
-      />
     </View>
   );
 }

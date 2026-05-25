@@ -72,6 +72,33 @@
             "enforceNavigationBarContrast": false
           }
         }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Montserrat.ttf",
+            "./assets/fonts/Poppins.ttf",
+            "./assets/fonts/Inter.ttf",
+            "./assets/fonts/Outfit.ttf",
+            "./assets/fonts/Sora.ttf",
+            "./assets/fonts/BebasNeue.ttf",
+            "./assets/fonts/Anton.ttf",
+            "./assets/fonts/Oswald.ttf",
+            "./assets/fonts/Teko.ttf",
+            "./assets/fonts/BarlowCondensed.ttf",
+            "./assets/fonts/FjallaOne.ttf",
+            "./assets/fonts/ArchivoBlack.ttf",
+            "./assets/fonts/Bungee.ttf",
+            "./assets/fonts/TitanOne.ttf",
+            "./assets/fonts/LuckiestGuy.ttf",
+            "./assets/fonts/Bangers.ttf",
+            "./assets/fonts/RussoOne.ttf",
+            "./assets/fonts/Orbitron.ttf",
+            "./assets/fonts/ChakraPetch.ttf",
+            "./assets/fonts/PermanentMarker.ttf"
+          ]
+        }
       ]
     ],
     "experiments": {

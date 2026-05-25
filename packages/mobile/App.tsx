@@ -13,7 +13,7 @@ import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/
 import * as Linking from 'expo-linking';
 import * as NavigationBar from 'expo-navigation-bar';
 
-import { LogBox, Platform, View } from 'react-native';
+import { LogBox, Platform } from 'react-native';
 
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/stores/authStore';
@@ -26,8 +26,6 @@ import { initSounds, appStart as playAppStart } from './src/lib/sounds';
 import { UpgradeModal } from './src/components/UpgradeModal';
 import { AppAlertHost } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
-import { useFonts } from 'expo-font';
-import { FONT_ASSETS } from './src/lib/fonts';
 import { useColors, useResolvedMode } from './src/lib/theme';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -69,9 +67,6 @@ export default function App() {
   const initApp = useAppStore((s) => s.init);
   const initNotifications = useNotificationsStore((s) => s.init);
   const initProjects = useProjectsStore((s) => s.init);
-
-  // Phase D-Fonts (2026-05-20): die 20 gebündelten Untertitel-Schriften laden.
-  const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
 
   // Phase B3 (2026-05-18): theme-resolved colors für NavigationContainer +
   // System-Nav-Bar. useColors hookt sich an appStore.themeMode + System-Color-
@@ -164,13 +159,6 @@ export default function App() {
       sub.remove();
     };
   }, [initAuth, initApp, initNotifications, initProjects]);
-
-  // Phase D-Fonts: erst rendern, wenn die Untertitel-Schriften geladen sind —
-  // sonst flackert die Preview kurz mit Fallback-Font. Bei einem Lade-Fehler
-  // trotzdem weiter (Fallback-Font) statt auf dem Splash zu hängen.
-  if (!fontsLoaded && !fontError) {
-    return <View style={{ flex: 1, backgroundColor: '#090b0c' }} />;
-  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
