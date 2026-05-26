@@ -46,12 +46,20 @@ for (const [fontPath, alias] of LIBERATION_FONT_PATHS) {
 }
 
 /**
- * Phase D-Fonts (2026-05-20): die 20 gebündelten Untertitel-Schriften.
+ * Phase D-Fonts (2026-05-20) + Multi-Weight (2026-05-26): die 20 gebündelten
+ * Untertitel-Schriften, plus für 10 Sans-Serifs (Inter/Montserrat/Poppins/
+ * Outfit/Sora/Oswald/Teko/BarlowCondensed/ChakraPetch/Orbitron) jeweils 4
+ * Weight-Varianten (Light/Medium/Bold/Black) als separate Family-Names.
+ *
  * KOPIE der id-Liste aus `packages/mobile/src/lib/fonts.ts` — bei Änderung
  * BEIDE syncen, sonst Export ≠ Preview. Die `.ttf` liegen in
  * `services/render-worker/assets/fonts/` (Dockerfile: COPY assets ./assets).
+ *
+ * Mobile schickt im RenderSpec den fully-resolved Family-Namen (z.B.
+ * 'InterBlack' statt {family:'Inter', weight:'black'}) — Worker matched 1:1.
  */
 const SUBTITLE_FONT_FILES: ReadonlyArray<readonly [string, string]> = [
+  // Base-Familys (Single-Weight Display-Fonts + Regular der Sans-Serifs).
   ['Montserrat', 'Montserrat.ttf'],
   ['Poppins', 'Poppins.ttf'],
   ['Inter', 'Inter.ttf'],
@@ -72,6 +80,47 @@ const SUBTITLE_FONT_FILES: ReadonlyArray<readonly [string, string]> = [
   ['Orbitron', 'Orbitron.ttf'],
   ['ChakraPetch', 'ChakraPetch.ttf'],
   ['PermanentMarker', 'PermanentMarker.ttf'],
+  // Weight-Varianten der Sans-Serifs (Light/Medium/Bold/Black).
+  ['MontserratLight', 'MontserratLight.ttf'],
+  ['MontserratMedium', 'MontserratMedium.ttf'],
+  ['MontserratBold', 'MontserratBold.ttf'],
+  ['MontserratBlack', 'MontserratBlack.ttf'],
+  ['PoppinsLight', 'PoppinsLight.ttf'],
+  ['PoppinsMedium', 'PoppinsMedium.ttf'],
+  ['PoppinsBold', 'PoppinsBold.ttf'],
+  ['PoppinsBlack', 'PoppinsBlack.ttf'],
+  ['InterLight', 'InterLight.ttf'],
+  ['InterMedium', 'InterMedium.ttf'],
+  ['InterBold', 'InterBold.ttf'],
+  ['InterBlack', 'InterBlack.ttf'],
+  ['OutfitLight', 'OutfitLight.ttf'],
+  ['OutfitMedium', 'OutfitMedium.ttf'],
+  ['OutfitBold', 'OutfitBold.ttf'],
+  ['OutfitBlack', 'OutfitBlack.ttf'],
+  ['SoraLight', 'SoraLight.ttf'],
+  ['SoraMedium', 'SoraMedium.ttf'],
+  ['SoraBold', 'SoraBold.ttf'],
+  ['SoraBlack', 'SoraBlack.ttf'],
+  ['OswaldLight', 'OswaldLight.ttf'],
+  ['OswaldMedium', 'OswaldMedium.ttf'],
+  ['OswaldBold', 'OswaldBold.ttf'],
+  ['OswaldBlack', 'OswaldBlack.ttf'],
+  ['TekoLight', 'TekoLight.ttf'],
+  ['TekoMedium', 'TekoMedium.ttf'],
+  ['TekoBold', 'TekoBold.ttf'],
+  ['TekoBlack', 'TekoBlack.ttf'],
+  ['BarlowCondensedLight', 'BarlowCondensedLight.ttf'],
+  ['BarlowCondensedMedium', 'BarlowCondensedMedium.ttf'],
+  ['BarlowCondensedBold', 'BarlowCondensedBold.ttf'],
+  ['BarlowCondensedBlack', 'BarlowCondensedBlack.ttf'],
+  ['ChakraPetchLight', 'ChakraPetchLight.ttf'],
+  ['ChakraPetchMedium', 'ChakraPetchMedium.ttf'],
+  ['ChakraPetchBold', 'ChakraPetchBold.ttf'],
+  ['ChakraPetchBlack', 'ChakraPetchBlack.ttf'],
+  ['OrbitronLight', 'OrbitronLight.ttf'],
+  ['OrbitronMedium', 'OrbitronMedium.ttf'],
+  ['OrbitronBold', 'OrbitronBold.ttf'],
+  ['OrbitronBlack', 'OrbitronBlack.ttf'],
 ];
 
 /** Gültige Font-IDs — von renderSpec.ts zur Allow-List-Validierung importiert. */
@@ -183,6 +232,23 @@ function resolveSubtitleFontPx(uiFontSize: number, frameHeight: number): number 
 }
 
 /**
+ * Phase E4 (2026-05-26): Effekt-Skalierungs-Faktor — KOPIE von
+ * packages/shared/src/subtitleLayout.ts `resolveSubtitleEffectScale`.
+ * `frameHeight=720` ≈ Preview-9:16-Card-Höhe auf Standard-Phone. Bei einem
+ * 1920-Tall-Output ergibt das effectScale=2.67 — Stroke/Shadow/Glow werden im
+ * Worker exakt so dick gerendert wie in der Preview, sodass beim Resize aufs
+ * Phone-Display alles 1:1 matched (no „Stroke dünner / Glow schwächer im
+ * Export" mehr).
+ *
+ * VORHER (Bug E4): Worker nutzte `baseScale = canvasW / 540` für Effekte, das
+ * skalierte aber NICHT mit `resolveSubtitleFontPx (canvasH × 0.06)`. Drift.
+ */
+const EFFECT_SCALE_REFERENCE_PX = 720;
+function resolveSubtitleEffectScale(frameHeight: number): number {
+  return frameHeight / EFFECT_SCALE_REFERENCE_PX;
+}
+
+/**
  * Style-abhängiger fontSize-Default — KOPIE von SubtitleOverlay.defaultFontSizeFor.
  * Greift nur wenn `settings.fontSize` fehlt; hält den Worker-Default synchron
  * mit dem Preview-Default (sonst Export ≠ Preview je nach Style).
@@ -226,8 +292,11 @@ export function renderSimpleSubtitleToPng(
   const text = upper ? cueText.toUpperCase() : cueText;
   if (!text.trim()) return Buffer.alloc(0);
 
-  // baseScale skaliert Effekt-Pixel (Stroke/Glow/Shadow) UI-Token → Output-Px.
-  const baseScale = canvasW / 540;
+  // Phase E4 (2026-05-26): effectScale ersetzt das alte baseScale (canvasW/540).
+  // Skaliert proportional zur Frame-Höhe, sodass Stroke/Shadow/Glow im selben
+  // Verhältnis zur Schriftgröße wachsen wie die Preview — beim Resize auf Phone
+  // sieht das exportierte Video identisch zur Modal-Preview aus.
+  const effectScale = resolveSubtitleEffectScale(canvasH);
   // Phase R10-Bug5 (2026-05-20): fontSize über resolveSubtitleFontPx — exakt
   // dieselbe Formel wie die Mobile-Preview (SubtitleOverlay) + assBuilder.
   // VORHER `fontSize * baseScale` → Export-Schrift war ~45 % der Preview (9:16).
@@ -235,7 +304,14 @@ export function renderSimpleSubtitleToPng(
     settings.fontSize ?? defaultSubtitleFontSize(settings.style),
     canvasH,
   );
-  const strokeW = (settings.strokeWidth ?? 4) * baseScale;
+  // Phase E4 Iter 5 (2026-05-26): zurück zu × effectScale × 2 — Iter-2-Math
+  // ohne paint-order × 2 ergab proportional halbierten Stroke vs. Preview.
+  // Preview-SVG-Pfad nutzt paint-order × 2 (strokeWidth-prop = SW × 2, fill
+  // überdeckt innen, sichtbare Außenkontur = SW × 1 dp). Worker muss das
+  // matchen: lineWidth = SW × effectScale × 2, outside = SW × effectScale.
+  // Iter 1 mit × 2 wirkte subjektiv „zu dick" mit Bangers (display-comic-
+  // font, native fett) — bei Sans-Serif ist es korrekt zur Preview.
+  const strokeW = (settings.strokeWidth ?? 4) * effectScale * 2;
   const fontFamily = resolveWorkerFont(settings.fontFamily, settings.style);
   const textColor = settings.textColor ?? '#ffffff';
   const strokeColor = settings.strokeColor ?? '#000000';
@@ -259,11 +335,18 @@ export function renderSimpleSubtitleToPng(
   }
 
   // Build fill style: metallic > gradient > solid
+  // Phase E4 (2026-05-26): Gradient-Range über 1.2 × fontSize (≈ ascent+descent),
+  // matched Preview's SVG `objectBoundingBox`-Verhalten. Vorher 1.0 × fontSize
+  // → in der Mitte der Glyphen war zu viel Color-Mix-Anteil, gradient wirkte
+  // „blasser". Mit 1.2× sind die reinen `gradientFrom`/`gradientTo`-Töne
+  // näher an Glyph-Oberkante/Unterkante.
+  const gradTop = y - fontSizePx * 0.6;
+  const gradBot = y + fontSizePx * 0.6;
   const fillStyle: string | CanvasGradient = (() => {
     if (settings.metallic) {
       const from = settings.gradientFrom ?? lightenHex(textColor, 0.35);
       const to   = settings.gradientTo   ?? darkenHex(textColor, 0.45);
-      const grad = ctx.createLinearGradient(0, y - fontSizePx / 2, 0, y + fontSizePx / 2);
+      const grad = ctx.createLinearGradient(0, gradTop, 0, gradBot);
       grad.addColorStop(0,    darkenHex(from, 0.40));
       grad.addColorStop(0.18, lightenHex(from, 0.55));
       grad.addColorStop(0.32, lightenHex(from, 0.10));
@@ -273,43 +356,60 @@ export function renderSimpleSubtitleToPng(
       grad.addColorStop(1,    darkenHex(to,   0.55));
       return grad;
     }
-    if (settings.useGradient && settings.gradientFrom && settings.gradientTo) {
-      const grad = ctx.createLinearGradient(0, y - fontSizePx / 2, 0, y + fontSizePx / 2);
-      grad.addColorStop(0, settings.gradientFrom);
-      grad.addColorStop(1, settings.gradientTo);
+    if (settings.useGradient) {
+      // Phase E4 Iter 5 (2026-05-26): Fallback-Defaults exakt wie in der
+      // Preview (SubtitleOverlay.tsx SvgGradientText). Vorher: Worker brach
+      // ab wenn gradientFrom/To nicht explizit gesetzt → solid textColor →
+      // Mismatch zur Preview (die zeigt Gradient via Fallback).
+      const from = settings.gradientFrom ?? textColor ?? '#ff1039';
+      const to = settings.gradientTo ?? '#ff8c00';
+      const grad = ctx.createLinearGradient(0, gradTop, 0, gradBot);
+      grad.addColorStop(0, from);
+      grad.addColorStop(1, to);
       return grad;
     }
     return textColor;
   })();
 
-  // Drop-Shadow Pass — auf fill (nicht stroke) damit auch ohne Stroke sichtbar
-  const shadowOnLegacy = (settings.shadowBlur ?? 0) > 0
-    || Math.abs(settings.shadowOffsetX ?? 0) > 0.1
-    || Math.abs(settings.shadowOffsetY ?? 0) > 0.1;
-  const shadowOn = settings.shadowEnabled ?? shadowOnLegacy;
-  if (shadowOn && shadowOnLegacy) {
+  // Phase E4 Iter 7 (2026-05-26): Defaults exakt wie Preview SubtitleOverlay,
+  // sonst rendert Worker NICHTS bei toggle-only-User-Settings (z.B. wenn User
+  // Shadow-enabled antippt aber Slider nicht ändert). Preview-Defaults greifen
+  // dann mit blur=4, offsetY=2, glowBlur=8 etc. → Worker muss matchen.
+  const shadowOn = settings.shadowEnabled === true;
+  if (shadowOn) {
+    const shadowBlur = settings.shadowBlur ?? 4;
+    const shadowOffsetX = settings.shadowOffsetX ?? 0;
+    const shadowOffsetY = settings.shadowOffsetY ?? 2;
+    const shadowColor = settings.shadowColor ?? '#000000';
     ctx.save();
-    ctx.shadowColor = (settings.shadowColor ?? '#000000') + 'cc';
-    ctx.shadowBlur = (settings.shadowBlur ?? 0) * baseScale;
-    ctx.shadowOffsetX = (settings.shadowOffsetX ?? 0) * baseScale;
-    ctx.shadowOffsetY = (settings.shadowOffsetY ?? 0) * baseScale;
+    ctx.shadowColor = shadowColor + 'cc';
+    ctx.shadowBlur = shadowBlur * effectScale;
+    ctx.shadowOffsetX = shadowOffsetX * effectScale;
+    ctx.shadowOffsetY = shadowOffsetY * effectScale;
     ctx.fillStyle = fillStyle;
     ctx.fillText(text, canvasW / 2, y);
     ctx.restore();
   }
 
-  // Neon-Glow Multi-Pass — Text strahlt selbst in glow-color
-  const glowOn = settings.glowEnabled ?? ((settings.glowBlur ?? 0) > 0);
-  if (glowOn && (settings.glowBlur ?? 0) > 0) {
-    const baseBlur = (settings.glowBlur ?? 0) * baseScale * Math.max(0.5, settings.glowStrength ?? 0.7);
+  // Phase E4 Iter 9 (2026-05-26): Glow-Rendering MATCHED Preview SVG.
+  // Preview rendert EINE SvgText-Layer mit fill=glowColor+alpha (alpha von
+  // glowStrength × 255) + Gaussian-Blur. Worker hat das vorher als 4-Pass
+  // Multi-Layer mit voller-opacity-shadowColor gemacht → ~4× zu intensiv.
+  // Single-Layer Match: ein fillText mit shadowColor=glowColor + alpha.
+  const glowOn = settings.glowEnabled === true;
+  if (glowOn) {
+    const glowBlur = settings.glowBlur ?? 8;
+    const glowStrength = settings.glowStrength ?? 0.7;
     const glowColor = settings.glowColor ?? '#ff1039';
+    const alphaHex = Math.round(Math.max(0, Math.min(1, glowStrength)) * 255)
+      .toString(16)
+      .padStart(2, '0');
+    const glowColorWithAlpha = glowColor.length === 7 ? glowColor + alphaHex : glowColor;
     ctx.save();
-    ctx.shadowColor = glowColor;
-    ctx.fillStyle = glowColor;
-    for (const b of [baseBlur * 1.5, baseBlur, baseBlur * 0.6, baseBlur * 0.3]) {
-      ctx.shadowBlur = b;
-      ctx.fillText(text, canvasW / 2, y);
-    }
+    ctx.shadowColor = glowColorWithAlpha;
+    ctx.shadowBlur = glowBlur * effectScale;
+    ctx.fillStyle = glowColorWithAlpha;
+    ctx.fillText(text, canvasW / 2, y);
     ctx.restore();
   }
 
@@ -367,8 +467,9 @@ export function renderLayeredSubtitleToPng(
     ? words.filter((w) => !bigSet.has(w.replace(/[^\w\säöüÄÖÜß]/g, '')))
     : words.slice(0, -1);
 
-  // baseScale skaliert Effekt-Pixel (Stroke/Glow/Shadow) UI-Token → Output-Px.
-  const baseScale = canvasW / 540;
+  // Phase E4 (2026-05-26): effectScale (= canvasH/720) statt baseScale (canvasW/540)
+  // — proportional zur Schrift-Skalierung via resolveSubtitleFontPx, matched Preview.
+  const effectScale = resolveSubtitleEffectScale(canvasH);
   // Phase R10-Bug5 (2026-05-20): fontSize über die geteilte Formel (siehe
   // renderSimpleSubtitleToPng) statt `fontSize * baseScale`.
   const fontSizePx = resolveSubtitleFontPx(
@@ -379,7 +480,9 @@ export function renderLayeredSubtitleToPng(
   // highlightFontScale-Default 1.8 = identisch zur Preview (SubtitleOverlay);
   // vorher 2.0 → Big-Word im Export größer als in der Preview.
   const bigSize = Math.round(fontSizePx * (settings.highlightFontScale ?? 1.8));
-  const strokeW = (settings.strokeWidth ?? 4) * baseScale;
+  // Phase E4 Iter 5 (2026-05-26): zurück zu × effectScale × 2 (siehe Begründung
+  // in renderSimpleSubtitleToPng oben).
+  const strokeW = (settings.strokeWidth ?? 4) * effectScale * 2;
   const fontFamily = resolveWorkerFont(settings.fontFamily, settings.style);
   const textColor = settings.textColor ?? '#ffffff';
   const strokeColor = settings.strokeColor ?? '#000000';
@@ -402,18 +505,18 @@ export function renderLayeredSubtitleToPng(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Drop-Shadow für die small-words (falls global-shadow gesetzt)
-  const shadowOnLegacy = (settings.shadowBlur ?? 0) > 0 || Math.abs(settings.shadowOffsetX ?? 0) > 0.1 || Math.abs(settings.shadowOffsetY ?? 0) > 0.1;
-  const globalShadowOn = settings.shadowEnabled ?? shadowOnLegacy;
-  const globalGlowOn = settings.glowEnabled ?? ((settings.glowBlur ?? 0) > 0);
-  const globalShadowBlur = (settings.shadowBlur ?? 0) * baseScale;
-  const globalShadowX    = (settings.shadowOffsetX ?? 0) * baseScale;
-  const globalShadowY    = (settings.shadowOffsetY ?? 0) * baseScale;
+  // Phase E4 Iter 7 (2026-05-26): Defaults exakt wie Preview — shadowBlur=4,
+  // shadowOffsetY=2, glowBlur=8 wenn User nur den enable-Toggle umlegt.
+  const globalShadowOn = settings.shadowEnabled === true;
+  const globalGlowOn = settings.glowEnabled === true;
+  const globalShadowBlur = (settings.shadowBlur ?? 4) * effectScale;
+  const globalShadowX    = (settings.shadowOffsetX ?? 0) * effectScale;
+  const globalShadowY    = (settings.shadowOffsetY ?? 2) * effectScale;
   const globalShadowColor = settings.shadowColor ?? '#000000';
-  const hasGlobalShadow = globalShadowOn && (globalShadowBlur > 0 || Math.abs(globalShadowX) > 0.1 || Math.abs(globalShadowY) > 0.1);
+  const hasGlobalShadow = globalShadowOn;
 
   // Glow für die small-words (falls global-glow gesetzt — als Halo um Outline)
-  const globalGlowBlur = (settings.glowBlur ?? 0) * baseScale;
+  const globalGlowBlur = (settings.glowBlur ?? 8) * effectScale;
   const globalGlowColor = settings.glowColor ?? '#ff1039';
   const globalGlowStrength = settings.glowStrength ?? 0.7;
 
@@ -427,7 +530,7 @@ export function renderLayeredSubtitleToPng(
     const bigFill = buildBigFill(ctx, yBig, bigSize, settings, highlightColor);
 
     // Drop-Shadow für big-word (separater layered-drop-shadow)
-    const bigDrop = (settings.highlightDropShadow ?? 0) * baseScale;
+    const bigDrop = (settings.highlightDropShadow ?? 0) * effectScale;
     if (bigDrop > 0) {
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.8)';
@@ -438,7 +541,7 @@ export function renderLayeredSubtitleToPng(
     // Big-Highlight-Glow als Multi-Pass mit fillStyle = glowColor (Text SELBST strahlt).
     if (settings.highlightGlow) {
       const strength = settings.highlightGlowStrength ?? 0.6;
-      const blur = strength * 60 * baseScale;
+      const blur = strength * 60 * effectScale;
       const glowColor = settings.highlightGlowColor ?? '#ffffff';
       ctx.save();
       ctx.shadowColor = glowColor;
@@ -472,8 +575,15 @@ export function renderLayeredSubtitleToPng(
     // Drop-Shadow oder Glow als Pre-Pass — auf FILL (nicht stroke-only) damit auch
     // bei strokeWidth=0 ein sichtbarer Halo entsteht.
     const smallStrokeW = strokeW * 0.7;
-    const fillStyle: string | CanvasGradient = settings.useGradient && settings.gradientFrom && settings.gradientTo
-      ? buildGradient(ctx, ySmall, smallSize, settings.gradientFrom, settings.gradientTo)
+    // Phase E4 Iter 7: Gradient-Fallback-Defaults wie Preview SubtitleOverlay.
+    const fillStyle: string | CanvasGradient = settings.useGradient
+      ? buildGradient(
+          ctx,
+          ySmall,
+          smallSize,
+          settings.gradientFrom ?? textColor ?? '#ff1039',
+          settings.gradientTo ?? '#ff8c00',
+        )
       : textColor;
 
     if (hasGlobalShadow) {
@@ -524,8 +634,10 @@ function buildBigFill(
   s: SubtitleRenderSettings,
   defaultColor: string,
 ): string | CanvasGradient {
-  const top = yCenter - size / 2;
-  const bot = yCenter + size / 2;
+  // Phase E4 (2026-05-26): Gradient-Range über 1.2 × size (≈ ascent+descent),
+  // matched Preview SVG objectBoundingBox-Verhalten.
+  const top = yCenter - size * 0.6;
+  const bot = yCenter + size * 0.6;
   if (s.highlightMetallic) {
     const from = s.highlightGradientFrom ?? '#ffffff';
     const to = s.highlightGradientTo ?? '#7a7a7a';
@@ -539,10 +651,13 @@ function buildBigFill(
     grad.addColorStop(1,    darkenHex(to, 0.55));
     return grad;
   }
-  if (s.highlightUseGradient && s.highlightGradientFrom && s.highlightGradientTo) {
+  if (s.highlightUseGradient) {
+    // Phase E4 Iter 5 (2026-05-26): Fallback-Defaults exakt wie Preview.
+    const from = s.highlightGradientFrom ?? defaultColor ?? '#ff1039';
+    const to = s.highlightGradientTo ?? '#ff8c00';
     const grad = ctx.createLinearGradient(0, top, 0, bot);
-    grad.addColorStop(0, s.highlightGradientFrom);
-    grad.addColorStop(1, s.highlightGradientTo);
+    grad.addColorStop(0, from);
+    grad.addColorStop(1, to);
     return grad;
   }
   return defaultColor;
@@ -555,7 +670,8 @@ function buildGradient(
   from: string,
   to: string,
 ): CanvasGradient {
-  const grad = ctx.createLinearGradient(0, yCenter - size / 2, 0, yCenter + size / 2);
+  // Phase E4 (2026-05-26): Gradient-Range über 1.2 × size (≈ ascent+descent).
+  const grad = ctx.createLinearGradient(0, yCenter - size * 0.6, 0, yCenter + size * 0.6);
   grad.addColorStop(0, from);
   grad.addColorStop(1, to);
   return grad;

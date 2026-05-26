@@ -5,9 +5,9 @@
  * Adressiert SECURITY_AUDIT P0-2: Mobile-Paywall war client-only, ein User
  * mit gültigem JWT konnte via curl unlimited 4K-Renders ausführen.
  *
- * Plan-Limits (sync gehalten mit `supabase/migrations/002_render_quota.sql`):
+ * Plan-Limits (sync gehalten mit `supabase/migrations/003_creator_limit_50.sql`):
  *   inactive/no-sub:  0 renders     → subscription_required
- *   creator:          30 renders    max 1080p (kein 4K)
+ *   creator:          50 renders    max 1080p (kein 4K)
  *   pro:              200 renders   4K OK
  *
  * Lifetime ist Desktop-only (lokales FFmpeg, kein Worker-Render). User mit

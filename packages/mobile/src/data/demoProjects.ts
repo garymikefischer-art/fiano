@@ -186,11 +186,17 @@ export interface AIHighlight {
 /** Subtitle-Stil (default/bold/gaming/fiano/layered). Layered = Big-Word + Small-Word überlappend. */
 export type SubtitleStyle = 'default' | 'bold' | 'gaming' | 'fiano' | 'layered';
 export type SubtitlePosition = 'top' | 'center' | 'bottom' | 'custom';
-/** Font-Family — entweder einer der "Curated" Logical-Identifiers ('helvetica',
- *  'arial-black', 'impact', 'geist', 'georgia', 'mono', 'system') ODER ein
- *  direkter System-Font-Name ('sans-serif-black', 'serif', 'monospace', 'Roboto',
- *  jeder beliebige custom Font-Name den der User auswählt/eintippt). */
+/** Font-Family — eine der 20 gebündelten IDs aus `lib/fonts.ts` `SUBTITLE_FONTS`
+ *  (z.B. 'Inter', 'Bangers', 'Anton', …). Legacy-Werte aus alten Projekten
+ *  werden im Renderer auf einen sinnvollen Default gemappt. */
 export type SubtitleFontFamily = string;
+
+/** Phase D-Weight (2026-05-26): 5-Stufen-Weight-Picker.
+ *  Bei Display-Fonts (Bangers, Anton, BebasNeue, …) ohne Multi-Weight-Files
+ *  ignoriert der Renderer den Wert und nutzt die Single-Weight-Datei. Bei
+ *  Sans-Serifs (Inter, Montserrat, Poppins, …) wird der Family-Name um den
+ *  Weight-Suffix erweitert (z.B. 'InterBlack' → InterBlack.ttf). */
+export type SubtitleFontWeight = 'light' | 'regular' | 'medium' | 'bold' | 'black';
 
 export interface SubtitleHighlightWord {
   text: string;
@@ -228,6 +234,9 @@ export interface SubtitleSettings {
   customY?: number;
   // ── Typography ─────────────────────────────────────────────────
   fontFamily?: SubtitleFontFamily;
+  /** Phase D-Weight (2026-05-26): Light/Regular/Medium/Bold/Black. Default 'bold'
+   *  matched den bisherigen Render-Look (war hardcoded fontWeight=700). */
+  fontWeight?: SubtitleFontWeight;
   fontSize?: number;
   letterSpacing?: number;
   uppercase?: boolean;
@@ -276,7 +285,10 @@ export const DEFAULT_SUBTITLES: SubtitleSettings = {
   enabled: false,
   style: 'fiano',
   position: 'bottom',
-  fontFamily: 'helvetica',
+  // Phase Rebrand 2026-05-26: fontFamily weggelassen damit defaultFontFor(style)
+  // beim Style-Switch immer greift. War zuvor Legacy 'helvetica' → fallback auf
+  // Inter via mapFontFamily, dadurch zeigte jeder Style-Preset die gleiche Schrift.
+  fontWeight: 'bold',
   fontSize: 26,
   uppercase: true,
   textColor: '#ffffff',

@@ -24,6 +24,7 @@ import { runRenderJob } from '../lib/renderJob';
 // .ass-Bauen + Upload.
 import { buildAssSubtitle } from '@fiano/shared/assBuilder';
 import type { ClientRenderSpec } from '../lib/renderJob';
+import { resolveWeightedFamily } from '../lib/fonts';
 import { useAppStore } from '../stores/appStore';
 import { useProject } from '../stores/projectsStore';
 import { DEFAULT_SPLIT_RATIO, hasActiveEffects } from '../data/demoProjects';
@@ -396,7 +397,13 @@ export function ExportScreen() {
                 style: subSettings.style,
                 position: subSettings.position,
                 customY: subSettings.customY,
-                fontFamily: subSettings.fontFamily,
+                // Phase D-Weight (2026-05-26): resolved family name (z.B.
+                // 'InterBlack' statt 'Inter' + fontWeight) — Worker matched
+                // dann gegen SUBTITLE_FONT_FILES und rendert die korrekte
+                // Weight-Variante. Wenn fontWeight nicht gesetzt: Default 'bold'.
+                fontFamily: subSettings.fontFamily
+                  ? resolveWeightedFamily(subSettings.fontFamily, subSettings.fontWeight)
+                  : undefined,
                 fontSize: subSettings.fontSize,
                 letterSpacing: subSettings.letterSpacing,
                 uppercase: subSettings.uppercase,

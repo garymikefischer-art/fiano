@@ -275,7 +275,18 @@ export function buildMobileExportArgs(opts: MobileExportOpts, platform: Platform
   if (codec === 'h264_videotoolbox') {
     args.push('-allow_sw', '1', '-realtime', '0');
   } else if (codec === 'libx264') {
-    args.push('-preset', 'medium', '-pix_fmt', 'yuv420p');
+    // Phase E4 (2026-05-26): BT.709-Color-Metadata explicit setzen, sonst
+    // ratet der Player zwischen BT.601 (blasser) und BT.709 → Gradient-Wash
+    // bei gesättigten Reds/Oranges. Mit Tags interpretiert jeder moderne
+    // Player den Stream als HD-Color-Space.
+    args.push(
+      '-preset', 'medium',
+      '-pix_fmt', 'yuv420p',
+      '-colorspace', 'bt709',
+      '-color_primaries', 'bt709',
+      '-color_trc', 'bt709',
+      '-color_range', 'tv',
+    );
   }
 
   // Audio
@@ -903,7 +914,18 @@ export function buildTikTokExportArgs(
   if (codec === 'h264_videotoolbox') {
     args.push('-allow_sw', '1', '-realtime', '0');
   } else if (codec === 'libx264') {
-    args.push('-preset', 'medium', '-pix_fmt', 'yuv420p');
+    // Phase E4 (2026-05-26): BT.709-Color-Metadata explicit setzen, sonst
+    // ratet der Player zwischen BT.601 (blasser) und BT.709 → Gradient-Wash
+    // bei gesättigten Reds/Oranges. Mit Tags interpretiert jeder moderne
+    // Player den Stream als HD-Color-Space.
+    args.push(
+      '-preset', 'medium',
+      '-pix_fmt', 'yuv420p',
+      '-colorspace', 'bt709',
+      '-color_primaries', 'bt709',
+      '-color_trc', 'bt709',
+      '-color_range', 'tv',
+    );
   }
 
   args.push('-c:a', 'aac', '-b:a', '128k');

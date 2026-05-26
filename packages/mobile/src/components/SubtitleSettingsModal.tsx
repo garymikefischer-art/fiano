@@ -40,12 +40,13 @@ import { CueEditorModal } from './CueEditorModal';
 import {
   DEFAULT_SUBTITLES,
   type SubtitleFontFamily,
+  type SubtitleFontWeight,
   type SubtitlePosition,
   type SubtitleSettings,
   type SubtitleStyle,
 } from '../data/demoProjects';
 import { useAppStore } from '../stores/appStore';
-import { SUBTITLE_FONTS } from '../lib/fonts';
+import { SUBTITLE_FONTS, SUBTITLE_WEIGHTS } from '../lib/fonts';
 import { haptic } from '../lib/haptics';
 // Phase A5: Feature-Locks
 import { useFeature } from '../lib/features';
@@ -69,7 +70,7 @@ const STYLE_OPTIONS: { id: SubtitleStyle; label: string; desc: string }[] = [
   { id: 'default', label: 'Default', desc: 'Clean & simple' },
   { id: 'bold',    label: 'Bold',    desc: 'Heavy, bold text' },
   { id: 'gaming',  label: 'Gaming',  desc: 'Impact yellow' },
-  { id: 'fiano',   label: 'Fiano',   desc: 'Brand uppercase' },
+  { id: 'fiano',   label: 'Brand',   desc: 'Fisora uppercase' },
   { id: 'layered', label: 'Layered', desc: 'Big word + small below' },
 ];
 
@@ -82,8 +83,9 @@ const POSITION_OPTIONS: { id: SubtitlePosition; label: string }[] = [
 
 /** Phase D-Fonts (2026-05-20): 20 gebündelte Google Fonts (siehe lib/fonts.ts).
  *  Preview UND Export rendern dieselben .ttf — keine System-Font-Approximation
- *  mehr. Das freie Custom-Input darunter bleibt für Edge-Cases erhalten. */
-const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = SUBTITLE_FONTS;
+ *  mehr. Phase D-Weight (2026-05-26): SUBTITLE_FONTS trägt jetzt zusätzlich
+ *  `hasWeights` für die UI-Hinweise im Weight-Picker. */
+const FONT_OPTIONS = SUBTITLE_FONTS;
 
 export function SubtitleSettingsModal({ visible, settings, onClose, onChange, isInline = false }: Props) {
   const colors = useColors();
@@ -406,6 +408,33 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange, is
                     />
                   ))}
                 </ScrollView>
+                {/* Phase D-Weight (2026-05-26): Weight-Picker (Light/Regular/
+                    Medium/Bold/Black). Display-Fonts ohne hasWeights ignorieren
+                    den Weight visuell — die Pills bleiben aktiv (User darf
+                    trotzdem klicken), aber die gerenderte Schrift wechselt nicht.
+                    Hinweis-Helper-Text unterhalb. */}
+                <Text style={styles.subLabel}>Weight</Text>
+                <View style={styles.pillRow}>
+                  {SUBTITLE_WEIGHTS.map((w) => (
+                    <Pill
+                      key={w.id}
+                      label={w.label}
+                      active={(local.fontWeight ?? 'bold') === w.id}
+                      onPress={() => patch({ fontWeight: w.id })}
+                    />
+                  ))}
+                </View>
+                {(() => {
+                  const def = FONT_OPTIONS.find((f) => f.id === local.fontFamily);
+                  if (def && !def.hasWeights) {
+                    return (
+                      <Text style={styles.helper}>
+                        {def.label} is single-weight — Weight has no visual effect.
+                      </Text>
+                    );
+                  }
+                  return null;
+                })()}
                 <SliderRow
                   label="Font size"
                   value={local.fontSize ?? 26}
