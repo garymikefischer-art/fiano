@@ -22,7 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { useAppStore } from '../stores/appStore';
 import { useT } from '../lib/i18n';
@@ -48,7 +48,7 @@ const SLIDES: Slide[] = [
     iconBg: 'rgba(255,16,57,0.12)',
     ringColor: 'rgba(255,16,57,0.32)',
     titleKey: 'onboarding.welcomeTitle',
-    titleFallback: 'Welcome to fiano.',
+    titleFallback: 'Welcome to Fisora.',
     bodyKey: 'onboarding.welcomeBody',
     bodyFallback:
       'AI-powered video clipping in your pocket — analyze, trim and ship 9:16 highlights without ever leaving the phone.',
@@ -237,7 +237,7 @@ function SlideView({
           style={StyleSheet.absoluteFillObject}
         />
         {slide.brandHero ? (
-          <FianoLogo variant="mark" height={88} />
+          <FisoraLogo variant="mark" height={88} />
         ) : (
           slide.icon && <Ionicons name={slide.icon} size={84} color={slide.iconColor} />
         )}

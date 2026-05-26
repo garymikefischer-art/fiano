@@ -186,6 +186,8 @@ function ImprintContent() {
 
       <H2>Anbieter</H2>
       <P>
+        Fisora{'\n'}
+        Eine App der{'\n'}
         Werbeagentur FIANO e.U.{'\n'}
         Gary Fischer{'\n'}
         Hohenthurn 52{'\n'}
@@ -283,7 +285,7 @@ function PrivacyContent() {
       <Bullet>Stripe-Kundennummer (zur Plan-Verwaltung)</Bullet>
       <Bullet>Plan-Status und Subscription-Periode</Bullet>
       <Bullet>
-        Zahlungsdaten werden ausschließlich von Stripe verarbeitet — fiano sieht keine
+        Zahlungsdaten werden ausschließlich von Stripe verarbeitet — Fisora sieht keine
         Kreditkartennummern
       </Bullet>
 
@@ -294,11 +296,11 @@ function PrivacyContent() {
 
       <H2>3. Nutzung externer KI-Dienste (BYO-Key)</H2>
       <P>
-        fiano nutzt das „Bring-Your-Own-Key"-Prinzip: Du verwendest deine eigenen API-Keys für
+        Fisora nutzt das „Bring-Your-Own-Key"-Prinzip: Du verwendest deine eigenen API-Keys für
         OpenAI (Whisper, TTS) und Google Gemini (Thumbnails). Wenn du diese Funktionen nutzt:
       </P>
       <Bullet>Audio- und Bildinhalte werden direkt an OpenAI bzw. Google gesendet</Bullet>
-      <Bullet>fiano leitet keine Daten weiter und speichert keine Inhalte serverseitig</Bullet>
+      <Bullet>Fisora leitet keine Daten weiter und speichert keine Inhalte serverseitig</Bullet>
       <Bullet>
         Es gelten die Datenschutzbestimmungen von{' '}
         <A href="https://openai.com/policies/privacy-policy">OpenAI</A> und{' '}
@@ -306,7 +308,7 @@ function PrivacyContent() {
       </Bullet>
       <Bullet>Du kannst diese Funktionen deaktivieren, indem du keinen API-Key hinterlegst</Bullet>
 
-      <H2>4. Cloud-Render (fiano-Worker)</H2>
+      <H2>4. Cloud-Render (Fisora-Worker)</H2>
       <P>
         Auf Mobile werden Video-Renderings via Cloud-Worker (Google Cloud Run, EU-Region) und
         Cloudflare R2 (EU-Region) durchgeführt. Source-Videos werden via pre-signed URLs hochgeladen
@@ -315,7 +317,7 @@ function PrivacyContent() {
 
       <H2>5. Cookies und Tracking</H2>
       <P>
-        fiano nutzt keine Cookies, kein Tracking und kein Analytics. Die App-Telemetrie ist
+        Fisora nutzt keine Cookies, kein Tracking und kein Analytics. Die App-Telemetrie ist
         deaktiviert.
       </P>
 
@@ -378,7 +380,7 @@ function TermsContent() {
 
       <H2>1. Geltungsbereich</H2>
       <P>
-        Diese AGB regeln die Nutzung der App fiano (im Folgenden „App") durch dich (im Folgenden
+        Diese AGB regeln die Nutzung der App Fisora (im Folgenden „App") durch dich (im Folgenden
         „Nutzer") mit der Werbeagentur FIANO e.U. (im Folgenden „Anbieter").
       </P>
 
@@ -412,7 +414,7 @@ function TermsContent() {
 
       <H2>5. Nutzungsverantwortung</H2>
       <P>
-        fiano ist für persönliche und kommerzielle Creator-Workflows vorgesehen. Du darfst die App
+        Fisora ist für persönliche und kommerzielle Creator-Workflows vorgesehen. Du darfst die App
         nicht für Inhalte nutzen, an denen du keine Rechte hast. Wir behalten uns vor, Konten zu
         sperren bei Missbrauch oder illegalen Aktivitäten.
       </P>

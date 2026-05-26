@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import clsx from 'clsx';
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { useT } from '../lib/i18n';
 
 /**
@@ -58,7 +58,7 @@ export function LegalPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-7">
             <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition">
-              <FianoLogo className="h-9 w-auto" />
+              <FisoraLogo className="h-9 w-auto" />
               <span className="text-[12px] text-zinc-500 uppercase tracking-[0.18em] font-semibold">{t('legal.title')}</span>
             </Link>
             <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
@@ -158,6 +158,8 @@ function ImprintContent({ lang }: { lang: LegalLang }) {
 
       <H2>{lang === 'de' ? 'Anbieter' : 'Provider'}</H2>
       <P>
+        Fisora<br />
+        {lang === 'de' ? 'Eine App der' : 'A product of'}<br />
         Werbeagentur FIANO e.U.<br />
         Gary Fischer<br />
         Hohenthurn 52<br />
@@ -260,7 +262,7 @@ function PrivacyDE() {
       <UL>
         <li>Stripe-Kundennummer (zur Plan-Verwaltung)</li>
         <li>Plan-Status und Subscription-Periode</li>
-        <li>Zahlungsdaten werden ausschließlich von Stripe verarbeitet — fiano sieht keine Kreditkartennummern</li>
+        <li>Zahlungsdaten werden ausschließlich von Stripe verarbeitet — Fisora sieht keine Kreditkartennummern</li>
       </UL>
       <P><strong className="text-zinc-300">Lokale App-Daten</strong> (auf deinem Gerät):</P>
       <UL>
@@ -271,11 +273,11 @@ function PrivacyDE() {
 
       <H2>3. Nutzung externer KI-Dienste (BYO-Key)</H2>
       <P>
-        fiano nutzt das "Bring-Your-Own-Key"-Prinzip: Du verwendest deine eigenen API-Keys für OpenAI (Whisper, TTS) und Google Gemini (Thumbnails). Wenn du diese Funktionen nutzt:
+        Fisora nutzt das "Bring-Your-Own-Key"-Prinzip: Du verwendest deine eigenen API-Keys für OpenAI (Whisper, TTS) und Google Gemini (Thumbnails). Wenn du diese Funktionen nutzt:
       </P>
       <UL>
         <li>Audio- und Bildinhalte werden direkt von deinem Gerät an OpenAI bzw. Google gesendet</li>
-        <li>fiano leitet keine Daten weiter und speichert keine Inhalte serverseitig</li>
+        <li>Fisora leitet keine Daten weiter und speichert keine Inhalte serverseitig</li>
         <li>Es gelten die Datenschutzbestimmungen von <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-fiano-red hover:underline">OpenAI</a> und <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-fiano-red hover:underline">Google</a></li>
         <li>Du kannst diese Funktionen optional deaktivieren, indem du keinen API-Key hinterlegst</li>
       </UL>
@@ -457,7 +459,7 @@ function TermsDE() {
 
       <H2>1. Geltungsbereich</H2>
       <P>
-        Diese AGB regeln die Nutzung der Software fiano (im Folgenden "App") durch dich (im Folgenden "Nutzer") mit der Werbeagentur FIANO e.U. (im Folgenden "Anbieter").
+        Diese AGB regeln die Nutzung der Software Fisora (im Folgenden "App") durch dich (im Folgenden "Nutzer") mit der Werbeagentur FIANO e.U. (im Folgenden "Anbieter").
       </P>
 
       <H2>2. Vertragsgegenstand</H2>
@@ -543,7 +545,7 @@ function TermsEN() {
 
       <H2>1. Scope</H2>
       <P>
-        These Terms govern the use of the fiano software (the "App") by you (the "User") with Werbeagentur FIANO e.U. (the "Provider").
+        These Terms govern the use of the Fisora software (the "App") by you (the "User") with Werbeagentur FIANO e.U. (the "Provider").
       </P>
 
       <H2>2. Subject Matter</H2>
@@ -632,7 +634,7 @@ function LicensesContent({ lang }: { lang: LegalLang }) {
       <H2>{lang === 'de' ? 'Eingebettete Software (Open Source)' : 'Embedded Software (Open Source)'}</H2>
       <P>
         {lang === 'de'
-          ? 'fiano nutzt folgende Open-Source-Komponenten:'
+          ? 'Fisora nutzt folgende Open-Source-Komponenten:'
           : 'fiano uses the following open-source components:'}
       </P>
       <UL>
@@ -686,7 +688,7 @@ function LicensesContent({ lang }: { lang: LegalLang }) {
       <H2>{lang === 'de' ? 'fiano-Marke' : 'fiano Brand'}</H2>
       <P>
         {lang === 'de'
-          ? 'Der Name "fiano" sowie das Logo sind Marken der Werbeagentur FIANO e.U.'
+          ? 'Der Name "Fisora" sowie das Logo sind Marken der Werbeagentur FIANO e.U.'
           : 'The name "fiano" and the logo are trademarks of Werbeagentur FIANO e.U.'}
       </P>
 

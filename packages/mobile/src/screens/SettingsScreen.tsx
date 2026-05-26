@@ -118,7 +118,7 @@ export function SettingsScreen() {
         t('settings.updateReadyTitle', 'Update ready'),
         t(
           'settings.updateReadyBody',
-          'Update downloaded. Fully close fiano (swipe it from recent apps) and reopen it — the update applies on the next start.',
+          'Update downloaded. Fully close Fisora (swipe it from recent apps) and reopen it — the update applies on the next start.',
         ),
       );
     } else if (result === 'none') {
@@ -736,7 +736,7 @@ export function SettingsScreen() {
         </Group>
 
         <Text style={{ color: colors.text.muted, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
-          fiano · v{version}
+          Fisora · v{version}
         </Text>
       </ScrollView>
 

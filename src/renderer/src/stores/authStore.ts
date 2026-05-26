@@ -350,7 +350,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
       const callbackUrl = lp?.ok ? lp.data?.callbackUrl : null;
       if (!callbackUrl) {
-        const msg = 'Auth loopback not running — please restart fiano';
+        const msg = 'Auth loopback not running — please restart Fisora';
         set({ lastError: msg });
         return { ok: false, error: msg };
       }

@@ -5,7 +5,7 @@ import type { Project } from '@shared/types';
 import { useApp } from '../stores/appStore';
 import { ImportDialog } from '../components/ImportDialog';
 import { TopBarActions } from '../components/TopBarActions';
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { mediaUrl } from '../lib/mediaUrl';
 import { useT } from '../lib/i18n';
 
@@ -123,7 +123,7 @@ function AppMockup() {
       <div className="relative grid grid-cols-[18%_55%_27%] h-[calc(100%-32px)]">
         {/* Sidebar */}
         <div className="border-r border-white/[0.06] p-3 space-y-3">
-          <FianoLogo className="h-3 w-auto opacity-70" />
+          <FisoraLogo className="h-3 w-auto opacity-70" />
           <div className="space-y-1.5 pt-2">
             <div className="h-1.5 bg-fiano-red/70 rounded w-3/4" />
             <div className="h-1.5 bg-white/[0.08] rounded w-2/3" />

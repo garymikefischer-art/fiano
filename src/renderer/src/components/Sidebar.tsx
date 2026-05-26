@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { FianoLogo } from './FianoLogo';
+import { FisoraLogo } from './FisoraLogo';
 import { WindowControls } from './WindowControls';
 import { useApp } from '../stores/appStore';
 import { useAuth } from '../stores/authStore';
@@ -117,7 +117,7 @@ export function Sidebar() {
 
       {/* Logo */}
       <div className="pl-[0.3rem] pr-5 pt-0 [-webkit-app-region:no-drag]">
-        <FianoLogo className="h-28 w-auto" />
+        <FisoraLogo className="h-28 w-auto" />
       </div>
 
       {/* Trennlinie unter Logo */}
@@ -447,7 +447,7 @@ function ProPlanCard() {
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
                           flex items-center justify-center shrink-0">
-            <FianoLogo variant="mark" className="w-4 h-auto" />
+            <FisoraLogo variant="mark" className="w-4 h-auto" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[12px] font-semibold leading-tight">fiano</div>
@@ -474,7 +474,7 @@ function ProPlanCard() {
         <div className="flex items-center gap-2.5 mb-2.5">
           <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
                           flex items-center justify-center shrink-0">
-            <FianoLogo variant="mark" className="w-4 h-auto" />
+            <FisoraLogo variant="mark" className="w-4 h-auto" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[12px] font-semibold leading-tight">fiano</div>
@@ -520,7 +520,7 @@ function ProPlanCard() {
         <div className="flex items-center gap-2.5 mb-3">
           <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
                           flex items-center justify-center shrink-0">
-            <FianoLogo variant="mark" className="w-4 h-auto" />
+            <FisoraLogo variant="mark" className="w-4 h-auto" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[12px] font-semibold leading-tight">fiano</div>
@@ -572,7 +572,7 @@ function ProPlanCard() {
       <div className="flex items-center gap-2.5 mb-2.5">
         <div className="w-8 h-8 rounded-xl bg-fiano-red/15 border border-fiano-red/30
                         flex items-center justify-center shrink-0">
-          <FianoLogo variant="mark" className="w-4 h-auto" />
+          <FisoraLogo variant="mark" className="w-4 h-auto" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[12px] font-semibold leading-tight">fiano</div>

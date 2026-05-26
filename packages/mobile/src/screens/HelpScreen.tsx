@@ -44,7 +44,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: 'I found a bug — how do I report it?',
-    a: 'Tap "Contact support" at the bottom of this screen, or email support@fiano.app. Including your fiano version (Settings → Version) and a short repro helps us fix it faster.',
+    a: 'Tap "Contact support" at the bottom of this screen, or email support@fisora.app. Including your Fisora version (Settings → Version) and a short repro helps us fix it faster.',
   },
 ];
 
@@ -55,7 +55,7 @@ export function HelpScreen() {
 
   const onContact = () => {
     void Linking.openURL(
-      'mailto:support@fiano.app?subject=fiano%20mobile%20support%20request',
+      'mailto:support@fisora.app?subject=Fisora%20mobile%20support%20request',
     ).catch(() => {});
   };
 
@@ -194,7 +194,7 @@ export function HelpScreen() {
               maxWidth: 280,
             }}
           >
-            Reach out to support and include your fiano version + a short description of what
+            Reach out to support and include your Fisora version + a short description of what
             you saw.
           </Text>
           <Pressable
@@ -213,7 +213,7 @@ export function HelpScreen() {
             <Ionicons name="mail" size={14} color="#fff" />
             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Contact support</Text>
           </Pressable>
-          <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>support@fiano.app</Text>
+          <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>support@fisora.app</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

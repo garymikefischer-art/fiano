@@ -20,7 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '../stores/authStore';
 import { useProjects, type Project } from '../stores/projectsStore';
 import { useUnreadCount } from '../stores/notificationsStore';
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { NotificationBell } from '../components/NotificationBell';
 import { ProjectStatusBadge } from '../components/ProjectStatusBadge';
@@ -123,9 +123,7 @@ export function HomeScreen() {
           borderBottomColor: colors.border.subtle,
         }}
       >
-        <View style={{ marginLeft: -9 }}>
-          <FianoLogo height={72} />
-        </View>
+        <FisoraLogo height={72} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <SearchIconButton onPress={() => nav.navigate('Search')} />
           <NotificationBell count={unreadCount} onPress={() => nav.navigate('Notifications')} />

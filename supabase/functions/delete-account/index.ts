@@ -28,12 +28,13 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
 
 // Phase A6.6 (2026-05-18): CORS Origin-Whitelist statt '*' (P1-4 Audit).
 // '*' erlaubt jeden Browser → CSRF-Amplification mit gestohlenem JWT
-// möglich. Whitelist: fiano custom-scheme + Expo dev + production-Domain.
+// möglich. Whitelist: fisora custom-scheme + Expo dev + production-Domain.
+// Phase Rebrand 2026-05-26: Domain von fiano.app auf fisora.app umgestellt.
 const ALLOWED_ORIGINS = [
-  'app://fiano',
-  'fiano://',
-  'https://fiano.app',
-  'https://www.fiano.app',
+  'app://fisora',
+  'fisora://',
+  'https://fisora.app',
+  'https://www.fisora.app',
   // Expo dev environments:
   // (regex match unten für *.expo.dev / exp:// scheme)
 ];

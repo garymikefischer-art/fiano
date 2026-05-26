@@ -43,7 +43,7 @@ const PLAN_MODE: Record<string, 'subscription' | 'payment'> = {
 function corsHeadersFor(req: Request): Record<string, string> {
   const origin = req.headers.get('origin') ?? '';
   let allowed = '';
-  const ALLOWED = ['app://fiano', 'fiano://', 'https://fiano.app', 'https://www.fiano.app'];
+  const ALLOWED = ['app://fisora', 'fisora://', 'https://fisora.app', 'https://www.fisora.app'];
   if (origin && ALLOWED.includes(origin)) allowed = origin;
   else if (origin.endsWith('.expo.dev') || origin.startsWith('exp://')) allowed = origin;
   else if (origin.startsWith('http://127.0.0.1:') || origin.startsWith('http://localhost:')) allowed = origin;

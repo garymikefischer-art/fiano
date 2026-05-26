@@ -339,7 +339,7 @@ export function PricingScreen() {
             {paywallMode
               ? t(
                   'pricing.paywallSubhead',
-                  'fiano cloud render requires an active subscription. Pick Creator or Pro below to start using the app.',
+                  'Fisora cloud render requires an active subscription. Pick Creator or Pro below to start using the app.',
                 )
               : currentPlan
                 ? t('pricing.subheadUpgrade')
