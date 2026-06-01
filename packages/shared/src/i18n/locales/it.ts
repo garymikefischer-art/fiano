@@ -974,4 +974,33 @@ export const it: Record<string, string> = {
   'highlights.phaseUploading':          'Caricamento',
   'highlights.phaseTranscribing':       'Trascrizione',
   'common.continue':                    'Continua',
+
+  // ── HelpScreen (Mobile) ─────────────────────────────────────────────
+  'helpScreen.headerTitle':       'Aiuto e supporto',
+  'helpScreen.heroTitle':         'Come possiamo aiutarti?',
+  'helpScreen.heroBody':          'Sfoglia le domande più comuni o contattaci — nei giorni feriali rispondiamo di solito in poche ore.',
+  'helpScreen.faqAIQ':            'Come funziona il rilevamento highlights IA?',
+  'helpScreen.faqAIA':            'Fisora analizza picchi audio, tagli di scena e testo su schermo per valutare ogni momento del tuo video. I 10–25 momenti col punteggio più alto diventano clip esportabili — di solito in pochi minuti per un video sorgente di 30 min.',
+  'helpScreen.faqFormatsQ':       'Quali formati video sono supportati?',
+  'helpScreen.faqFormatsA':       'I formati più comuni — MP4, MOV, MKV, AVI, WebM. Su mobile consigliamo di importare dalla galleria; il file viene copiato nel sandbox dell\'app, l\'originale resta intatto.',
+  'helpScreen.faq916Q':           'Perché l\'export 9:16 non funziona ancora su mobile?',
+  'helpScreen.faq916A':           'L\'export 9:16/TikTok richiede un modulo FFmpeg nativo (Fase 9.4.x). Su Desktop funziona col binario FFmpeg incluso; su mobile stiamo integrando uno Swift Package + build Android NDK. L\'UI è già pronta e aspetta il layer nativo.',
+  'helpScreen.faqCancelQ':        'Come annullo il mio abbonamento Pro?',
+  'helpScreen.faqCancelA':        'Impostazioni → Gestione fatturazione — apre il portale clienti Stripe dove puoi annullare, modificare o sospendere il piano. Lifetime è un pagamento unico non ricorrente, non c\'è nulla da annullare.',
+  'helpScreen.faqUploadsQ':       'I miei video vengono caricati da qualche parte?',
+  'helpScreen.faqUploadsA':       'No. Tutto il clipping avviene localmente sul tuo dispositivo. Solo account e stato abbonamento vivono nel nostro database (Supabase). I video non lasciano mai il telefono.',
+  'helpScreen.faqBugQ':           'Ho trovato un bug — come lo segnalo?',
+  'helpScreen.faqBugA':           'Tocca "Contatta supporto" in basso, o scrivi a support@fisora.app. Includere la tua versione Fisora (Impostazioni → Versione) e una breve descrizione aiuta a risolverlo più velocemente.',
+  'helpScreen.contactStillNeed':  'Serve ancora aiuto?',
+  'helpScreen.contactBody':       'Contatta il supporto e includi la tua versione Fisora + una breve descrizione di cosa hai visto.',
+  'helpScreen.contactButton':     'Contatta supporto',
+  'helpScreen.mailSubject':       'Richiesta di supporto Fisora Mobile',
+
+  // ── LegalScreen (Mobile) ────────────────────────────────────────────
+  'legalScreen.headerTitle':      'Note legali',
+  'legalScreen.tabImprint':       'Impressum',
+  'legalScreen.tabPrivacy':       'Privacy',
+  'legalScreen.tabTerms':         'Termini',
+  'legalScreen.lastUpdated':      'Ultimo aggiornamento: 8 maggio 2026',
+  'legalScreen.deOnlyNotice':     'La versione legalmente vincolante è il tedesco (provider con sede in Austria). Il testo sotto è in tedesco — un riepilogo in inglese è disponibile su fisora.app/legal.',
 };

@@ -974,4 +974,33 @@ export const pl: Record<string, string> = {
   'highlights.phaseUploading':          'Wysyłanie',
   'highlights.phaseTranscribing':       'Transkrypcja',
   'common.continue':                    'Kontynuuj',
+
+  // ── HelpScreen (Mobile) ─────────────────────────────────────────────
+  'helpScreen.headerTitle':       'Pomoc i wsparcie',
+  'helpScreen.heroTitle':         'Jak możemy pomóc?',
+  'helpScreen.heroBody':          'Przejrzyj najczęstsze pytania lub skontaktuj się z nami — w dni robocze zwykle odpowiadamy w ciągu kilku godzin.',
+  'helpScreen.faqAIQ':            'Jak działa wykrywanie highlightów przez AI?',
+  'helpScreen.faqAIA':            'Fisora analizuje piki dźwięku, cięcia scen i tekst na ekranie, aby ocenić każdy moment Twojego wideo. 10–25 najlepiej ocenionych momentów staje się klipami do eksportu — zwykle w kilka minut dla 30-minutowego wideo.',
+  'helpScreen.faqFormatsQ':       'Jakie formaty wideo są obsługiwane?',
+  'helpScreen.faqFormatsA':       'Najpopularniejsze formaty — MP4, MOV, MKV, AVI, WebM. Na telefonie zalecamy import z galerii; plik jest kopiowany do sandboxa aplikacji, oryginał pozostaje nietknięty.',
+  'helpScreen.faq916Q':           'Dlaczego eksport 9:16 jeszcze nie działa na telefonie?',
+  'helpScreen.faq916A':           'Eksport 9:16/TikTok wymaga natywnego modułu FFmpeg (Faza 9.4.x). Na komputerze obsługuje to dołączony plik binarny FFmpeg; na mobile integrujemy własny Swift Package + build Android NDK. UI jest gotowy i czeka na warstwę natywną.',
+  'helpScreen.faqCancelQ':        'Jak anulować subskrypcję Pro?',
+  'helpScreen.faqCancelA':        'Ustawienia → Zarządzaj rozliczeniami — otwiera portal klienta Stripe, gdzie możesz anulować, zmienić lub wstrzymać plan. Lifetime to płatność jednorazowa, nie ma czego anulować.',
+  'helpScreen.faqUploadsQ':       'Czy moje wideo są gdzieś wysyłane?',
+  'helpScreen.faqUploadsA':       'Nie. Cały clipping odbywa się lokalnie na Twoim urządzeniu. Tylko konto i status subskrypcji żyją w naszej bazie (Supabase). Same wideo nigdy nie opuszczają telefonu.',
+  'helpScreen.faqBugQ':           'Znalazłem buga — jak to zgłosić?',
+  'helpScreen.faqBugA':           'Dotknij "Skontaktuj się z pomocą" na dole, lub napisz na support@fisora.app. Dołączenie wersji Fisora (Ustawienia → Wersja) i krótkiego opisu kroków przyspieszy naprawę.',
+  'helpScreen.contactStillNeed':  'Potrzebujesz dalszej pomocy?',
+  'helpScreen.contactBody':       'Skontaktuj się z supportem i dołącz wersję Fisora + krótki opis tego, co widziałeś.',
+  'helpScreen.contactButton':     'Skontaktuj się z pomocą',
+  'helpScreen.mailSubject':       'Zgłoszenie wsparcia Fisora Mobile',
+
+  // ── LegalScreen (Mobile) ────────────────────────────────────────────
+  'legalScreen.headerTitle':      'Prawne',
+  'legalScreen.tabImprint':       'Impressum',
+  'legalScreen.tabPrivacy':       'Prywatność',
+  'legalScreen.tabTerms':         'Regulamin',
+  'legalScreen.lastUpdated':      'Ostatnia aktualizacja: 8 maja 2026',
+  'legalScreen.deOnlyNotice':     'Wiążąca prawnie wersja jest po niemiecku (dostawca z siedzibą w Austrii). Tekst poniżej jest w języku niemieckim — angielskie podsumowanie dostępne na fisora.app/legal.',
 };

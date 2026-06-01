@@ -974,4 +974,33 @@ export const nl: Record<string, string> = {
   'highlights.phaseUploading':          'Uploaden',
   'highlights.phaseTranscribing':       'Transcriberen',
   'common.continue':                    'Doorgaan',
+
+  // ── HelpScreen (Mobile) ─────────────────────────────────────────────
+  'helpScreen.headerTitle':       'Help & ondersteuning',
+  'helpScreen.heroTitle':         'Hoe kunnen we helpen?',
+  'helpScreen.heroBody':          'Bekijk de meestgestelde vragen of neem contact op — op werkdagen reageren we meestal binnen enkele uren.',
+  'helpScreen.faqAIQ':            'Hoe werkt AI-highlight-detectie?',
+  'helpScreen.faqAIA':            'Fisora analyseert audiopieken, scènecuts en tekst op het scherm om elk moment van je video te scoren. De 10–25 best scorende momenten worden exporteerbare clips — meestal binnen enkele minuten voor een bronvideo van 30 min.',
+  'helpScreen.faqFormatsQ':       'Welke videoformaten worden ondersteund?',
+  'helpScreen.faqFormatsA':       'De meeste gangbare formaten — MP4, MOV, MKV, AVI, WebM. Op mobiel raden we aan vanuit je galerij te importeren; het bestand wordt naar de app-sandbox gekopieerd, het origineel blijft onaangetast.',
+  'helpScreen.faq916Q':           'Waarom werkt 9:16 export nog niet op mobiel?',
+  'helpScreen.faq916A':           'De 9:16/TikTok-export heeft een native FFmpeg-module nodig (Fase 9.4.x). Op desktop werkt het via de meegeleverde FFmpeg-binary; op mobiel integreren we een custom Swift Package + Android NDK build. De UI is klaar en wacht op de native laag.',
+  'helpScreen.faqCancelQ':        'Hoe annuleer ik mijn Pro-abonnement?',
+  'helpScreen.faqCancelA':        'Instellingen → Facturering beheren — opent het Stripe-klantportaal waar je kunt annuleren, wijzigen of pauzeren. Lifetime is eenmalig en niet terugkerend, er is niets te annuleren.',
+  'helpScreen.faqUploadsQ':       'Worden mijn video\'s ergens geüpload?',
+  'helpScreen.faqUploadsA':       'Nee. Alle clipping gebeurt lokaal op je toestel. Alleen je account en abonnementsstatus leven in onze database (Supabase). De video\'s verlaten je telefoon nooit.',
+  'helpScreen.faqBugQ':           'Ik vond een bug — hoe meld ik die?',
+  'helpScreen.faqBugA':           'Tik op "Contact support" onderaan, of mail support@fisora.app. Je Fisora-versie (Instellingen → Versie) en een korte beschrijving helpen ons het sneller op te lossen.',
+  'helpScreen.contactStillNeed':  'Nog steeds hulp nodig?',
+  'helpScreen.contactBody':       'Neem contact op met support en voeg je Fisora-versie + een korte beschrijving van wat je zag toe.',
+  'helpScreen.contactButton':     'Contact support',
+  'helpScreen.mailSubject':       'Fisora Mobile supportverzoek',
+
+  // ── LegalScreen (Mobile) ────────────────────────────────────────────
+  'legalScreen.headerTitle':      'Juridisch',
+  'legalScreen.tabImprint':       'Colofon',
+  'legalScreen.tabPrivacy':       'Privacy',
+  'legalScreen.tabTerms':         'Voorwaarden',
+  'legalScreen.lastUpdated':      'Laatst bijgewerkt: 8 mei 2026',
+  'legalScreen.deOnlyNotice':     'De juridisch bindende versie is Duits (provider gevestigd in Oostenrijk). De tekst hieronder is in het Duits — een Engelse samenvatting is beschikbaar op fisora.app/legal.',
 };

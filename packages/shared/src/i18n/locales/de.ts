@@ -1013,4 +1013,33 @@ export const de: Record<string, string> = {
   'addProject.urlRemove':               'URL entfernen',
   'highlights.aiHighlightsHeading':     'AI-HIGHLIGHTS',
   'cueEditor.clipHeading':              'CLIP {n}',
+
+  // ── HelpScreen (Mobile) ─────────────────────────────────────────────
+  'helpScreen.headerTitle':       'Hilfe & Support',
+  'helpScreen.heroTitle':         'Wie können wir helfen?',
+  'helpScreen.heroBody':          'Stöbere durch die häufigsten Fragen oder schreib uns — wochentags antworten wir meist innerhalb weniger Stunden.',
+  'helpScreen.faqAIQ':            'Wie funktioniert die KI-Highlight-Erkennung?',
+  'helpScreen.faqAIA':            'Fisora analysiert Audio-Peaks, Szenen-Schnitte und Bildschirmtext, um jeden Moment deines Videos zu bewerten. Die 10–25 spannendsten Momente werden zu exportierbaren Clips — meist in wenigen Minuten für ein 30-Minuten-Quellvideo.',
+  'helpScreen.faqFormatsQ':       'Welche Videoformate werden unterstützt?',
+  'helpScreen.faqFormatsA':       'Alle gängigen Formate — MP4, MOV, MKV, AVI, WebM. Auf dem Handy empfehlen wir den Import aus deiner Galerie; die Datei wird in die App-Sandbox kopiert, das Original bleibt unangetastet.',
+  'helpScreen.faq916Q':           'Warum klappt 9:16-Export noch nicht auf dem Handy?',
+  'helpScreen.faq916A':           'Der 9:16/TikTok-Export braucht ein natives FFmpeg-Modul (Phase 9.4.x). Am Desktop läuft das bereits über die gebündelte FFmpeg-Binary; auf Mobile bauen wir ein eigenes Swift-Package + Android-NDK-Modul. Die UI ist fertig und wartet nur auf den nativen Layer.',
+  'helpScreen.faqCancelQ':        'Wie kündige ich mein Pro-Abo?',
+  'helpScreen.faqCancelA':        'Einstellungen → Abrechnung verwalten — öffnet das Stripe-Kundenportal, dort kannst du kündigen, ändern oder pausieren. Lifetime ist einmalig und nicht wiederkehrend, da gibt es nichts zu kündigen.',
+  'helpScreen.faqUploadsQ':       'Werden meine Videos irgendwo hochgeladen?',
+  'helpScreen.faqUploadsA':       'Nein. Das Clipping passiert komplett lokal auf deinem Gerät. Nur dein Konto und der Abo-Status liegen in unserer Datenbank (Supabase). Die eigentlichen Videos verlassen dein Handy nie.',
+  'helpScreen.faqBugQ':           'Ich habe einen Bug gefunden — wie melde ich ihn?',
+  'helpScreen.faqBugA':           'Tippe „Support kontaktieren" unten auf diesem Bildschirm, oder schreib eine Mail an support@fisora.app. Mit deiner Fisora-Version (Einstellungen → Version) und einer kurzen Schritt-für-Schritt-Beschreibung können wir es schneller fixen.',
+  'helpScreen.contactStillNeed':  'Brauchst du noch Hilfe?',
+  'helpScreen.contactBody':       'Schreib dem Support und füg deine Fisora-Version + eine kurze Beschreibung dazu.',
+  'helpScreen.contactButton':     'Support kontaktieren',
+  'helpScreen.mailSubject':       'Fisora Mobile Support-Anfrage',
+
+  // ── LegalScreen (Mobile) ────────────────────────────────────────────
+  'legalScreen.headerTitle':      'Rechtliches',
+  'legalScreen.tabImprint':       'Impressum',
+  'legalScreen.tabPrivacy':       'Datenschutz',
+  'legalScreen.tabTerms':         'AGB',
+  'legalScreen.lastUpdated':      'Stand: 8. Mai 2026',
+  'legalScreen.deOnlyNotice':     'Die rechtsverbindliche Version ist Deutsch (Anbieter-Sitz Österreich).',
 };

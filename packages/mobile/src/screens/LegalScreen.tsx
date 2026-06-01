@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { useColors, useResolvedMode } from '../lib/theme';
+import { useT, useLanguage } from '../lib/i18n';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'Legal'>;
@@ -23,6 +24,8 @@ export function LegalScreen() {
   const nav = useNavigation<Nav>();
   const colors = useColors();
   const mode = useResolvedMode();
+  const t = useT();
+  const lang = useLanguage();
   const [tab, setTab] = useState<Tab>('imprint');
 
   return (
@@ -61,7 +64,9 @@ export function LegalScreen() {
         >
           <Ionicons name="chevron-back" size={18} color={colors.text.primary} />
         </Pressable>
-        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>Rechtliches</Text>
+        <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700' }}>
+          {t('legalScreen.headerTitle', 'Legal')}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -78,20 +83,41 @@ export function LegalScreen() {
           borderRadius: 12,
         }}
       >
-        <TabButton label="Impressum" active={tab === 'imprint'} onPress={() => setTab('imprint')} />
-        <TabButton label="Datenschutz" active={tab === 'privacy'} onPress={() => setTab('privacy')} />
-        <TabButton label="AGB" active={tab === 'terms'} onPress={() => setTab('terms')} />
+        <TabButton label={t('legalScreen.tabImprint', 'Imprint')} active={tab === 'imprint'} onPress={() => setTab('imprint')} />
+        <TabButton label={t('legalScreen.tabPrivacy', 'Privacy')} active={tab === 'privacy'} onPress={() => setTab('privacy')} />
+        <TabButton label={t('legalScreen.tabTerms', 'Terms')} active={tab === 'terms'} onPress={() => setTab('terms')} />
       </View>
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40, paddingTop: 18, gap: 14 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Phase i18n-Legal (2026-05-26): Hinweis für non-DE-User dass die
+            rechtsverbindliche Version Deutsch ist (Anbieter-Sitz Österreich).
+            Body-Inhalt bleibt deutsch — branchenüblich, Desktop macht das auch. */}
+        {lang !== 'de' && (
+          <View
+            style={{
+              padding: 12,
+              borderRadius: 10,
+              backgroundColor: colors.bg.elevated,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+            }}
+          >
+            <Text style={{ color: colors.text.secondary, fontSize: 11, lineHeight: 16 }}>
+              {t(
+                'legalScreen.deOnlyNotice',
+                'The legally binding version is German (provider based in Austria). The body below is in German — an English summary is available at fisora.app/legal.',
+              )}
+            </Text>
+          </View>
+        )}
         {tab === 'imprint' && <ImprintContent />}
         {tab === 'privacy' && <PrivacyContent />}
         {tab === 'terms' && <TermsContent />}
         <Text style={{ color: colors.text.muted, fontSize: 11, textAlign: 'center', marginTop: 14 }}>
-          Stand: 8. Mai 2026
+          {t('legalScreen.lastUpdated', 'Last updated: May 8, 2026')}
         </Text>
       </ScrollView>
     </SafeAreaView>
