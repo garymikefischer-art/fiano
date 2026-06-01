@@ -29,6 +29,7 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png",
         "backgroundColor": "#090b0c"
       },
       "permissions": [
@@ -43,7 +44,8 @@
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "versionCode": 2
     },
     "plugins": [
       "expo-secure-store",
