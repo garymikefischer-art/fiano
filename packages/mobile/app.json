@@ -45,6 +45,9 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.RECORD_AUDIO"
       ],
+      "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID"
+      ],
       "versionCode": 10
     },
     "plugins": [
