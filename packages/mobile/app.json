@@ -3,7 +3,7 @@
     "name": "Fisora",
     "slug": "fiano-mobile",
     "scheme": "fisora",
-    "version": "0.0.2",
+    "version": "0.0.3",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -45,7 +45,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.RECORD_AUDIO"
       ],
-      "versionCode": 3
+      "versionCode": 10
     },
     "plugins": [
       "expo-secure-store",
