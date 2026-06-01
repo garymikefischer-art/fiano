@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { TopBarActions } from '../components/TopBarActions';
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { useT } from '../lib/i18n';
 
 type Section = 'getting-started' | 'features' | 'api-keys' | 'install' | 'updates' | 'shortcuts' | 'faq' | 'about';
@@ -338,7 +338,7 @@ function About() {
         <div className="flex items-center gap-4 mb-4">
           <div className="w-14 h-14 rounded-2xl bg-fiano-red/15 border border-fiano-red/30
                           flex items-center justify-center shrink-0">
-            <FianoLogo variant="mark" className="w-7 h-auto" />
+            <FisoraLogo variant="mark" className="w-7 h-auto" />
           </div>
           <div>
             <div className="text-[20px] font-bold tracking-tight">fiano</div>

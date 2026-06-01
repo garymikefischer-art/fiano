@@ -490,6 +490,31 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     let uploadTmp = outputTmp;
     if (validatedSpec?.subtitlePng && validatedSpec.subtitlePng.cues.length > 0) {
       const sp = validatedSpec.subtitlePng;
+      // TEMP DIAGNOSE (E4-Iter-8, 2026-05-26): logge eingehende Effect-Settings
+      // damit wir sehen welche Toggles wirklich beim Worker ankommen.
+      console.log(
+        `[${jobId}] subtitlePng SETTINGS DIAG:`,
+        JSON.stringify({
+          style: sp.settings.style,
+          fontFamily: sp.settings.fontFamily,
+          textColor: sp.settings.textColor,
+          useGradient: sp.settings.useGradient,
+          gradientFrom: sp.settings.gradientFrom,
+          gradientTo: sp.settings.gradientTo,
+          metallic: sp.settings.metallic,
+          strokeWidth: sp.settings.strokeWidth,
+          strokeColor: sp.settings.strokeColor,
+          glowEnabled: sp.settings.glowEnabled,
+          glowBlur: sp.settings.glowBlur,
+          glowStrength: sp.settings.glowStrength,
+          glowColor: sp.settings.glowColor,
+          shadowEnabled: sp.settings.shadowEnabled,
+          shadowBlur: sp.settings.shadowBlur,
+          shadowOffsetX: sp.settings.shadowOffsetX,
+          shadowOffsetY: sp.settings.shadowOffsetY,
+          shadowColor: sp.settings.shadowColor,
+        }),
+      );
       try {
         const cuePngPaths: { path: string; startSec: number; endSec: number }[] = [];
         for (let i = 0; i < sp.cues.length; i++) {
@@ -515,6 +540,11 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
 
           // filter_complex: pro PNG-Input ein overlay mit enable-zwischen-t.
           // Input 0 = Pass-1-Video, Inputs 1..N = die Cue-PNGs.
+          // Phase E4 Iter 9 (2026-05-26): Saturation-Boost zurückgenommen —
+          // wirkte bei white/gray Subtle-Tones subtil störend, brachte aber
+          // bei reds/oranges keine sichtbare Verbesserung. Das echte Color-
+          // Match kommt aus BT.709-Metadata + Gradient-Range-Fix, nicht aus
+          // einem Post-Processing-Saturation-Boost.
           const chainSteps: string[] = [];
           let prevLabel = '0:v';
           for (let n = 0; n < cuePngPaths.length; n++) {
@@ -538,8 +568,16 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
             '-map', '0:a?',
             '-c:a', 'copy',
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
+            // Phase E4 (2026-05-26): preset veryfast → medium für bessere
+            // Color-Quality. Plus explizite BT.709 Color-Metadata, damit
+            // Player nicht zwischen BT.601 (blasser) und BT.709 raten muss.
+            // Verhindert Gradient-Color-Wash bei gesättigten Reds/Oranges.
+            '-preset', 'medium',
             '-pix_fmt', 'yuv420p',
+            '-colorspace', 'bt709',
+            '-color_primaries', 'bt709',
+            '-color_trc', 'bt709',
+            '-color_range', 'tv',
             '-b:v', validatedSpec.bitrate,
             finalTmp,
           );

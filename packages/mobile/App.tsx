@@ -111,7 +111,7 @@ export default function App() {
 
     // Phase A6.3.3 (2026-05-18): Deep-Link-Handler für email-confirm Callback.
     // Wenn User auf Confirm-Link in Bestätigungs-Email klickt → OS öffnet App
-    // via fiano://auth-callback?... → wir parsen Tokens/Code, setzen Session.
+    // via fisora://auth-callback?... → wir parsen Tokens/Code, setzen Session.
     // Unterstützt beide Supabase-Flows:
     //   - Token-Flow (hash):  #access_token=...&refresh_token=...
     //   - PKCE-Flow (query):  ?code=...

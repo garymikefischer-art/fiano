@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { LegalFooter } from '../components/LegalFooter';
 import { useAuth } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
@@ -202,7 +202,7 @@ export function PricingPage() {
         <div className="max-w-6xl mx-auto px-8 py-12">
           {/* Header */}
           <div className="flex flex-col items-center text-center mb-10">
-            <FianoLogo className="h-16 w-auto mb-4" />
+            <FisoraLogo className="h-16 w-auto mb-4" />
             <h1 className="text-[28px] font-semibold tracking-tight">
               {currentPlan ? t('pricing.headlineUpgrade') : t('pricing.headline')}
             </h1>

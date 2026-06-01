@@ -41,6 +41,11 @@ import {
   LAYERED_SMALL_SCALE,
   LAYERED_SMALL_OFFSET,
 } from '@fiano/shared/subtitleLayout';
+import {
+  SUBTITLE_FONT_IDS,
+  defaultSubtitleFont,
+  resolveWeightedFamily,
+} from '../lib/fonts';
 
 interface Props {
   settings: SubtitleSettings;
@@ -67,7 +72,18 @@ export function SubtitleOverlay({
 
   const isLayered = settings.style === 'layered';
   const upper = settings.uppercase ?? settings.style === 'fiano';
-  const fontFamily = mapFontFamily(settings.fontFamily ?? defaultFontFor(settings.style));
+  // Phase Rebrand 2026-05-26: settings.fontFamily MUSS in SUBTITLE_FONT_IDS sein
+  // (gebündelte Multi-Font-Library). Legacy-Werte wie 'helvetica' aus alten
+  // Projekten ODER aus DEFAULT_SUBTITLES → defaultFontFor(style) greifen, damit
+  // ein Style-Wechsel wirklich die Style-spezifische Default-Font lädt.
+  const validFontFamily =
+    settings.fontFamily && SUBTITLE_FONT_IDS.has(settings.fontFamily)
+      ? settings.fontFamily
+      : defaultFontFor(settings.style);
+  // Phase D-Weight (2026-05-26): Weight-Suffix in den Family-Namen bauen.
+  // 'Inter' + 'black' → 'InterBlack' → InterBlack.ttf wird via AssetManager
+  // direkt geladen, keine RN-_bold-Convention mehr (siehe lib/fonts.ts).
+  const fontFamily = resolveWeightedFamily(validFontFamily, settings.fontWeight);
   const uiFontSize = settings.fontSize ?? defaultFontSizeFor(settings.style);
   // 0 solange der Container noch nicht gemessen ist → es wird nichts gerendert.
   const fontSize = frameH > 0 ? resolveSubtitleFontPx(uiFontSize, frameH) : 0;
@@ -91,7 +107,10 @@ export function SubtitleOverlay({
     fontFamily,
     fontSize,
     color: textColor,
-    fontWeight: '700', // Phase R10 (Bug-5): 700 = ASS-Bold-Stärke vom Export — Preview/Export ziehen gleich.
+    // Phase D-Weight (2026-05-26): KEIN fontWeight mehr — der Weight steckt
+    // jetzt im Family-Namen (z.B. 'InterBlack'). Wenn wir hier fontWeight
+    // setzen würden, schaltet RN-Android EXTENSIONS=['','_bold',...] ein und
+    // sucht 'fonts/InterBlack_bold.ttf' (existiert nicht) → Roboto-Fallback.
     letterSpacing,
     textTransform: upper ? 'uppercase' : undefined,
   };
@@ -287,7 +306,6 @@ function SvgGradientText({
           textAnchor="middle"
           fontFamily={fontFamily}
           fontSize={fontSize}
-          fontWeight="700"
           fill={shadowColor}
           opacity={0.6}
           letterSpacing={letterSpacing}
@@ -305,7 +323,6 @@ function SvgGradientText({
           textAnchor="middle"
           fontFamily={fontFamily}
           fontSize={fontSize}
-          fontWeight="700"
           fill={`${glowColor}${glowAlpha}`}
           letterSpacing={letterSpacing}
           filter={`url(#${glowFilterId})`}
@@ -324,7 +341,6 @@ function SvgGradientText({
           textAnchor="middle"
           fontFamily={fontFamily}
           fontSize={fontSize}
-          fontWeight="700"
           fill="none"
           stroke={strokeColor}
           strokeWidth={strokeWidth * 2 /* ×2 weil halb wird vom fill ueberdeckt */}
@@ -342,7 +358,6 @@ function SvgGradientText({
         textAnchor="middle"
         fontFamily={fontFamily}
         fontSize={fontSize}
-        fontWeight="700"
         fill={`url(#${gradId})`}
         letterSpacing={letterSpacing}
       >
@@ -519,13 +534,8 @@ function strokeApproxStyle(s: SubtitleSettings): TextStyle {
 }
 
 function defaultFontFor(style: SubtitleStyle): SubtitleFontFamily {
-  switch (style) {
-    case 'bold':    return 'arial-black';
-    case 'gaming':  return 'impact';
-    case 'fiano':   return 'geist';
-    case 'layered': return 'arial-black';
-    default:        return 'helvetica';
-  }
+  // Phase D-Fonts: gebündelte Defaults (siehe lib/fonts.ts) — synchron zum Worker.
+  return defaultSubtitleFont(style);
 }
 
 function defaultFontSizeFor(style: SubtitleStyle): number {
@@ -539,16 +549,11 @@ function defaultFontSizeFor(style: SubtitleStyle): number {
 }
 
 function mapFontFamily(f: SubtitleFontFamily): string {
-  switch (f) {
-    case 'arial-black': return 'sans-serif-black';
-    case 'helvetica':   return 'sans-serif';
-    case 'impact':      return 'sans-serif-condensed';
-    case 'geist':       return 'sans-serif';
-    case 'georgia':     return 'serif';
-    case 'mono':        return 'monospace';
-    case 'system':      return 'sans-serif';
-  }
-  return f;
+  // Phase D-Fonts: f IST der via expo-font geladene Family-Name (= Font-ID).
+  // Bekannte IDs 1:1 durchreichen; Legacy-/Unbekannt-Werte (helvetica, impact …
+  // aus alten Projekten) → sinnvoller gebündelter Default.
+  if (SUBTITLE_FONT_IDS.has(f)) return f;
+  return 'Inter';
 }
 
 function parseHex(hex: string): { r: number; g: number; b: number } | null {

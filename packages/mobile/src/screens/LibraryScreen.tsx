@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../stores/authStore';
 import { useProjects, useProjectsStore, flushProjectsNow, type Project } from '../stores/projectsStore';
 import { useUnreadCount } from '../stores/notificationsStore';
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { NotificationBell } from '../components/NotificationBell';
 import { SearchBar } from '../components/SearchBar';
@@ -156,9 +156,10 @@ export function LibraryScreen() {
       />
       <BackgroundGlow />
 
-      {/* Header — paddingHorizontal=20 ident mit body. marginLeft=-9 gleicht
-          das SVG-viewBox-Inner-Padding (~75/1000 = 7.5% bei height=72) aus.
-          Damit beginnt das sichtbare Logo-Pixel bei exakt 20px (= Body-Title). */}
+      {/* Header — paddingHorizontal=20 ident mit body. Phase Rebrand 2026-05-26:
+          marginLeft=-9 entfernt — das alte fiano-Logo hatte SVG-viewBox-Inner-
+          Padding (~7.5%), das neue Fisora-Logo hat content bei x=0 ohne Padding,
+          daher kein Margin-Kompensation mehr nötig. */}
       <View
         style={{
           flexDirection: 'row',
@@ -171,9 +172,7 @@ export function LibraryScreen() {
           borderBottomColor: colors.border.subtle,
         }}
       >
-        <View style={{ marginLeft: -9 }}>
-          <FianoLogo height={72} />
-        </View>
+        <FisoraLogo height={72} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Pressable
             onPress={() => nav.navigate('Search')}

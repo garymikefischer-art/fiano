@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, View, Text } from 'react-native';
-import { FianoLogo } from '../components/FianoLogo';
+import { FisoraLogo } from '../components/FisoraLogo';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { useColors } from '../lib/theme';
 
@@ -40,7 +40,7 @@ export function SplashScreen() {
 
       <View style={{ alignItems: 'center', gap: 28 }}>
         <Animated.View style={{ opacity: pulse }}>
-          <FianoLogo height={112} />
+          <FisoraLogo height={112} />
         </Animated.View>
 
         <View

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "fiano",
-    "slug": "fiano-mobile",
-    "scheme": "fiano",
+    "name": "Fisora",
+    "slug": "fisora-mobile",
+    "scheme": "fisora",
     "version": "0.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -14,18 +14,19 @@
       "backgroundColor": "#090b0c"
     },
     "ios": {
-      "bundleIdentifier": "app.fiano.video",
+      "bundleIdentifier": "app.fisora.video",
       "supportsTablet": false,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "fiano needs access to your photo library to import videos for editing and to save the rendered clips.",
-        "NSPhotoLibraryAddUsageDescription": "fiano saves rendered videos to your photo library.",
-        "NSCameraUsageDescription": "fiano needs camera access if you want to record a clip directly.",
-        "NSMicrophoneUsageDescription": "fiano accesses the microphone to import audio from your videos.",
+        "NSPhotoLibraryUsageDescription": "Fisora needs access to your photo library to import videos for editing and to save the rendered clips.",
+        "NSPhotoLibraryAddUsageDescription": "Fisora saves rendered videos to your photo library.",
+        "NSCameraUsageDescription": "Fisora needs camera access if you want to record a clip directly.",
+        "NSMicrophoneUsageDescription": "Fisora accesses the microphone to import audio from your videos.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "app.fiano.video",
+      "package": "app.fisora.video",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#090b0c"
@@ -70,6 +71,73 @@
             "parentTheme": "Default",
             "enforceNavigationBarContrast": false
           }
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Montserrat.ttf",
+            "./assets/fonts/MontserratLight.ttf",
+            "./assets/fonts/MontserratMedium.ttf",
+            "./assets/fonts/MontserratBold.ttf",
+            "./assets/fonts/MontserratBlack.ttf",
+            "./assets/fonts/Poppins.ttf",
+            "./assets/fonts/PoppinsLight.ttf",
+            "./assets/fonts/PoppinsMedium.ttf",
+            "./assets/fonts/PoppinsBold.ttf",
+            "./assets/fonts/PoppinsBlack.ttf",
+            "./assets/fonts/Inter.ttf",
+            "./assets/fonts/InterLight.ttf",
+            "./assets/fonts/InterMedium.ttf",
+            "./assets/fonts/InterBold.ttf",
+            "./assets/fonts/InterBlack.ttf",
+            "./assets/fonts/Outfit.ttf",
+            "./assets/fonts/OutfitLight.ttf",
+            "./assets/fonts/OutfitMedium.ttf",
+            "./assets/fonts/OutfitBold.ttf",
+            "./assets/fonts/OutfitBlack.ttf",
+            "./assets/fonts/Sora.ttf",
+            "./assets/fonts/SoraLight.ttf",
+            "./assets/fonts/SoraMedium.ttf",
+            "./assets/fonts/SoraBold.ttf",
+            "./assets/fonts/SoraBlack.ttf",
+            "./assets/fonts/Oswald.ttf",
+            "./assets/fonts/OswaldLight.ttf",
+            "./assets/fonts/OswaldMedium.ttf",
+            "./assets/fonts/OswaldBold.ttf",
+            "./assets/fonts/OswaldBlack.ttf",
+            "./assets/fonts/Teko.ttf",
+            "./assets/fonts/TekoLight.ttf",
+            "./assets/fonts/TekoMedium.ttf",
+            "./assets/fonts/TekoBold.ttf",
+            "./assets/fonts/TekoBlack.ttf",
+            "./assets/fonts/BarlowCondensed.ttf",
+            "./assets/fonts/BarlowCondensedLight.ttf",
+            "./assets/fonts/BarlowCondensedMedium.ttf",
+            "./assets/fonts/BarlowCondensedBold.ttf",
+            "./assets/fonts/BarlowCondensedBlack.ttf",
+            "./assets/fonts/ChakraPetch.ttf",
+            "./assets/fonts/ChakraPetchLight.ttf",
+            "./assets/fonts/ChakraPetchMedium.ttf",
+            "./assets/fonts/ChakraPetchBold.ttf",
+            "./assets/fonts/ChakraPetchBlack.ttf",
+            "./assets/fonts/Orbitron.ttf",
+            "./assets/fonts/OrbitronLight.ttf",
+            "./assets/fonts/OrbitronMedium.ttf",
+            "./assets/fonts/OrbitronBold.ttf",
+            "./assets/fonts/OrbitronBlack.ttf",
+            "./assets/fonts/BebasNeue.ttf",
+            "./assets/fonts/Anton.ttf",
+            "./assets/fonts/FjallaOne.ttf",
+            "./assets/fonts/ArchivoBlack.ttf",
+            "./assets/fonts/Bungee.ttf",
+            "./assets/fonts/TitanOne.ttf",
+            "./assets/fonts/LuckiestGuy.ttf",
+            "./assets/fonts/Bangers.ttf",
+            "./assets/fonts/RussoOne.ttf",
+            "./assets/fonts/PermanentMarker.ttf"
+          ]
         }
       ]
     ],

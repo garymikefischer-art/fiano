@@ -23,6 +23,27 @@ export function resolveSubtitleFontPx(uiFontSize: number, frameHeight: number): 
   return Math.round((uiFontSize / 26) * (frameHeight * 0.06));
 }
 
+/**
+ * Phase E4 (2026-05-26): Effekt-Skalierungs-Faktor für Stroke/Shadow/Glow im
+ * Worker-Render. Bringt Worker-Render proportional auf das Preview-Pixel-Bild,
+ * sodass beim Resize des Export-Videos auf Phone-Display die Effekte exakt so
+ * dick/intensiv aussehen wie in der Modal- + 9:16-Live-Preview.
+ *
+ * `EFFECT_SCALE_REFERENCE_PX = 720` = approximate Höhe des 9:16-Preview-Frames
+ * auf Standard-Phone (75 % von ~1080 Display-Höhe). Bei canvasH=1920 (TikTok-
+ * Export) ergibt das effectScale=2.67 — proportional zur (canvasH/720)-
+ * Schriftvergrößerung via `resolveSubtitleFontPx`.
+ *
+ * VORHER (Bug): Worker nutzte `baseScale = canvasW / 540` für Effekte, aber
+ * `resolveSubtitleFontPx` skaliert über canvasH × 0.06 → Effekte „hinkten" der
+ * Schrift hinterher → User sah Stroke dünner + Glow schwächer im Export.
+ */
+export const EFFECT_SCALE_REFERENCE_PX = 720;
+
+export function resolveSubtitleEffectScale(frameHeight: number): number {
+  return frameHeight / EFFECT_SCALE_REFERENCE_PX;
+}
+
 /** Layered-Style: small-word fontSize = style-fontSize × diesem Faktor. */
 export const LAYERED_SMALL_SCALE = 0.7;
 

@@ -261,10 +261,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // einfach keinen counter.
       console.warn('[auth] render_usage fetch failed', e);
     }
-    // monthly_limit aus dem plan ableiten (sync mit planCheck.ts).
+    // monthly_limit aus dem plan ableiten (sync mit planCheck.ts und der SQL-
+    // Migration 003_creator_limit_50.sql).
     const plan = data?.plan ?? null;
     const monthlyLimit =
-      plan === 'creator' ? 30 : plan === 'pro' ? 200 : 0;
+      plan === 'creator' ? 50 : plan === 'pro' ? 200 : 0;
     set({
       subscription: data
         ? {

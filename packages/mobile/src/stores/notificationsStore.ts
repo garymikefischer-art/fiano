@@ -66,7 +66,7 @@ const SEED: Notification[] = [
     icon: 'megaphone-outline',
     iconColor: '#fbbf24',
     iconBg: 'rgba(251,191,36,0.15)',
-    title: "What's new in fiano",
+    title: "What's new in Fisora",
     body: 'Mobile is here, Liquid-Glass nav, project detail & per-clip score view.',
     time: '2 d ago',
     unread: false,

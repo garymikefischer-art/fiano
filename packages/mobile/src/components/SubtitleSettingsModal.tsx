@@ -40,11 +40,13 @@ import { CueEditorModal } from './CueEditorModal';
 import {
   DEFAULT_SUBTITLES,
   type SubtitleFontFamily,
+  type SubtitleFontWeight,
   type SubtitlePosition,
   type SubtitleSettings,
   type SubtitleStyle,
 } from '../data/demoProjects';
 import { useAppStore } from '../stores/appStore';
+import { SUBTITLE_FONTS, SUBTITLE_WEIGHTS } from '../lib/fonts';
 import { haptic } from '../lib/haptics';
 // Phase A5: Feature-Locks
 import { useFeature } from '../lib/features';
@@ -68,7 +70,7 @@ const STYLE_OPTIONS: { id: SubtitleStyle; label: string; desc: string }[] = [
   { id: 'default', label: 'Default', desc: 'Clean & simple' },
   { id: 'bold',    label: 'Bold',    desc: 'Heavy, bold text' },
   { id: 'gaming',  label: 'Gaming',  desc: 'Impact yellow' },
-  { id: 'fiano',   label: 'Fiano',   desc: 'Brand uppercase' },
+  { id: 'fiano',   label: 'Brand',   desc: 'Fisora uppercase' },
   { id: 'layered', label: 'Layered', desc: 'Big word + small below' },
 ];
 
@@ -79,35 +81,11 @@ const POSITION_OPTIONS: { id: SubtitlePosition; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ];
 
-/** Curated + Android-System-Fonts. Auf Android sind sans-serif* + serif* + monospace
- *  garantiert verfügbar. Custom-Input erlaubt jeden weiteren Font-Namen (System-Query-
- *  API gibt's auf RN nicht von Haus aus — alternativ kann der User ein font-name
- *  per Hand eintippen). */
-const FONT_OPTIONS: { id: SubtitleFontFamily; label: string }[] = [
-  // Curated (1:1 zu Desktop)
-  { id: 'helvetica',           label: 'Helvetica' },
-  { id: 'arial-black',         label: 'Arial Black' },
-  { id: 'impact',              label: 'Impact' },
-  { id: 'geist',               label: 'Geist' },
-  { id: 'georgia',             label: 'Georgia' },
-  { id: 'mono',                label: 'Mono' },
-  // Android System-Fonts
-  { id: 'sans-serif',          label: 'Sans Serif' },
-  { id: 'sans-serif-black',    label: 'Sans Black' },
-  { id: 'sans-serif-condensed',label: 'Sans Condensed' },
-  { id: 'sans-serif-light',    label: 'Sans Light' },
-  { id: 'sans-serif-medium',   label: 'Sans Medium' },
-  { id: 'sans-serif-thin',     label: 'Sans Thin' },
-  { id: 'sans-serif-smallcaps',label: 'Small Caps' },
-  { id: 'serif',               label: 'Serif' },
-  { id: 'serif-monospace',     label: 'Serif Mono' },
-  { id: 'monospace',           label: 'Monospace' },
-  { id: 'cursive',             label: 'Cursive' },
-  { id: 'casual',              label: 'Casual' },
-  { id: 'Roboto',              label: 'Roboto' },
-  { id: 'Roboto-Bold',         label: 'Roboto Bold' },
-  { id: 'Roboto-Italic',       label: 'Roboto Italic' },
-];
+/** Phase D-Fonts (2026-05-20): 20 gebündelte Google Fonts (siehe lib/fonts.ts).
+ *  Preview UND Export rendern dieselben .ttf — keine System-Font-Approximation
+ *  mehr. Phase D-Weight (2026-05-26): SUBTITLE_FONTS trägt jetzt zusätzlich
+ *  `hasWeights` für die UI-Hinweise im Weight-Picker. */
+const FONT_OPTIONS = SUBTITLE_FONTS;
 
 export function SubtitleSettingsModal({ visible, settings, onClose, onChange, isInline = false }: Props) {
   const colors = useColors();
@@ -430,10 +408,33 @@ export function SubtitleSettingsModal({ visible, settings, onClose, onChange, is
                     />
                   ))}
                 </ScrollView>
-                <CustomFontInput
-                  value={local.fontFamily ?? ''}
-                  onCommit={(v) => patch({ fontFamily: v })}
-                />
+                {/* Phase D-Weight (2026-05-26): Weight-Picker (Light/Regular/
+                    Medium/Bold/Black). Display-Fonts ohne hasWeights ignorieren
+                    den Weight visuell — die Pills bleiben aktiv (User darf
+                    trotzdem klicken), aber die gerenderte Schrift wechselt nicht.
+                    Hinweis-Helper-Text unterhalb. */}
+                <Text style={styles.subLabel}>Weight</Text>
+                <View style={styles.pillRow}>
+                  {SUBTITLE_WEIGHTS.map((w) => (
+                    <Pill
+                      key={w.id}
+                      label={w.label}
+                      active={(local.fontWeight ?? 'bold') === w.id}
+                      onPress={() => patch({ fontWeight: w.id })}
+                    />
+                  ))}
+                </View>
+                {(() => {
+                  const def = FONT_OPTIONS.find((f) => f.id === local.fontFamily);
+                  if (def && !def.hasWeights) {
+                    return (
+                      <Text style={styles.helper}>
+                        {def.label} is single-weight — Weight has no visual effect.
+                      </Text>
+                    );
+                  }
+                  return null;
+                })()}
                 <SliderRow
                   label="Font size"
                   value={local.fontSize ?? 26}
@@ -1060,44 +1061,6 @@ function SliderRow({
         <Text style={styles.sliderValue}>{display}</Text>
       </View>
       <SimpleSlider value={value} min={min} max={max} step={step} onChange={onChange} />
-    </View>
-  );
-}
-
-function CustomFontInput({
-  value,
-  onCommit,
-}: {
-  value: string;
-  onCommit: (v: SubtitleFontFamily) => void;
-}) {
-  const colors = useColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [draft, setDraft] = useState(value);
-  return (
-    <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-      <Text style={[styles.subLabel, { width: 78 }]}>Custom</Text>
-      <TextInput
-        value={draft}
-        onChangeText={setDraft}
-        onBlur={() => {
-          const trimmed = draft.trim();
-          if (trimmed.length > 0 && trimmed !== value) onCommit(trimmed);
-        }}
-        placeholder="z.B. Roboto-Italic"
-        placeholderTextColor="#52525b"
-        style={{
-          flex: 1,
-          paddingHorizontal: 12,
-          paddingVertical: 8,
-          backgroundColor: 'rgba(0,0,0,0.4)',
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.10)',
-          color: colors.text.primary,
-          fontSize: 13,
-        }}
-      />
     </View>
   );
 }

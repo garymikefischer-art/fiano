@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useAuthStore } from '../stores/authStore';
 import { useUnreadCount } from '../stores/notificationsStore';
-import { FianoLogo } from './FianoLogo';
+import { FisoraLogo } from './FisoraLogo';
 import { BackgroundGlow } from './BackgroundGlow';
 import { NotificationBell } from './NotificationBell';
 import type { RootStackParamList } from '../navigation/types';
@@ -48,7 +48,7 @@ export function ComingSoon({ icon, title, description, phaseTag }: Props) {
           borderBottomColor: 'rgba(255,255,255,0.06)',
         }}
       >
-        <FianoLogo height={88} />
+        <FisoraLogo height={88} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Pressable
             onPress={() => nav.navigate('Search')}
