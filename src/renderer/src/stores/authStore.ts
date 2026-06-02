@@ -315,16 +315,20 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   async signUpWithPassword(email, password) {
     set({ lastError: null });
-    // emailRedirectTo: Supabase ersetzt {{ .ConfirmationURL }} im Template so dass
-    // der finale Redirect zur Loopback-URL geht (statt zur Default-Site-URL).
-    // Damit landet der User nach Email-Klick auf unserer 127.0.0.1:PORT — wenn
-    // fiano dann läuft, wird der User automatisch eingeloggt.
-    const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
-    const emailRedirectTo = lp?.ok ? lp.data?.callbackUrl ?? undefined : undefined;
+    // D4 Cross-Device (2026-06-02): emailRedirectTo zeigt jetzt auf die
+    // fisora.app-Webpage mit ?source=desktop Parameter. Die Webpage erkennt
+    // das + bietet einen `fiano://auth-callback`-Button (Desktop-Custom-Scheme).
+    // Vorteile gegenüber dem alten Loopback-Setup:
+    // - Cross-Device: User kann Confirm-Mail auf Phone öffnen, sieht Button +
+    //   muss zum PC wechseln. Loopback war nur same-device-fähig.
+    // - Same-Device: Browser öffnet Webpage → Button klickt → fiano:// öffnet
+    //   Desktop-App (genauso wie vorher Loopback funktioniert hat).
+    // Loopback bleibt für OAuth-Flow (Google sign-in, same-device-by-design).
+    const emailRedirectTo = 'https://www.fisora.app/auth-callback?source=desktop';
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: emailRedirectTo ? { emailRedirectTo } : undefined,
+      options: { emailRedirectTo },
     });
     if (error) {
       const friendly = humanizeAuthError(error.message);
@@ -378,12 +382,12 @@ export const useAuth = create<AuthState>((set, get) => ({
   async resendConfirmation(email) {
     set({ lastError: null });
     try {
-      const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
-      const emailRedirectTo = lp?.ok ? lp.data?.callbackUrl ?? undefined : undefined;
+      // D4 Cross-Device (2026-06-02): siehe signUpWithPassword
+      const emailRedirectTo = 'https://www.fisora.app/auth-callback?source=desktop';
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email,
-        options: emailRedirectTo ? { emailRedirectTo } : undefined,
+        options: { emailRedirectTo },
       });
       if (error) {
         const friendly = humanizeAuthError(error.message);
@@ -402,12 +406,12 @@ export const useAuth = create<AuthState>((set, get) => ({
   async requestPasswordReset(email) {
     set({ lastError: null });
     try {
-      const lp = await window.api.invoke<{ callbackUrl: string | null }>('auth.getLoopbackUrl');
-      const baseCallback = lp?.ok ? lp.data?.callbackUrl : null;
-      // Recovery-Link braucht eigenen sub-path damit ResetPasswordPage erkennt
-      // dass es sich um ein Reset und nicht um einen normalen Login-Callback handelt.
-      const redirectTo = baseCallback ? `${baseCallback}?type=recovery` : undefined;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined);
+      // D4 Cross-Device (2026-06-02): fisora.app-Webpage statt Loopback.
+      // Webpage rendert das Passwort-Reset-Formular und bietet "Open in Fisora
+      // Desktop"-Button für Cross-Device-Fälle. source=desktop schaltet den
+      // fiano:// Deep-Link statt fisora:// (Mobile) frei.
+      const redirectTo = 'https://www.fisora.app/auth-callback?source=desktop';
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) {
         const friendly = humanizeAuthError(error.message);
         set({ lastError: friendly });
