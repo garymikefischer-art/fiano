@@ -1138,6 +1138,12 @@ const handlers: Record<string, Handler<any, any>> = {
     }
 
     const tmpDir = path.join(getProjectDir(i.projectId), 'build_tmp');
+    // D5-Fix (2026-06-02): Stale temp-Files von vorherigem (möglicherweise
+    // abgebrochenem) Build erst löschen. Sonst stolpert der concat-Demuxer
+    // an halb-fertigen part_NNN.mp4 ohne moov-atom — Symptom war:
+    //   "ffmpeg exit 183: moov atom not found · Impossible to open part_001.mp4"
+    // Ursache: alte tmpDir wurde mit mkdir{recursive} nur ergänzt, nie geleert.
+    await fs.rm(tmpDir, { recursive: true, force: true });
     await fs.mkdir(tmpDir, { recursive: true });
 
     // Pro Clip Subtitles vorbereiten — libass UND drawtext-Fallback vorhalten.

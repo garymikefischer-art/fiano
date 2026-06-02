@@ -116,8 +116,8 @@ export function Sidebar() {
       </div>
 
       {/* Logo */}
-      <div className="pl-[0.3rem] pr-5 pt-0 [-webkit-app-region:no-drag]">
-        <FisoraLogo className="h-28 w-auto" />
+      <div className="pl-3 pr-5 pt-2 pb-1 [-webkit-app-region:no-drag]">
+        <FisoraLogo className="h-20 w-auto" />
       </div>
 
       {/* Trennlinie unter Logo */}
