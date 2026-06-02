@@ -826,6 +826,19 @@ export const de: Record<string, string> = {
   'pricing.welcomeBody':     'Hi {email} — du brauchst noch einen aktiven Plan, um die App zu nutzen.',
   'pricing.phase62Soon':     'Plan-Auswahl + Stripe-Checkout kommen in Kürze (Phase 6.2). Für Test-Admins ist Lifetime-Zugang bereits manuell gesetzt — dann sollte dieser Screen gar nicht erst erscheinen.',
 
+  // E5 (2026-06-02): Stripe-Web-Checkout-Stopgap Status-Strings für DE
+  'pricing.checkoutPendingTitle': 'Zahlung eingegangen',
+  'pricing.checkoutPending':      'Deine Zahlung wurde verarbeitet. Unser System aktiviert dein Abo gerade — tippe unten auf „Aktualisieren", um es erneut zu prüfen.',
+  'pricing.checkoutErrorTitle':   'Checkout fehlgeschlagen',
+  'pricing.stillPendingTitle':    'Wird noch verarbeitet',
+  'pricing.stillPendingBody':     'Dein Abo wird noch verarbeitet. Bitte in wenigen Sekunden erneut versuchen.',
+  'pricing.signOutTitle':         'Abmelden',
+  'pricing.signOutBtn':           'Abmelden',
+  'pricing.paywallBadge':         'ABO ERFORDERLICH',
+  'pricing.paywallHeadline':      'Wähle einen Plan, um fortzufahren',
+  'pricing.subStatusLabel':       'Abo-Status',
+  'pricing.refreshSub':           'Abo-Status aktualisieren',
+
   // Upgrade-Modal (Phase 6.3 Feature-Gating)
   'upgradeModal.eyebrow':       'Premium-Feature',
   'upgradeModal.body':          'Dieses Feature ist Teil von {plan}. Upgrade jetzt um es freizuschalten.',
