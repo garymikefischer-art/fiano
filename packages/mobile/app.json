@@ -144,7 +144,8 @@
             "./assets/fonts/PermanentMarker.ttf"
           ]
         }
-      ]
+      ],
+      "react-native-purchases"
     ],
     "experiments": {
       "typedRoutes": false

@@ -46,6 +46,7 @@
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-edge-to-edge": "^1.8.1",
     "react-native-gesture-handler": "~2.20.0",
+    "react-native-purchases": "^10.2.0",
     "react-native-reanimated": "~3.16.0",
     "react-native-safe-area-context": "~4.14.0",
     "react-native-screens": "~4.4.0",
@@ -62,7 +63,7 @@
   },
   "_comments": {
     "ffmpeg-kit": "Aus MVP entfernt — arthenica/ffmpeg-kit Maven-Repo wurde am 1.4.2025 abgeschaltet (auch jdarshan5-Fork pullt diese Coords). Phase 9.4.x: custom Native-Module via kewlbear/FFmpeg-iOS + Android NDK. shared/ffmpegArgs.ts ist plattform-neutral, daher Migration nur Spawn-Layer.",
-    "react-native-purchases": "Aus MVP entfernt — RevenueCat-IAP-Setup ist Phase 9.4.x post-Login-Review.",
+    "react-native-purchases": "v10.2.0 installiert 2026-06-03 fuer M5 (D3 RevenueCat IAP). Plugin-Eintrag in app.json deklariert BILLING-Permission ins AndroidManifest. Code-Wiring (Purchases.configure + PricingScreen.useOfferings + purchasePackage) folgt sobald goog_-Key da ist.",
     "expo-version": "Expo 52 = SDK von Q4 2024. Für 2026 ggf. auf 53+ updaten via `npx expo install --fix`."
   }
 }
