@@ -5,10 +5,10 @@
  * Adressiert SECURITY_AUDIT P0-2: Mobile-Paywall war client-only, ein User
  * mit gültigem JWT konnte via curl unlimited 4K-Renders ausführen.
  *
- * Plan-Limits (sync gehalten mit `supabase/migrations/003_creator_limit_50.sql`):
+ * Plan-Limits (sync gehalten mit `supabase/migrations/006_pro_limit_100.sql`):
  *   inactive/no-sub:  0 renders     → subscription_required
  *   creator:          50 renders    max 1080p (kein 4K)
- *   pro:              200 renders   4K OK
+ *   pro:              100 renders   4K OK
  *
  * Lifetime ist Desktop-only (lokales FFmpeg, kein Worker-Render). User mit
  * lifetime-flag aber ohne aktive creator/pro Sub bekommen 0 Renders (Mobile
