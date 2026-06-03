@@ -43,7 +43,8 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "com.android.vending.BILLING"
       ],
       "blockedPermissions": [
         "com.google.android.gms.permission.AD_ID"
@@ -144,8 +145,7 @@
             "./assets/fonts/PermanentMarker.ttf"
           ]
         }
-      ],
-      "react-native-purchases"
+      ]
     ],
     "experiments": {
       "typedRoutes": false
