@@ -48,7 +48,7 @@
       "blockedPermissions": [
         "com.google.android.gms.permission.AD_ID"
       ],
-      "versionCode": 12
+      "versionCode": 13
     },
     "plugins": [
       "expo-secure-store",
