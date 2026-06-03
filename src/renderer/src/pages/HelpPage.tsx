@@ -118,8 +118,7 @@ function GettingStarted() {
         </Step>
         <Step n={2} title={t('help.step2Title')}>
           <p>{t('help.step2P1')}</p>
-          <Code>brew install ffmpeg yt-dlp</Code>
-          <p className="mt-2 text-[11px] text-zinc-500">{t('help.step2P2Pre')} <code className="text-zinc-300">--enable-libass</code> {t('help.step2P2Post')}</p>
+          <p className="mt-2 text-[11px] text-zinc-500">{t('help.step2P2Pre')} <code className="text-zinc-300">brew install ffmpeg yt-dlp</code>{t('help.step2P2Post')}</p>
         </Step>
         <Step n={3} title={t('help.step3Title')}>
           <p>{t('help.step3P1')}</p>

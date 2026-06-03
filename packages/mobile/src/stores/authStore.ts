@@ -113,11 +113,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    // Phase A6.3.3 (2026-05-18): emailRedirectTo via Linking → fiano://auth-callback
-    // damit der Confirm-Link in der Email zurück in die App führt statt zur
-    // 404-Seite (Default Supabase Site-URL). Muss in Supabase-Dashboard unter
-    // Authentication → URL Configuration → Redirect URLs whitelisted sein.
-    const redirectTo = Linking.createURL('auth-callback');
+    // D4 (2026-06-02): emailRedirectTo zeigt jetzt auf die fisora.app-Webpage
+    // statt direkt auf `fisora://auth-callback`. Grund: User öffnet die
+    // Confirm-Mail oft auf einem ANDEREN Gerät als dem Phone mit der App.
+    // Bei direktem `fisora://`-Deep-Link auf einem nicht-App-Phone landet er
+    // auf einer weißen Seite (Custom-Scheme nicht handlebar). Die Webpage
+    // `https://www.fisora.app/auth-callback` zeigt eine Bestätigung + bietet
+    // einen „App öffnen"-Button (Deep-Link) für User mit installierter App.
+    // Diese URL muss in Supabase Auth → URL Configuration → Redirect URLs
+    // gewhitelisted sein (sowohl mit als auch ohne www).
+    const redirectTo = 'https://www.fisora.app/auth-callback';
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -279,8 +284,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   requestPasswordReset: async (email) => {
-    // Phase R10 (Bug-4): redirectTo muss in Supabase → Auth → URL Configuration als Redirect-URL gewhitelisted sein.
-    const redirectTo = Linking.createURL('auth-callback');
+    // D4 (2026-06-02): redirectTo zeigt auf fisora.app-Webpage (Cross-Device:
+    // User öffnet Reset-Mail meist auf anderem Gerät). Die Webpage zeigt das
+    // Passwort-Reset-Formular und bietet App-Open-Button nach erfolgreichem
+    // Setzen. Muss in Supabase Redirect-URLs whitelisted sein.
+    const redirectTo = 'https://www.fisora.app/auth-callback';
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) throw error;
   },

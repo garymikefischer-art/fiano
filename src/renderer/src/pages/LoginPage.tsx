@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { useAuth } from '../stores/authStore';
-import { useT } from '../lib/i18n';
+import { useT, setLanguage, getLanguage, LANGUAGES } from '../lib/i18n';
 import { LegalFooter } from '../components/LegalFooter';
 
 /**
@@ -27,6 +27,8 @@ export function LoginPage() {
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const currentLang = getLanguage(); // useT() re-rendert bei setLanguage → auch hier neuer Wert
 
   // Wenn schon eingeloggt → direkt weiter (Routing-Gate kümmert sich um Plan-Check)
   useEffect(() => {
@@ -77,6 +79,41 @@ export function LoginPage() {
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div className="fiano-bg-tint" />
         <div className="fiano-bg-glow" />
+      </div>
+
+      {/* Pre-Login-Sprach-Switcher — top-right */}
+      <div className="absolute top-4 right-4 z-50">
+        <button
+          type="button"
+          onClick={() => setShowLangMenu(!showLangMenu)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold tracking-wide
+                     bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-200 transition">
+          <span aria-hidden>🌐</span>
+          <span>{currentLang.toUpperCase()}</span>
+        </button>
+        {showLangMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
+            <div className="absolute right-0 mt-2 w-44 z-50 rounded-xl border border-white/[0.08]
+                            bg-fiano-black shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden">
+              {LANGUAGES.map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => { setLanguage(l.code); setShowLangMenu(false); }}
+                  className={clsx(
+                    'w-full px-4 py-2.5 text-left text-[13px] flex items-center justify-between transition',
+                    l.code === currentLang
+                      ? 'bg-fiano-red/10 text-white'
+                      : 'text-zinc-300 hover:bg-white/[0.04]',
+                  )}>
+                  <span>{l.label}</span>
+                  <span className="text-[10px] text-zinc-500 tracking-wider">{l.code.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="relative h-full flex items-center justify-center p-8">

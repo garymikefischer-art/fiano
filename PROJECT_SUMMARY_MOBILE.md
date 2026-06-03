@@ -276,6 +276,7 @@ Danach (User-Action für RevenueCat D3-Voraussetzung):
 | E3 | R2-Lifecycle-Rule `sources/* > 7d` | 10m | Cloudflare R2 Dashboard. |
 | E4 | ✅ Worker↔Preview Render-Sync | erledigt | Commit 3dfbfeb (Iter 1-9). Final-Verify offen. |
 | E5 | i18n DE-Strings für `pricing.checkoutPendingTitle/Body`, `stillPendingTitle/Body`, `subStatusLabel`, `refreshSub` | 30m | Mit D3-Refactor erledigen. |
+| E6 | Play Console Multi-Language Listings | ~10min pro Sprache | Mindestens EN für Launch (Bilder + Texte). DE als Default. Andere 7 Sprachen post-launch nachreichen. Path: Hauptlisting → Übersetzungen verwalten → Sprache hinzufügen. Bilder aus `~/Downloads/fiano-marketing/output/`. |
 
 ### 🟢 Deferred (Desktop-Mobile-Feature-Lücken)
 | # | Feature | Aufwand | Status |
