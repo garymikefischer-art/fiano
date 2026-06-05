@@ -88,6 +88,7 @@ claude-webseite-neu/              ← world4you Hosting (SEPARAT, kein git)
 
 ### AUTO-UPDATES
 - **Mobile OTA:** `eas update --branch production` → Channel `production` (Build 14 hängt dran). App `lib/updates.ts` auto-checkt on-launch + Settings-Button. Update beim Kaltstart aktiv.
+  - ⚠️ **OTA-ENV-GOTCHA (2026-06-05, hart gelernt):** `eas update` inlinet `EXPO_PUBLIC_*` aus dem **lokalen `.env`** (packages/mobile/.env, gitignored). Das `.env` MUSS den echten `goog_wVPNxQSXBedWuHttLcODnVRLGqk` enthalten (NICHT `goog_xxx`!). UND: **Metro cached das transformierte env.ts-Modul** → bei Key-/Env-Änderung IMMER `--clear-cache`, sonst landet der alte (Placeholder-)Key im Bundle → RevenueCat `InvalidCredentialsError`, „products still loading". Sichere Form: `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY=goog_wVPNxQSXBedWuHttLcODnVRLGqk eas update --branch production --clear-cache --message "…"`. Verifizieren via `adb logcat | grep InvalidCredentials` (muss 0 sein).
 - **Desktop:** `git tag v0.X.Y` → `npm run release:mac` (braucht `GH_TOKEN` env, PAT mit 'repo'-scope) → GitHub Release → electron-updater zeigt „Update available". Ohne Token manuell: `gh release create v0.X.Y --repo garymikefischer-art/fiano --target claude/edge-to-edge --title "Fisora 0.X.Y" --notes "…" dist/*.dmg dist/*.dmg.blockmap dist/*.zip dist/*.zip.blockmap dist/latest-mac.yml`.
 - **Worker:** kein Auto-Update, jeder Deploy ersetzt die Revision.
 
