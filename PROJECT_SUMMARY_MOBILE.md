@@ -128,6 +128,10 @@ AI-Highlight-Trim wird beim Export nicht angewendet (5s erkannt → 12s exportie
 6. **Build 15** (Native) wenn bereit für Production: bringt Paywall/Kündigen-Fix + M-4 ins Binary (Google-Policy-Review will Kündigungs-Pfad im Binary). versionCode 14→15.
 7. **Desktop v0.2.1** GitHub-Release (M-4 yt-dlp-Fix + Pro-100 sind committed, aber nicht gebaut)
 
+### 🟡 KLEINE UI-FIXES (User-Wunsch 2026-06-05, offen)
+- **Kündigen-Button verschieben:** Aktuell als großer Button in SettingsScreen. User will ihn auf der „Abrechnung verwalten"-Seite (= PricingScreen, das „manageBilling" öffnet) + in Settings kleiner/weg. → Cancel-Link in PricingScreen (Import `Linking` + `getManagementUrl` aus iap.ts), Block aus SettingsScreen entfernen.
+- **Update-Popup:** „Check for updates" (lib/updates.ts) soll ein Popup zeigen wenn ein Update verfügbar/geladen ist (z.B. „Update verfügbar — beim nächsten Start aktiv"). Aktuell lädt es still. ⚠️ `Updates.reloadAsync()` bleibt aus (white-screen SDK52) — also Popup = nur Hinweis, kein Auto-Reload.
+
 ### 🟡 POLISH / QoL (post-launch)
 - **Phase 9.11** Multi-Clip Manual-Mode + Drag-Reorder (~2-3h) — AddVideoProject hat noch SOON-Badge, react-native-draggable-flatlist einbauen
 - **Phase 9.7** Light-Theme (~4-6h) — lib/theme.ts dark/light-Tokens, Settings → Appearance Switch
