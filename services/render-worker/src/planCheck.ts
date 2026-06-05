@@ -78,8 +78,31 @@ export async function checkAndIncrementRenderQuota(
 }
 
 /**
- * Optional: für Endpunkte die KEINEN render machen (z.B. /v1/transcribe).
- * Hier wollen wir auch limitieren, aber keinen Counter incrementen — daher
- * nur Plan-Lookup ohne Update. (TODO: separate RPC oder direkt subscriptions
- * lesen. Vorerst skippen — transcribe nutzt eigene rate-limits.)
+ * Audit-H-3 (2026-06-05): Leichtes Abo-Gate für Endpunkte die KEINEN Render-
+ * Counter brauchen (/v1/transcribe, /v1/download), aber trotzdem nur zahlenden
+ * Usern offenstehen sollen. Ohne dieses Gate konnte ein Free-Account mit
+ * gültigem JWT Cloud-Run-CPU (Audio-Extract / yt-dlp) im Rate-Limit-Takt
+ * abusen — reine Fisora-Kosten ohne Revenue-Bindung.
+ *
+ * Liest `subscriptions` direkt via service_role (Worker bypasst RLS), KEIN
+ * Increment. Logik gespiegelt zur Quota-RPC: status active/trialing +
+ * plan ∈ {creator,pro} + current_period_end in der Zukunft (oder NULL =
+ * unbefristet, z.B. lifetime). Bei Fehler/keiner Row → false (fail-closed).
  */
+export async function hasActiveSubscription(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('plan, status, current_period_end')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) return false;
+  const statusOk = data.status === 'active' || data.status === 'trialing';
+  const planOk = data.plan === 'creator' || data.plan === 'pro';
+  const periodOk =
+    !data.current_period_end ||
+    new Date(data.current_period_end as string) > new Date();
+  return statusOk && planOk && periodOk;
+}
