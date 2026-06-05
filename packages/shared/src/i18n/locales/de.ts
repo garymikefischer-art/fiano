@@ -102,6 +102,8 @@ export const de: Record<string, string> = {
   'settings.account.statusInactive': 'inaktiv',
   'settings.account.upgradeToPro':   'Auf Pro upgraden',
   'settings.account.manageBilling':  'Abrechnung verwalten',
+  'settings.account.cancelSub':      'Kündigen / bei Google Play verwalten',
+  'settings.account.manageOpenError': 'Google Play konnte nicht geöffnet werden',
   'settings.account.checkoutSoon':   'Stripe-Checkout kommt in Kürze (Phase 6.2).',
   'settings.account.portalSoon':     'Customer-Portal kommt in Kürze (Phase 6.2).',
   'settings.account.refresh':        'Aktualisieren',

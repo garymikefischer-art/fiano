@@ -177,6 +177,23 @@ export async function getCustomerInfo(): Promise<CustomerInfo | null> {
 }
 
 /**
+ * Management-URL für „Abo verwalten / kündigen". Bei Google-Play-Käufen liefert
+ * RevenueCat die Play-Subscriptions-Seite, bei Stripe das Kundenportal. Google-
+ * Play-Abos kann man NUR im Play Store kündigen (Google-Policy) — daher dieser
+ * Deep-Link. null wenn IAP aus / keine URL.
+ */
+export async function getManagementUrl(): Promise<string | null> {
+  if (!configured) return null;
+  try {
+    const info = await Purchases.getCustomerInfo();
+    return info.managementURL ?? null;
+  } catch (e) {
+    console.warn('[iap] getManagementUrl fehlgeschlagen:', e);
+    return null;
+  }
+}
+
+/**
  * Mappt die aktiven Entitlements einer CustomerInfo auf unseren Plan-Namen.
  * `pro` hat Vorrang. Gibt null wenn kein aktives Entitlement.
  */

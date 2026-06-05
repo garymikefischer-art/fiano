@@ -18,8 +18,10 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 
 import { useAuthStore } from '../stores/authStore';
+import { getManagementUrl } from '../lib/iap';
 import {
   useAppStore,
   type ExportFps,
@@ -339,6 +341,44 @@ export function SettingsScreen() {
                 : t('settings.account.upgradeToPro')}
             </Text>
           </Pressable>
+
+          {/* Fix (2026-06-05): Kündigen/Verwalten-Pfad. Google-Play-Abos lassen
+              sich NUR im Play Store kündigen (Google-Policy) — Deep-Link via
+              RevenueCat-managementURL, Fallback Play-Subscriptions-Seite. */}
+          {subscription?.plan && (
+            <Pressable
+              onPress={async () => {
+                const url =
+                  (await getManagementUrl()) ??
+                  'https://play.google.com/store/account/subscriptions';
+                try {
+                  await Linking.openURL(url);
+                } catch (e) {
+                  appAlert(
+                    t('settings.account.manageOpenError', 'Could not open Google Play'),
+                    String(e),
+                  );
+                }
+              }}
+              style={({ pressed }) => ({
+                marginTop: 8,
+                backgroundColor: pressed ? colors.bg.card : colors.bg.elevated,
+                borderWidth: 1,
+                borderColor: colors.border.subtle,
+                borderRadius: 12,
+                paddingVertical: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              })}
+            >
+              <Ionicons name="open-outline" size={16} color={colors.text.secondary} />
+              <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '600' }}>
+                {t('settings.account.cancelSub', 'Cancel / manage on Google Play')}
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Preferences-Group */}

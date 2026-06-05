@@ -86,8 +86,14 @@ export function RootNavigator() {
           />
         ) : !hasActiveMobileSub ? (
           // Paywall-Gate: erst Sub kaufen, dann App-Zugang.
+          // Fix (2026-06-05): eigener Route-Name "Paywall" (NICHT "Pricing")!
+          // "Pricing" existiert auch im authed-Branch unten → nach dem Kauf
+          // blieb React Navigation sonst auf der "Pricing"-Route hängen (Upgrade-
+          // Ansicht) statt zu MainTabs zu wechseln; nur ein App-Neustart half.
+          // Mit einem im authed-Branch NICHT vorhandenen Namen verschwindet die
+          // Route beim Sub-Aktiv-Werden → Navigator springt sauber zu MainTabs.
           <Stack.Screen
-            name="Pricing"
+            name="Paywall"
             component={PricingScreen}
             initialParams={{ paywallMode: true }}
             options={{ headerShown: false, gestureEnabled: false }}
