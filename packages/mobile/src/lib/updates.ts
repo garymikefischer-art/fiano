@@ -14,6 +14,7 @@
  * `Updates.isEnabled` ist dann false. Echtes OTA-Testing braucht einen
  * Production/Preview-Build (`eas build`).
  */
+import { useEffect, useRef } from 'react';
 import * as Updates from 'expo-updates';
 
 export type OtaCheckResult = 'dev' | 'none' | 'downloaded' | 'error';
@@ -42,3 +43,31 @@ export async function checkForOtaUpdate(): Promise<OtaCheckResult> {
 // fetchUpdateAsync() heruntergeladene Update wird stattdessen vom nächsten
 // Kaltstart automatisch übernommen (force-close + reopen). Das ist der einzig
 // stabile Apply-Pfad.
+
+/** true wenn OTA überhaupt aktiv ist (Production/Preview-Build, nicht Dev/Expo Go). */
+export const otaEnabled = !__DEV__ && Updates.isEnabled;
+
+/**
+ * Hook: ruft `onDownloaded` GENAU EINMAL pro App-Session auf, sobald ein OTA-
+ * Update fertig heruntergeladen + apply-bereit ist (`isUpdatePending`).
+ *
+ * Hintergrund (Fix 2026-06-05): Der Auto-Check beim Start (app.json
+ * `checkAutomatically: ON_LOAD`) lädt ein Update STILL im Hintergrund — bisher
+ * gab es keinerlei Hinweis, der User sah die neue Version erst irgendwann nach
+ * dem nächsten Kaltstart. Dieser Hook liefert das bestätigende Popup. Apply
+ * passiert bewusst NICHT automatisch (Updates.reloadAsync() white-screen-t auf
+ * SDK 52 + New Arch) → das Update wird beim nächsten Kaltstart aktiv.
+ *
+ * Nur mounten wenn `otaEnabled` (siehe OtaUpdateWatcher in App.tsx) — in Dev-
+ * Builds ist `useUpdates()` ohne aktive Update-Pipeline nicht aussagekräftig.
+ */
+export function useOtaDownloadedPrompt(onDownloaded: () => void): void {
+  const { isUpdatePending } = Updates.useUpdates();
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (isUpdatePending && !firedRef.current) {
+      firedRef.current = true;
+      onDownloaded();
+    }
+  }, [isUpdatePending, onDownloaded]);
+}

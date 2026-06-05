@@ -18,6 +18,7 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 
 import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
@@ -27,6 +28,7 @@ import {
   purchase,
   restore,
   iapAvailable,
+  getManagementUrl,
 } from '../lib/iap';
 import { useT } from '../lib/i18n';
 import { useColors } from '../lib/theme';
@@ -474,6 +476,35 @@ export function PricingScreen() {
             {t('pricing.restorePurchases', 'Restore purchases')}
           </Text>
         </Pressable>
+
+        {/* Fix (2026-06-05): Kündigen/Verwalten lebt jetzt hier (aus den
+            Einstellungen hierher verschoben — dort war der Button zu prominent).
+            Google-Play-Abos sind NUR im Play Store kündbar (Google-Policy) →
+            Deep-Link via RevenueCat-managementURL, Fallback Play-Subscriptions-
+            Seite. Nur sichtbar bei aktivem Abo. */}
+        {subActive && (
+          <Pressable
+            onPress={async () => {
+              const url =
+                (await getManagementUrl()) ??
+                'https://play.google.com/store/account/subscriptions';
+              try {
+                await Linking.openURL(url);
+              } catch (e) {
+                appAlert(
+                  t('settings.account.manageOpenError', 'Could not open Google Play'),
+                  String(e),
+                );
+              }
+            }}
+            hitSlop={8}
+            style={{ alignSelf: 'center', paddingVertical: 8, marginTop: 2 }}
+          >
+            <Text style={{ color: colors.text.tertiary, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>
+              {t('settings.account.cancelSub', 'Cancel / manage on Google Play')}
+            </Text>
+          </Pressable>
+        )}
 
         <Text style={{ color: '#52525b', fontSize: 11, textAlign: 'center', marginTop: 8, lineHeight: 16 }}>
           {t('pricing.footnoteIap')}
