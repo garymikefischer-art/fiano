@@ -31,6 +31,7 @@ const supabase = createClient(
 type Plan = 'creator' | 'pro';
 
 interface RcEvent {
+  id?: string;
   type: string;
   app_user_id?: string;
   original_app_user_id?: string;
@@ -46,6 +47,19 @@ interface RcEvent {
 // RevenueCat-IDs ($RCAnonymousID:...) — die entstehen nur wenn ein Kauf VOR
 // dem Login passiert, was unser Paywall-Flow ausschließt.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// M-5 (2026-06-05): Konstantzeit-Vergleich des Shared-Secrets gegen Timing-
+// Seitenkanäle (statt early-exit !==). Längen-Mismatch → sofort false (die
+// Secret-Länge ist nicht geheim).
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
 
 function planFromEvent(ev: RcEvent): Plan | null {
   const ents = ev.entitlement_ids ?? (ev.entitlement_id ? [ev.entitlement_id] : []);
@@ -69,7 +83,7 @@ serve(async (req) => {
     console.error('[rc-webhook] REVENUECAT_WEBHOOK_AUTH nicht gesetzt');
     return new Response('Server misconfigured', { status: 500 });
   }
-  if (req.headers.get('Authorization') !== expected) {
+  if (!timingSafeEqualStr(req.headers.get('Authorization') ?? '', expected)) {
     console.warn('[rc-webhook] Authorization-Header stimmt nicht');
     return new Response('Unauthorized', { status: 401 });
   }
@@ -101,6 +115,27 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
       status: 200,
     });
+  }
+
+  // M-2 (2026-06-05): Replay-Schutz via event-id-Dedupe (analog stripe-webhook).
+  // Insert VOR dem Verarbeiten; bei Duplikat (replayter Event, nur bei Secret-
+  // Leak möglich) → skip mit 200. Bei Handler-Fehler unten wird die Row wieder
+  // entfernt, damit RevenueCats legitimer Retry durchkommt.
+  if (ev.id) {
+    const { error: dedupeErr } = await supabase
+      .from('rc_events_processed')
+      .insert({ event_id: ev.id, event_type: ev.type });
+    if (dedupeErr) {
+      const code = (dedupeErr as { code?: string }).code;
+      if (code === '23505' || (dedupeErr.message ?? '').includes('duplicate key')) {
+        console.log(`[rc-webhook] DEDUPED ${ev.type} id=${ev.id}`);
+        return new Response(JSON.stringify({ received: true, deduped: true }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+      console.warn(`[rc-webhook] dedupe insert failed: ${dedupeErr.message}`);
+    }
   }
 
   const plan = planFromEvent(ev);
@@ -149,6 +184,11 @@ serve(async (req) => {
     if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
   } catch (err) {
     console.error('[rc-webhook] Handler-Fehler:', err);
+    // M-2: Dedupe-Row entfernen, damit RevenueCats Retry das Event erneut
+    // verarbeiten kann (sonst würde der pre-handle-Insert es "verbrennen").
+    if (ev.id) {
+      await supabase.from('rc_events_processed').delete().eq('event_id', ev.id);
+    }
     return new Response(`Handler error: ${(err as Error).message}`, { status: 500 });
   }
 

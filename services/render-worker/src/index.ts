@@ -36,6 +36,7 @@ import {
   createOutputDownloadUrl,
   createUploadUrlForKey,
   downloadToFile,
+  MAX_UPLOAD_BYTES,
   uploadFile,
 } from './r2.js';
 import { downloadVideo, isAllowedUrl } from './youtube.js';
@@ -319,7 +320,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // Builder-Phase-3 (per-source-trim, einheitliche indizierte Platzhalter
       // auch bei 1 source).
       const sourceTmp = path.join(tmpdir(), `${jobId}-src.mp4`);
-      await downloadToFile(sources[0], sourceTmp);
+      await downloadToFile(sources[0], sourceTmp, { maxBytes: MAX_UPLOAD_BYTES.source });
       replaceMap['{SRC}'] = sourceTmp;
       replaceMap['{SRC_0}'] = sourceTmp;
       tmpFiles.push(sourceTmp);
@@ -327,7 +328,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // Multi-Clip: {SRC_0}, {SRC_1}, ... Platzhalter.
       for (let i = 0; i < sources.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-src-${i}.mp4`);
-        await downloadToFile(sources[i], tmp);
+        await downloadToFile(sources[i], tmp, { maxBytes: MAX_UPLOAD_BYTES.source });
         replaceMap[`{SRC_${i}}`] = tmp;
         tmpFiles.push(tmp);
       }
@@ -335,7 +336,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
 
     if (inputs?.intro) {
       const introTmp = path.join(tmpdir(), `${jobId}-intro.mp4`);
-      await downloadToFile(inputs.intro, introTmp);
+      await downloadToFile(inputs.intro, introTmp, { maxBytes: MAX_UPLOAD_BYTES.intro });
       replaceMap['{INTRO}'] = introTmp;
       tmpFiles.push(introTmp);
     }
@@ -343,7 +344,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     if (inputs?.music?.length) {
       for (let i = 0; i < inputs.music.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-music-${i}.mp3`);
-        await downloadToFile(inputs.music[i], tmp);
+        await downloadToFile(inputs.music[i], tmp, { maxBytes: MAX_UPLOAD_BYTES.music });
         replaceMap[`{MUSIC_${i}}`] = tmp;
         tmpFiles.push(tmp);
       }
@@ -352,7 +353,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     if (inputs?.voiceOvers?.length) {
       for (let i = 0; i < inputs.voiceOvers.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-vo-${i}.mp3`);
-        await downloadToFile(inputs.voiceOvers[i], tmp);
+        await downloadToFile(inputs.voiceOvers[i], tmp, { maxBytes: MAX_UPLOAD_BYTES['voice-over'] });
         replaceMap[`{VO_${i}}`] = tmp;
         tmpFiles.push(tmp);
       }
@@ -363,7 +364,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // damit FFmpeg den richtigen decoder wählt (.png vs .jpg).
       const ext = inputs.watermark.match(/\.(png|jpg|jpeg)$/i)?.[1] ?? 'png';
       const wmTmp = path.join(tmpdir(), `${jobId}-watermark.${ext}`);
-      await downloadToFile(inputs.watermark, wmTmp);
+      await downloadToFile(inputs.watermark, wmTmp, { maxBytes: MAX_UPLOAD_BYTES.watermark });
       replaceMap['{WATERMARK}'] = wmTmp;
       tmpFiles.push(wmTmp);
     }
@@ -372,7 +373,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // Phase 9.6.7h: libass burn-in. .ass-Datei nach /tmp/, Platzhalter {ASS}
       // wird im filter-arg ass=${path}:original_size=WxH ersetzt.
       const assTmp = path.join(tmpdir(), `${jobId}-subs.ass`);
-      await downloadToFile(inputs.subtitle, assTmp);
+      await downloadToFile(inputs.subtitle, assTmp, { maxBytes: MAX_UPLOAD_BYTES.subtitle });
       // Phase A6.2 (2026-05-18): Server-side .ass content-validation gegen
       // libass DoS / fontconfig path-traversal. Defense-in-depth: Mobile
       // validiert auch vor Upload, aber Worker re-validates da R2-content
@@ -707,7 +708,7 @@ app.post('/v1/transcribe', authMiddleware(supabase), limitTranscribe, async (req
   try {
     // Phase A6.5: sourceKey enthält user-uuid; nur hash für log.
     console.log(`[${jobId}] transcribe user=${userId} mode=${mode}`);
-    await downloadToFile(sourceKey, sourceTmp);
+    await downloadToFile(sourceKey, sourceTmp, { maxBytes: MAX_UPLOAD_BYTES.source });
     const result = await transcribeAudio({
       sourcePath: sourceTmp,
       openaiApiKey,
