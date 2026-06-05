@@ -476,7 +476,7 @@ export function PricingScreen() {
         </Pressable>
 
         <Text style={{ color: '#52525b', fontSize: 11, textAlign: 'center', marginTop: 8, lineHeight: 16 }}>
-          {t('pricing.footnote')}
+          {t('pricing.footnoteIap')}
         </Text>
       </ScrollView>
     </SafeAreaView>

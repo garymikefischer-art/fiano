@@ -797,6 +797,7 @@ export const de: Record<string, string> = {
   'pricing.restorePurchases': 'Käufe wiederherstellen',
   'pricing.errorNotAuthed':   'Nicht eingeloggt — bitte erneut anmelden.',
   'pricing.footnote':         'Sichere Zahlung über Stripe. Du kannst jederzeit über die Account-Einstellungen verwalten oder kündigen.',
+  'pricing.footnoteIap':      'Sichere Zahlung über Google Play. Jederzeit im Play Store verwalten oder kündigen. Preise inkl. MwSt.',
   'pricing.f.autoHighlights':     'Auto-Highlights (Gaming + Auto)',
   'pricing.f.manualHighlights':   'Manuelle Highlights',
   'pricing.f.tiktokTab':          '9:16-Tab + 9:16-Layout',

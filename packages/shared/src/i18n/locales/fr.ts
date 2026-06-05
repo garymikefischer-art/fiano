@@ -768,6 +768,7 @@ export const fr: Record<string, string> = {
   'pricing.restorePurchases': 'Restaurer les achats',
   'pricing.errorNotAuthed':   "Non connecté — connecte-toi à nouveau.",
   'pricing.footnote':         "Paiement sécurisé via Stripe. Gère ou annule à tout moment dans les paramètres du compte.",
+  'pricing.footnoteIap':      'Paiement sécurisé via Google Play. Gère ou annule dans le Play Store. Prix TTC.',
   'pricing.f.autoHighlights':     'Auto highlights (gaming + auto)',
   'pricing.f.manualHighlights':   'Highlights manuels',
   'pricing.f.tiktokTab':          'Onglet 9:16 + format 9:16',

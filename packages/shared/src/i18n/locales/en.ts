@@ -813,6 +813,7 @@ export const en: Record<string, string> = {
   'pricing.restorePurchases': 'Restore purchases',
   'pricing.errorNotAuthed':   'Not signed in — please sign in again.',
   'pricing.footnote':         'Secure payment via Stripe. Manage or cancel anytime in account settings.',
+  'pricing.footnoteIap':      'Secure payment via Google Play. Manage or cancel anytime in the Play Store. Prices incl. VAT.',
   'pricing.f.autoHighlights':     'Auto highlights (gaming + auto)',
   'pricing.f.manualHighlights':   'Manual highlights',
   'pricing.f.tiktokTab':          '9:16 tab + 9:16 layout',

@@ -768,6 +768,7 @@ export const ru: Record<string, string> = {
   'pricing.restorePurchases': 'Восстановить покупки',
   'pricing.errorNotAuthed':   'Не авторизован — войдите снова.',
   'pricing.footnote':         'Безопасная оплата через Stripe. Управляйте или отмените в любой момент в настройках аккаунта.',
+  'pricing.footnoteIap':      'Безопасная оплата через Google Play. Управление и отмена в Google Play. Цены с НДС.',
   'pricing.f.autoHighlights':     'Авто-хайлайты (gaming + auto)',
   'pricing.f.manualHighlights':   'Ручные хайлайты',
   'pricing.f.tiktokTab':          'Вкладка 9:16 + макет 9:16',

@@ -768,6 +768,7 @@ export const pt: Record<string, string> = {
   'pricing.restorePurchases': 'Restaurar compras',
   'pricing.errorNotAuthed':   'Não autenticado — entre novamente.',
   'pricing.footnote':         'Pagamento seguro via Stripe. Gerencie ou cancele a qualquer momento nas configurações.',
+  'pricing.footnoteIap':      'Pagamento seguro via Google Play. Gerencie ou cancele na Play Store. Preços com IVA incluído.',
   'pricing.f.autoHighlights':     'Auto highlights (gaming + auto)',
   'pricing.f.manualHighlights':   'Highlights manuais',
   'pricing.f.tiktokTab':          'Aba 9:16 + layout 9:16',

@@ -768,6 +768,7 @@ export const nl: Record<string, string> = {
   'pricing.restorePurchases': 'Aankopen herstellen',
   'pricing.errorNotAuthed':   'Niet ingelogd — log opnieuw in.',
   'pricing.footnote':         'Veilig betalen via Stripe. Op elk moment beheren of opzeggen in account-instellingen.',
+  'pricing.footnoteIap':      'Veilig betalen via Google Play. Beheren of opzeggen in de Play Store. Prijzen incl. btw.',
   'pricing.f.autoHighlights':     'Auto-highlights (gaming + auto)',
   'pricing.f.manualHighlights':   'Handmatige highlights',
   'pricing.f.tiktokTab':          '9:16-tab + 9:16-layout',
