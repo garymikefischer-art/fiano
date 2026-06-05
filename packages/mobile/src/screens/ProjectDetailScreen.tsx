@@ -2520,7 +2520,19 @@ function TikTokTab({
   // Clip-Selector (Phase 9.5.8.1) — bei Multi-Clip-Projects oder Highlight-Cards-Projects.
   // selectedClipIdx wählt den aktiven Clip; effective-sourceUri/trim werden in
   // LayoutPreview UND Export-Navigation genutzt.
-  const [selectedClipIdx, setSelectedClipIdx] = useState(0);
+  //
+  // Trim-Bug-Fix (2026-06-05): Default auf den ersten AI-Highlight (kind==='highlight')
+  // statt clips[0]. clips[0] ist bei Auto-Projekten der volle "Imported clip"
+  // (0..durationSec, siehe AddVideoProjectScreen). War er der Default-Export-Clip,
+  // exportierte der 9:16-Tab die VOLLE Source-Länge statt des erkannten Highlights
+  // (User-Report: 5s-Highlight → 12s-Export, Trim "nicht angewendet"). Lazy-Initializer
+  // läuft beim Tab-Mount — TikTokTab wird conditional gemountet, greift also nach der
+  // Analyse. Manual-/No-Highlight-Projekte (findIndex=-1) bleiben bei 0.
+  const [selectedClipIdx, setSelectedClipIdx] = useState(() => {
+    const initialClips = project.clips ?? [];
+    const firstHighlightIdx = initialClips.findIndex((c) => c.kind === 'highlight');
+    return firstHighlightIdx >= 0 ? firstHighlightIdx : 0;
+  });
   // Phase B5 (2026-05-18): TrimModal-State. null = closed.
   const [editingClipIdx, setEditingClipIdx] = useState<number | null>(null);
   const clips = project.clips ?? [];
