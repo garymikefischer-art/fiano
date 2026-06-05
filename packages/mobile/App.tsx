@@ -26,6 +26,7 @@ import { initSounds, appStart as playAppStart } from './src/lib/sounds';
 import { UpgradeModal } from './src/components/UpgradeModal';
 import { AppAlertHost } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
+import { configurePurchases } from './src/lib/iap';
 import { useColors, useResolvedMode } from './src/lib/theme';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -104,6 +105,11 @@ export default function App() {
     void initApp();
     void initNotifications();
     void initProjects();
+    // M5 (2026-06-05): RevenueCat einmal beim Start konfigurieren (anonym).
+    // authStore.init/onAuthStateChange ruft danach Purchases.logIn(userId),
+    // sobald die Supabase-Session geladen ist. configurePurchases ist idempotent
+    // + degradiert sauber wenn kein gültiger Key / Native-Modul fehlt (Expo Go).
+    configurePurchases();
     initAuth();
     void initSounds().then(() => playAppStart());
     // Phase A2: Thumbnail-Backfill für alte Library-Cards ohne thumbUri.

@@ -12,9 +12,22 @@ import { create } from 'zustand';
 import type { Session, User } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import type { CustomerInfo } from 'react-native-purchases';
 import { supabase } from '../lib/supabase';
 import { ENV } from '../lib/env';
 import { getExpoPushToken } from '../lib/pushNotifications';
+import {
+  loginPurchases,
+  logoutPurchases,
+  planFromCustomerInfo,
+  periodEndFromCustomerInfo,
+} from '../lib/iap';
+
+// M5 (2026-06-05): monthly_limit aus dem Plan ableiten — sync mit planCheck.ts
+// und supabase/migrations/006_pro_limit_100.sql. Creator 50, Pro 100.
+function monthlyLimitFor(plan: Plan): number {
+  return plan === 'creator' ? 50 : plan === 'pro' ? 100 : 0;
+}
 
 export type Plan = 'creator' | 'pro' | 'studio_lifetime' | null;
 
@@ -45,6 +58,13 @@ interface AuthState {
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   fetchSubscription: () => Promise<void>;
+  /**
+   * M5 (2026-06-05): Subscription optimistisch aus einer RevenueCat-CustomerInfo
+   * setzen — für Instant-UX direkt nach dem Kauf, bevor der Webhook die
+   * subscriptions-Row geschrieben hat. fetchSubscription (aus Supabase) bleibt
+   * danach die kanonische Quelle und überschreibt das wenn die Row da ist.
+   */
+  applyIapCustomerInfo: (info: CustomerInfo) => void;
   /** Phase R10 (Bug-4): Passwort-Reset-Mail anfordern + neues Passwort setzen. */
   requestPasswordReset: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
@@ -54,6 +74,16 @@ interface AuthState {
 // schreiben. pushTokenSyncedFor dedupt — onAuthStateChange feuert auch bei
 // Token-Refresh, wir wollen aber nur einen Sync pro App-Session + User.
 let pushTokenSyncedFor: string | null = null;
+
+// M5 (2026-06-05): RevenueCat-logIn pro App-Session + User nur einmal —
+// onAuthStateChange feuert auch bei Token-Refresh.
+let iapLoggedInFor: string | null = null;
+
+async function syncIapLogin(userId: string): Promise<void> {
+  if (iapLoggedInFor === userId) return;
+  iapLoggedInFor = userId;
+  await loginPurchases(userId);
+}
 
 async function syncPushToken(userId: string): Promise<void> {
   if (pushTokenSyncedFor === userId) return;
@@ -95,13 +125,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         get().fetchSubscription();
         // Phase D1: Expo-Push-Token registrieren (fire-and-forget).
         void syncPushToken(session.user.id);
+        // M5: RevenueCat-App-User auf die Supabase-user_id aliasen, damit der
+        // Webhook app_user_id == user_id bekommt.
+        void syncIapLogin(session.user.id);
       } else {
         set({ subscription: null });
         pushTokenSyncedFor = null;
+        iapLoggedInFor = null;
+        void logoutPurchases();
       }
     });
 
     if (data.session?.user) {
+      void syncIapLogin(data.session.user.id);
       await get().fetchSubscription();
     }
     set({ initializing: false });
@@ -267,10 +303,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn('[auth] render_usage fetch failed', e);
     }
     // monthly_limit aus dem plan ableiten (sync mit planCheck.ts und der SQL-
-    // Migration 003_creator_limit_50.sql).
+    // Migration 006_pro_limit_100.sql: Creator 50, Pro 100).
     const plan = data?.plan ?? null;
-    const monthlyLimit =
-      plan === 'creator' ? 50 : plan === 'pro' ? 200 : 0;
+    const monthlyLimit = monthlyLimitFor(plan);
     set({
       subscription: data
         ? {
@@ -281,6 +316,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         : null,
     });
+  },
+
+  applyIapCustomerInfo: (info) => {
+    const plan = planFromCustomerInfo(info);
+    if (!plan) return; // kein aktives Entitlement → nichts optimistisch setzen
+    const periodEnd = periodEndFromCustomerInfo(info);
+    set((state) => ({
+      subscription: {
+        plan,
+        status: 'active',
+        lifetime: false,
+        current_period_end: periodEnd,
+        cancel_at_period_end: false,
+        render_count: state.subscription?.render_count ?? 0,
+        monthly_limit: monthlyLimitFor(plan),
+        render_count_reset_at: null,
+      },
+    }));
   },
 
   requestPasswordReset: async (email) => {

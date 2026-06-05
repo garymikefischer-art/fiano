@@ -171,7 +171,7 @@ export function LoginScreen() {
                     alignItems: 'center',
                   })}>
                   <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: isActive ? '600' : '400' }}>
-                    {lang.label}
+                    {lang.nativeName}
                   </Text>
                   <Text style={{ color: colors.text.secondary, fontSize: 12, letterSpacing: 0.5 }}>
                     {lang.code.toUpperCase()}
