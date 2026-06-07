@@ -1309,7 +1309,7 @@ function HighlightsTab({
                 fontWeight: '700',
               }}
             >
-              {t('highlights.buildVideo', 'Build YouTube video')}
+              {t('highlights.buildVideo', 'Build 16:9 video')}
             </Text>
           </Pressable>
         </View>
@@ -6121,7 +6121,7 @@ function BuilderTab({
         >
           {t(
             'builder.emptyBody',
-            'Switch to the Highlights tab, select the clips you want to combine, then tap "Build YouTube video".',
+            'Switch to the Highlights tab, select the clips you want to combine, then tap "Build 16:9 video".',
           )}
         </Text>
         <Pressable
@@ -6383,7 +6383,7 @@ function BuilderTab({
 
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.text.primary, fontSize: 22, fontWeight: '700', letterSpacing: -0.5 }}>
-          {t('builder.title', 'YouTube Builder')}
+          {t('builder.title', '16:9 Builder')}
         </Text>
         <Text style={{ color: colors.text.secondary, fontSize: 12 }}>
           {selected.length} {t('builder.clipsSelected', 'clips')} · {formatDuration(totalDuration)}{' '}
