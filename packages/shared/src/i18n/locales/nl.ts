@@ -431,7 +431,7 @@ export const nl: Record<string, string> = {
   'thumbnail.fieldBackgroundHint': 'bv. brandende Verdansk-skyline bij zonsondergang',
   'thumbnail.fieldEffects': 'Effecten',
   'thumbnail.fieldEffectsHint': 'bv. lens flare, rim light, stofdeeltjes',
-  'thumbnail.fieldWeapons': 'Wapens / Skins',
+  'thumbnail.fieldWeapons': 'Wapens / Voorgrond',
   'thumbnail.fieldWeaponsHint': 'bv. Kar98 met Tactical Camo, met pump shotgun',
   'thumbnail.refPhotoLabel': 'Referentiefoto (gezichtsvervanging)',
   'thumbnail.refReplaceHint': 'klik "Vervangen" om te wisselen',
@@ -852,8 +852,10 @@ export const nl: Record<string, string> = {
   'thumbnail.genre.custom':            'Eigen game',
   'thumbnail.genreDisclaimer':         'Genre-labels zijn generiek. Genoemde gamenamen zijn handelsmerken van hun eigenaren — Fisora is niet aan hen gelieerd.',
   'thumbnail.fieldCustomGame':         'Naam van de game',
-  'thumbnail.fieldCustomGamePlaceholder': 'bijv. Apex Legends, Rocket League, Roblox…',
+  'thumbnail.fieldCustomGamePlaceholder': 'Typ je eigen',
   'thumbnail.fieldCustomGameHint':     'Ingevoerde gamenamen zijn handelsmerken van hun eigenaren. Jij bent verantwoordelijk voor het gebruik.',
+  'thumbnail.fieldCustomSkin':         'Skin / Uiterlijk',
+  'thumbnail.fieldCustomSkinPlaceholder': 'bijv. je personage-uiterlijk (optioneel)',
 
 
   // Legal pages (Phase 6.4)

@@ -457,7 +457,7 @@ export const de: Record<string, string> = {
   'thumbnail.fieldBackgroundHint':'z.B. brennende Verdansk-Skyline bei Sonnenuntergang',
   'thumbnail.fieldEffects':       'Effekte',
   'thumbnail.fieldEffectsHint':   'z.B. Lens-Flare, Rim-Light, Staub-Partikel',
-  'thumbnail.fieldWeapons':       'Waffen / Skins',
+  'thumbnail.fieldWeapons':       'Waffen / Vordergrund',
   'thumbnail.fieldWeaponsHint':   'z.B. Kar98 mit Tactical-Camo, Pump-Shotgun in der Hand',
   'thumbnail.refPhotoLabel':      'Referenz-Foto (Gesichts-Replacement)',
   'thumbnail.refReplaceHint':     '"Ersetzen" klicken zum Wechseln',
@@ -897,8 +897,10 @@ export const de: Record<string, string> = {
   'thumbnail.genre.custom':            'Eigenes Spiel',
   'thumbnail.genreDisclaimer':         'Genre-Bezeichnungen sind generisch. Genannte Spielenamen sind eingetragene Marken ihrer jeweiligen Inhaber — Fisora steht in keiner Verbindung zu diesen.',
   'thumbnail.fieldCustomGame':         'Spielname',
-  'thumbnail.fieldCustomGamePlaceholder': 'z.B. Apex Legends, Rocket League, Roblox…',
+  'thumbnail.fieldCustomGamePlaceholder': 'Selbst eingeben',
   'thumbnail.fieldCustomGameHint':     'Eingegebene Spielnamen sind Marken ihrer jeweiligen Inhaber. Du trägst die Verantwortung für die Verwendung.',
+  'thumbnail.fieldCustomSkin':         'Skin / Look',
+  'thumbnail.fieldCustomSkinPlaceholder': 'z.B. dein Charakter-Look (optional)',
 
 
   // Legal pages (Phase 6.4)

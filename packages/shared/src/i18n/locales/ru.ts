@@ -431,7 +431,7 @@ export const ru: Record<string, string> = {
   'thumbnail.fieldBackgroundHint': 'напр. горящий силуэт Verdansk на закате',
   'thumbnail.fieldEffects': 'Эффекты',
   'thumbnail.fieldEffectsHint': 'напр. блик объектива, контровой свет, частицы пыли',
-  'thumbnail.fieldWeapons': 'Оружие / Скины',
+  'thumbnail.fieldWeapons': 'Оружие / Передний план',
   'thumbnail.fieldWeaponsHint': 'напр. Kar98 с Tactical Camo, держит pump shotgun',
   'thumbnail.refPhotoLabel': 'Референс-фото (замена лица)',
   'thumbnail.refReplaceHint': 'нажмите «Заменить» для смены',
@@ -852,8 +852,10 @@ export const ru: Record<string, string> = {
   'thumbnail.genre.custom':            'Своя игра',
   'thumbnail.genreDisclaimer':         'Названия жанров общие. Упомянутые названия игр являются товарными знаками их владельцев — Fisora не связан с ними.',
   'thumbnail.fieldCustomGame':         'Название игры',
-  'thumbnail.fieldCustomGamePlaceholder': 'напр. Apex Legends, Rocket League, Roblox…',
+  'thumbnail.fieldCustomGamePlaceholder': 'Введите свою',
   'thumbnail.fieldCustomGameHint':     'Введённые названия игр являются товарными знаками их владельцев. Ответственность за их использование лежит на вас.',
+  'thumbnail.fieldCustomSkin':         'Скин / Образ',
+  'thumbnail.fieldCustomSkinPlaceholder': 'напр. образ персонажа (необязательно)',
 
 
   // Legal pages (Phase 6.4)
