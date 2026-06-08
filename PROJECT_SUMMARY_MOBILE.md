@@ -1,20 +1,20 @@
 # 📋 PROJECT SUMMARY — Fisora (Hybrid Desktop + Mobile + Cloud-Render)
 
-> **Stand: 2026-06-07** — 🎉 **Mobile Build 16 bei Google Play PRODUCTION eingereicht (weltweit, in Review).** Trim-Bug ✅ · Update-Popup ✅ · Kündigen→Pricing ✅ · Thumbnail-Prompts markenfrei ✅ · Builder „16:9" statt „YouTube" ✅ (alle per OTA live) · Desktop v0.2.3 (Mac+Win) auf GitHub ✅ · Cost-Cap verifiziert ✅ · DPAs angestoßen (Supabase signiert, Cloudflare-PDFs, R2-Lifecycle, 3 Mails gesendet).
-> **Branch: `claude/edge-to-edge` · HEAD `3b77554`** — NICHT in `main` gemerged. User merged via `git merge --no-ff`. (Diese Session viele neue Commits: Trim-Fix, UX, Thumbnail/Builder-De-Branding, versionCode 16, Desktop 0.2.2/0.2.3.)
+> **Stand: 2026-06-08** — 🔴 **BUILD 17 (Expo SDK 53, 16-KB-Fix) MUSS NEU GEBAUT + EINGEREICHT WERDEN.** Davor erledigt: Trim-Bug · Update-Popup · Kündigen→Pricing · Thumbnails markenfrei · Builder „16:9" (alle OTA live auf SDK-52-runtime 0.0.3) · Desktop v0.2.3 (Mac+Win) GitHub · Cost-Cap · DPAs (Supabase signiert, Cloudflare-PDFs, R2-Lifecycle).
+> **Branch: `claude/edge-to-edge` · HEAD `d3a08a4`** — NICHT in `main` (User merged via `git merge --no-ff`). Diese Session SEHR viele Commits (Trim/UX/Thumbnail+Builder-De-Branding/Desktop 0.2.2+0.2.3/**SDK-53-Upgrade**).
 > **Worker-Rev (live):** `fiano-render-worker-00053-gnt` (unverändert).
-> **Mobile:** **Build 16 (versionCode 16, v0.0.3)** → Production-Track **eingereicht, in Google-Review** (Erst-Release: paar Tage–2 Wochen). OTA-Channel `production` (runtime 0.0.3) trägt alle JS-Fixes. Closed-Test Alpha-2 parallel.
-> **Desktop:** **v0.2.3** (Mac arm64+x64 + Windows) GitHub-Release live (mit Thumbnail/Builder-De-Branding im Binary).
+> **Mobile:** **Build 16 (vCode 16, v0.0.3, SDK 52)** in Production eingereicht — **wird wg. 16-KB ABGELEHNT** (Hard-Block seit 1.11.2025). **Build 17 (vCode 17, v0.0.4, SDK 53 = RN 0.79/React 19) = der 16-KB-Fix** → bauen + statt Build 16 ins Production-Release.
+> **Desktop:** **v0.2.3** (Mac+Win) GitHub-Release live.
 
-> 🟢 **STATUS: WARTEN AUF GOOGLE-PRODUCTION-REVIEW.** Phase 1 (Trim-Bug) ist gefixt + live — KEIN offener Code-Blocker mehr. Offene Punkte siehe §5 (Website-Buttons NACH Live, 3 DPA-Mail-Antworten, 16-KB-Rebuild künftig).
-> ⚠️ **16-KB-Page-Size (Android 15):** Build 16 hat's per „Trotzdem fortfahren" bypassed (nicht blockierend). Nächste Updates: 16-KB-aligned Rebuild einplanen → Memory `android_16kb_pagesize`.
+> 🔴 **SOFORT IM NEUEN CHAT — BUILD 17 BAUEN:** `cd packages/mobile && eas build --profile production --platform android`. Der vorige Build 17 scheiterte an Gradle `:expo-updates:kspReleaseKotlin` (KSP/Kotlin-Mismatch durch `kotlinVersion:"1.9.25"`-Pin in app.json) → **Pin ist ENTFERNT (Commit 1c68c5a)** → SDK 53 nutzt Default-Kotlin 2.0.21 → KSP sollte jetzt durchlaufen. Bei anderem Gradle-Fehler: User holt „Run gradlew"-Log aus expo.dev/builds. Danach: AAB → Play Console → Production (Build 16 ersetzen) → 16-KB-Verstoß weg.
+> ⚠️ **runtimeVersion-Falle:** Build 17 = v0.0.4 (runtime 0.0.4), **bewusst ≠** den SDK-52-OTAs (runtime 0.0.3) → kein inkompatibler OTA-Pull/Crash. Alle Fixes sind im Build-17-Binary (committed). Künftige SDK-53-OTAs müssen aus dem SDK-53-Code via `eas update` auf runtime **0.0.4** gepusht werden. EAS braucht `.npmrc` (`legacy-peer-deps=true`, schon committed) für `npm ci`.
 
 ---
 
 ## 1. STACK
 | Plattform | Stack |
 |---|---|
-| **Mobile** | Expo SDK 52, RN 0.76 (New Arch), React-Navigation v7, Zustand, react-native-video v6, react-native-svg ~15.10, react-native-purchases **v10.2.0** (M5), edge-to-edge, reanimated 3.16. Package `app.fisora.video`, Scheme `fisora://`, Slug `fiano-mobile`, runtimeVersion-Policy `appVersion` (=version). EAS-Projekt `27f6d175-b3fd-4d87-bff9-f7d4642fae1a` (User `garyfischer`). |
+| **Mobile** | **Expo SDK 53, RN 0.79, React 19** (New Arch) — *2026-06-08 von SDK 52/RN 0.76 hochgezogen für Android-16-KB.* React-Navigation v7, Zustand, react-native-video 6.19, react-native-purchases v10.2.2, reanimated 3.17, edge-to-edge. Package `app.fisora.video`, Scheme `fisora://`, Slug `fiano-mobile`, **versionCode 17, version 0.0.4** (runtime-Policy `appVersion`). ⚠️ Root-`package.json` darf KEIN `expo`/`react-native` enthalten (Hoisting-Konflikt Desktop-React-18 ↔ Mobile-React-19); `.npmrc` `legacy-peer-deps=true` nötig (EAS `npm ci`). EAS `27f6d175-…` (User `garyfischer`). |
 | **Desktop** | Electron 31 (CJS Main + Vite Renderer), React 18 + Tailwind + Zustand, bundled FFmpeg/yt-dlp/libass, electron-updater, Stripe. appId `app.fiano.video`, productName Fisora. v0.2.0. |
 | **Cloud-Render** | Google Cloud Run `fiano-render-worker` (Node 22 + Express + ffmpeg + yt-dlp + @napi-rs/canvas + 60 Fonts). GCP-Projekt `fiano-render-2026`. Cloudflare R2 (S3-API). |
 | **Backend** | Supabase `zibzcaknqzxgwootfjxc` (Site URL https://fisora.app). 5 Edge Functions, 9 Migrationen, RLS. |
@@ -125,8 +125,9 @@ claude-webseite-neu/              ← world4you Hosting (SEPARAT, kein git)
 
 ## 5. 🔴 OFFENE LISTE (NÄCHSTE SCHRITTE)
 
-### 🟢 WARTEN AUF GOOGLE-PRODUCTION-REVIEW (Build 16 weltweit eingereicht 2026-06-07)
-Status sehen: Play Console → Veröffentlichungen-Übersicht / Dashboard / Produktion-Track + Glocke/Email. Erst-Release: paar Tage–2 Wochen. Falls Ablehnung (z.B. 12-Tester-/14-Tage-Regel oder 16-KB-Hard-Requirement) → hier dokumentieren + angehen.
+### 🔴 #1 SOFORT: BUILD 17 BAUEN (SDK 53 = 16-KB-Fix)
+`cd packages/mobile && eas build --profile production --platform android` → AAB → Play Console → Production-Release **bearbeiten** (Build 16 durch Build 17 ersetzen) → der 16-KB-Verstoß ist weg. KSP/Kotlin-Fix (kotlinVersion-Pin raus) + `.npmrc` sind committed. Bei neuem Gradle-Fehler: User holt „Run gradlew"-Log aus expo.dev/builds, dann gezielt fixen. Backup: `git reset --hard pre-build17-rebuild-20260608`.
+Hinweis 12-Tester-/14-Tage-Regel (neue Privat-Konten) ggf. vor Production-Freigabe nötig — Dashboard prüfen.
 
 ### OFFEN — nach Go-Live / parallel (User + Claude)
 1. **Website-Download-Buttons** verknüpfen — **erst NACH Play-Store-Live**: in `claude-webseite-neu/` die Download-Buttons auf **Desktop v0.2.3 GitHub-Release** + **Play-Store-Badge/Link** setzen. Diff baut Claude, User lädt per world4you hoch.
@@ -176,4 +177,4 @@ OFFEN (NIEDRIG, nicht launch-blocking): N-1..N-5 (kosmetisch), R2-Lifecycle-Rule
 - Backup-Tags: `pre-thumbnail-neutralize-20260606`, `pre-handoff-security-iap-20260605`, `pre-security-mediums-legal-20260605`, `pre-handoff-stripe-live-20260602`
 - Memory-Files: test_phone, revenuecat_setup, cost_protection, eas_update_command, **android_16kb_pagesize**, feedback_test_instructions, feedback_root_cause, expo_prebuild_local_properties
 
-*Stand 2026-06-07. Mobile Build 16 bei Google PRODUCTION in Review (weltweit). Phase 1 (Trim-Bug) erledigt + live. Nächster Chat: ZUERST diese Doku lesen. Offene Punkte siehe §5 — v.a. Website-Download-Buttons NACH Go-Live, 3 DPA-Mail-Antworten (Erinnerung!), 16-KB-Rebuild künftig.*
+*Stand 2026-06-08. 🔴 SOFORT im neuen Chat: **Build 17 bauen** (`cd packages/mobile && eas build --profile production --platform android` — KSP/Kotlin-Fix ist drin) → Play Console Production (ersetzt Build 16, der wg. 16-KB abgelehnt wird). Dann: Review abwarten · Website-Download-Buttons NACH Go-Live · 3 DPA-Mail-Antworten (Expo/RevenueCat/Formspree). Erledigt: Phase 1 (Trim) + 9.10/9.15/9.16/9.17 + SDK-53-Upgrade. Offen (Polish): 9.7 Light-Theme, 9.11 Drag-Reorder, 9.13 Cross-Device-Sync, 9.14 Effects-Mobile.*
