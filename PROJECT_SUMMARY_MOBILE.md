@@ -2,7 +2,7 @@
 
 > **Stand: 2026-06-08** — ✅ **BUILD 17 (Expo SDK 53) GEBAUT + 16-KB-VERIFIZIERT** (EAS `d3e7e0ae`, AAB lokal `~/Downloads/fisora-build17-v0.0.4-vc17.aab`, alle 42 nativen 64-bit-.so ≥0x4000-aligned). 🔴 **JETZT: AAB in Play Console hoch (Build 16 ersetzen) → Production einreichen → dann Vivo-Re-Test (SDK 52→53).** Davor erledigt: Trim-Bug · Update-Popup · Kündigen→Pricing · Thumbnails markenfrei · Builder „16:9" (alle OTA live auf SDK-52-runtime 0.0.3) · Desktop v0.2.3 (Mac+Win) GitHub · Cost-Cap · DPAs (Supabase signiert, Cloudflare-PDFs, R2-Lifecycle).
 > **Branch: `claude/edge-to-edge` · HEAD `d3a08a4`** — NICHT in `main` (User merged via `git merge --no-ff`). Diese Session SEHR viele Commits (Trim/UX/Thumbnail+Builder-De-Branding/Desktop 0.2.2+0.2.3/**SDK-53-Upgrade**).
-> **Worker-Rev (live):** `fiano-render-worker-00054-fx5` (2026-06-08: `hasActiveSubscription` ohne `current_period_end`-Check; + Migration 010 gleiches in der Render-Quota-RPC).
+> **Worker-Rev (live):** `fiano-render-worker-00055-ft2` (2026-06-08). Änderungen heute: **Render-Speed** `--cpu 8` + `--concurrency 1` (jeder Render eigene Instanz, alle Cores) + libx264-preset `medium→fast` (~3.5× Ziel, 257s→~70s); period_end-Check raus in `hasActiveSubscription` + Render-Quota-RPC (Migration 010). ⚠️ Cloud-Run-Config jetzt cpu=8/mem=8Gi/concurrency=1/max-instances=10 — bei künftigen Worker-Deploys diese Flags mitgeben (sonst Reset auf Default).
 > **Mobile:** **Build 16 (vCode 16, v0.0.3, SDK 52)** in Production eingereicht — **wird wg. 16-KB ABGELEHNT** (Hard-Block seit 1.11.2025). **Build 17 (vCode 17, v0.0.4, SDK 53 = RN 0.79/React 19) = der 16-KB-Fix** → bauen + statt Build 16 ins Production-Release.
 > **Desktop:** **v0.2.3** (Mac+Win) GitHub-Release live.
 
@@ -80,7 +80,7 @@ claude-webseite-neu/              ← world4you Hosting (SEPARAT, kein git)
 | `packages/mobile/src/*` **JS-only** | `cd packages/mobile && eas update --branch production` → OTA, kein Store-Review. Greift bei gleichem `runtimeVersion` (=version 0.0.3). ⚠️ `Updates.reloadAsync()` BEWUSST NICHT genutzt (white-screen SDK52+NewArch) → User sieht Update beim nächsten **Kaltstart**. |
 | `packages/mobile` **Native** (Dep/Plugin/Package/app.json/versionCode) | `cd packages/mobile && eas build --profile production --platform android` → AAB → Play Console Closed/Prod Track. **versionCode in app.json hochbumpen!** |
 | `src/*` (Desktop) | `npm run build:mac` (macOS) / `build:win`. Bei version-bump in package.json → GitHub Release → electron-updater. |
-| `services/render-worker/*` | `cd services/render-worker && gcloud run deploy fiano-render-worker --source . --region europe-west1 --memory 2Gi --cpu 2 --timeout 900 --max-instances 10 --quiet` (Cloud Build, ~4-6min). |
+| `services/render-worker/*` | `cd services/render-worker && gcloud run deploy fiano-render-worker --source . --region europe-west1 --memory 8Gi --cpu 8 --concurrency 1 --timeout 900 --max-instances 10 --quiet` (Cloud Build, ~4-6min). ⚠️ **Flags IMMER mitgeben** (cpu 8/concurrency 1 seit 2026-06-08 Render-Speed) — fehlen sie, resettet Cloud Run auf Default cpu=1/concurrency=80. |
 | `supabase/migrations/*` | `supabase db push` (im Repo-Root, fragt [Y/n]). |
 | `supabase/functions/*` | `supabase functions deploy <name> [--no-verify-jwt für Webhooks]`. |
 
