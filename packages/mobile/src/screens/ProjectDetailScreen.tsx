@@ -26,6 +26,7 @@ import {
   StatusBar as RNStatusBar,
 } from 'react-native';
 import { appAlert } from '../components/AppAlert';
+import { UrlPromptModal } from '../components/UrlPromptModal';
 import Video, {
   type OnLoadData,
   type OnProgressData,
@@ -1552,116 +1553,21 @@ function HighlightsTab({
         />
       )}
 
-      {/* URL-Eingabe-Popup — Add-Source-Dialog-Option „YouTube / Twitch URL".
-          Single-URL → addSourceFromUrl → wird an die Projekt-Sources angehängt. */}
-      <Modal
+      {/* URL-Eingabe-Popup (AppAlert-Look) — Add-Source-Dialog-Option „URL".
+          addSourceFromUrl hängt das geladene Video an die Projekt-Sources an. */}
+      <UrlPromptModal
         visible={urlModalOpen}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => {
-          if (!urlBusy) {
-            setUrlModalOpen(false);
-            setModalUrl('');
-          }
+        url={modalUrl}
+        onChangeUrl={setModalUrl}
+        onSubmit={() => addSourceFromUrl(modalUrl)}
+        onClose={() => {
+          setUrlModalOpen(false);
+          setModalUrl('');
         }}
-      >
-        <Pressable
-          onPress={() => {
-            if (!urlBusy) {
-              setUrlModalOpen(false);
-              setModalUrl('');
-            }
-          }}
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', padding: 26 }}
-        >
-          <Pressable
-            onPress={() => {}}
-            style={{
-              backgroundColor: colors.bg.elevated,
-              borderRadius: 18,
-              borderWidth: 1,
-              borderColor: colors.border.subtle,
-              padding: 20,
-              gap: 14,
-            }}
-          >
-            <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
-              {t('addProject.urlModalTitle', 'Paste a YouTube / Twitch link')}
-            </Text>
-            <View
-              style={{
-                backgroundColor: colors.bg.primary,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: colors.border.subtle,
-                paddingHorizontal: 14,
-              }}
-            >
-              <TextInput
-                value={modalUrl}
-                onChangeText={setModalUrl}
-                placeholder={t('addProject.urlPlaceholder', 'YouTube / Twitch URL…')}
-                placeholderTextColor="#52525b"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoFocus
-                editable={!urlBusy}
-                onSubmitEditing={() => addSourceFromUrl(modalUrl)}
-                style={{ color: colors.text.primary, fontSize: 14, paddingVertical: 14 }}
-              />
-            </View>
-            {urlBusy && urlPhase && (
-              <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
-                {urlPhase === 'requesting'
-                  ? t('addProject.urlPhaseRequesting', 'Server downloading from YouTube/Twitch…')
-                  : t('addProject.urlPhaseDownloading', `Downloading to phone… ${Math.round(urlProgress * 100)}%`)}
-              </Text>
-            )}
-            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end', marginTop: 2 }}>
-              <Pressable
-                onPress={() => {
-                  setUrlModalOpen(false);
-                  setModalUrl('');
-                }}
-                disabled={urlBusy}
-                hitSlop={6}
-                style={{ paddingVertical: 11, paddingHorizontal: 16, opacity: urlBusy ? 0.4 : 1 }}
-              >
-                <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '700' }}>
-                  {t('common.cancel', 'Cancel')}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => addSourceFromUrl(modalUrl)}
-                disabled={urlBusy || modalUrl.trim().length === 0}
-                style={({ pressed }) => ({
-                  paddingVertical: 11,
-                  paddingHorizontal: 22,
-                  borderRadius: 12,
-                  backgroundColor:
-                    urlBusy || modalUrl.trim().length === 0
-                      ? colors.bg.primary
-                      : pressed
-                        ? '#cc0d2e'
-                        : '#ff1039',
-                  opacity: urlBusy || modalUrl.trim().length === 0 ? 0.5 : 1,
-                })}
-              >
-                <Text
-                  style={{
-                    color: urlBusy || modalUrl.trim().length === 0 ? '#a1a1aa' : '#fff',
-                    fontSize: 13,
-                    fontWeight: '700',
-                  }}
-                >
-                  {urlBusy ? t('common.busy', 'Working…') : t('addProject.importButton', 'Import')}
-                </Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+        busy={urlBusy}
+        phase={urlPhase}
+        progress={urlProgress}
+      />
     </ScrollView>
   );
 }

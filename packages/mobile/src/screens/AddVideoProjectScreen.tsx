@@ -25,6 +25,7 @@ import {
   View,
 } from 'react-native';
 import { appAlert } from '../components/AppAlert';
+import { UrlPromptModal } from '../components/UrlPromptModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -742,120 +743,23 @@ export function AddVideoProjectScreen() {
           </Pressable>
         </ScrollView>
 
-        {/* URL-Eingabe-Popup — Dialog-Option „YouTube / Twitch URL". Single-URL,
-            nutzt createFromUrl (teilt downloadFromUrl mit der Multi-URL-Sektion).
-            Backdrop-/Cancel-Tap nur erlaubt solange kein Download läuft. */}
-        <Modal
+        {/* URL-Eingabe-Popup (AppAlert-Look) — Dialog-Option „URL". createFromUrl
+            erstellt ein neues Projekt im jeweils gewählten Mode. */}
+        <UrlPromptModal
           visible={urlModalFor !== null}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            if (busy === null) {
-              setUrlModalFor(null);
-              setModalUrl('');
-            }
+          url={modalUrl}
+          onChangeUrl={setModalUrl}
+          onSubmit={() => {
+            if (urlModalFor) createFromUrl(urlModalFor.mode, modalUrl, urlModalFor.videoType);
           }}
-        >
-          <Pressable
-            onPress={() => {
-              if (busy === null) {
-                setUrlModalFor(null);
-                setModalUrl('');
-              }
-            }}
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', padding: 26 }}
-          >
-            <Pressable
-              onPress={() => {}}
-              style={{
-                backgroundColor: colors.bg.elevated,
-                borderRadius: 18,
-                borderWidth: 1,
-                borderColor: colors.border.subtle,
-                padding: 20,
-                gap: 14,
-              }}
-            >
-              <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
-                {t('addProject.urlModalTitle', 'Paste a YouTube / Twitch link')}
-              </Text>
-              <View
-                style={{
-                  backgroundColor: colors.bg.primary,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border.subtle,
-                  paddingHorizontal: 14,
-                }}
-              >
-                <TextInput
-                  value={modalUrl}
-                  onChangeText={setModalUrl}
-                  placeholder={t('addProject.urlPlaceholder', 'YouTube / Twitch URL…')}
-                  placeholderTextColor="#52525b"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoFocus
-                  editable={busy === null}
-                  onSubmitEditing={() => {
-                    if (urlModalFor) createFromUrl(urlModalFor.mode, modalUrl, urlModalFor.videoType);
-                  }}
-                  style={{ color: colors.text.primary, fontSize: 14, paddingVertical: 14 }}
-                />
-              </View>
-              {busy !== null && urlPhase && (
-                <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
-                  {urlPhase === 'requesting'
-                    ? t('addProject.urlPhaseRequesting', 'Server downloading from YouTube/Twitch…')
-                    : t('addProject.urlPhaseDownloading', `Downloading to phone… ${Math.round(urlProgress * 100)}%`)}
-                </Text>
-              )}
-              <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end', marginTop: 2 }}>
-                <Pressable
-                  onPress={() => {
-                    setUrlModalFor(null);
-                    setModalUrl('');
-                  }}
-                  disabled={busy !== null}
-                  hitSlop={6}
-                  style={{ paddingVertical: 11, paddingHorizontal: 16, opacity: busy !== null ? 0.4 : 1 }}
-                >
-                  <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '700' }}>
-                    {t('common.cancel', 'Cancel')}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => {
-                    if (urlModalFor) createFromUrl(urlModalFor.mode, modalUrl, urlModalFor.videoType);
-                  }}
-                  disabled={busy !== null || modalUrl.trim().length === 0}
-                  style={({ pressed }) => ({
-                    paddingVertical: 11,
-                    paddingHorizontal: 22,
-                    borderRadius: 12,
-                    backgroundColor:
-                      busy !== null || modalUrl.trim().length === 0
-                        ? colors.bg.primary
-                        : pressed
-                          ? '#cc0d2e'
-                          : '#ff1039',
-                    opacity: busy !== null || modalUrl.trim().length === 0 ? 0.5 : 1,
-                  })}
-                >
-                  <Text
-                    style={{
-                      color: busy !== null || modalUrl.trim().length === 0 ? '#a1a1aa' : '#fff',
-                      fontSize: 13,
-                      fontWeight: '700',
-                    }}
-                  >
-                    {busy !== null ? t('common.busy', 'Working…') : t('addProject.importButton', 'Import')}
-                  </Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
+          onClose={() => {
+            setUrlModalFor(null);
+            setModalUrl('');
+          }}
+          busy={busy !== null}
+          phase={urlPhase}
+          progress={urlProgress}
+        />
       </SafeAreaView>
     </KeyboardAvoidingView>
   );

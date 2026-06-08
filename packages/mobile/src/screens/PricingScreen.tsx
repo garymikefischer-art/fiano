@@ -127,6 +127,10 @@ export function PricingScreen() {
         setOfferingLoading(false);
       }
     })();
+    // Fix (2026-06-08): Abo-Status beim Öffnen frisch laden — sonst zeigt der
+    // Screen einen veralteten „Aktueller Plan" (z.B. nach Kündigung/Ablauf, wenn
+    // die App den Status seit dem letzten fetch nicht neu geladen hat).
+    void fetchSubscription();
     return () => {
       alive = false;
     };
