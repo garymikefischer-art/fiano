@@ -195,12 +195,29 @@ export default function App() {
   // abgelaufenem Abo, kein Neukauf möglich. Der RootNavigator reagiert reaktiv
   // auf den dann frischen subscription.status.
   useEffect(() => {
+    // Abo-Status frisch halten: bei App-Resume (Hintergrund→Vordergrund) UND
+    // periodisch alle 5 Min im Vordergrund. So wird ein Ablauf, der WÄHREND
+    // laufender App passiert, ohne Neustart erkannt → das Paywall-Gate
+    // (RootNavigator) reagiert reaktiv auf den frischen status.
+    // Reine UI-Aktualität: die kostenrelevanten Features (Render/Transcribe/
+    // Download) sind serverseitig abo-geschützt, Thumbnails laufen über den
+    // EIGENEN Gemini-Key des Users (keine Fisora-Kosten) → kein Abuse-Fenster,
+    // daher reichen 5 Min locker (spart DB-Abfragen).
+    const checkSub = () => {
+      if (AppState.currentState === 'active' && useAuthStore.getState().session) {
+        void useAuthStore.getState().fetchSubscription();
+      }
+    };
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && useAuthStore.getState().session) {
         void useAuthStore.getState().fetchSubscription();
       }
     });
-    return () => sub.remove();
+    const pollId = setInterval(checkSub, 300_000);
+    return () => {
+      sub.remove();
+      clearInterval(pollId);
+    };
   }, []);
 
   return (
