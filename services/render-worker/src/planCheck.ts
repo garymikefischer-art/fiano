@@ -86,8 +86,14 @@ export async function checkAndIncrementRenderQuota(
  *
  * Liest `subscriptions` direkt via service_role (Worker bypasst RLS), KEIN
  * Increment. Logik gespiegelt zur Quota-RPC: status active/trialing +
- * plan ∈ {creator,pro} + current_period_end in der Zukunft (oder NULL =
- * unbefristet, z.B. lifetime). Bei Fehler/keiner Row → false (fail-closed).
+ * plan ∈ {creator,pro}. Bei Fehler/keiner Row → false (fail-closed).
+ *
+ * Fix 2026-06-08: KEIN `current_period_end > now()`-Check mehr — ein verpasster/
+ * verzögerter RevenueCat-Renewal-Webhook ließ das gespeicherte period_end
+ * veralten und sperrte zahlende User aus (App zeigte Pro, Worker gab
+ * subscription_required). Maßgeblich ist `status`; der Webhook setzt
+ * status='canceled' bei echtem Ablauf. Konsistent mit der RPC (Migration 010)
+ * und dem App-Paywall-Gate (RootNavigator R10-Bug3b).
  */
 export async function hasActiveSubscription(
   supabase: SupabaseClient,
@@ -95,14 +101,11 @@ export async function hasActiveSubscription(
 ): Promise<boolean> {
   const { data, error } = await supabase
     .from('subscriptions')
-    .select('plan, status, current_period_end')
+    .select('plan, status')
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !data) return false;
   const statusOk = data.status === 'active' || data.status === 'trialing';
   const planOk = data.plan === 'creator' || data.plan === 'pro';
-  const periodOk =
-    !data.current_period_end ||
-    new Date(data.current_period_end as string) > new Date();
-  return statusOk && planOk && periodOk;
+  return statusOk && planOk;
 }
