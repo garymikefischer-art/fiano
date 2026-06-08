@@ -7,7 +7,7 @@
 > **Desktop:** **v0.2.3** (Mac+Win) GitHub-Release live.
 
 > ✅ **BUILD 17 ERLEDIGT (2026-06-08):** EAS-Build `d3e7e0ae` (commit `cb326f0`) finished. KSP-Fix bestätigt (`:expo-updates:kspReleaseKotlin` lief durch, Default-Kotlin 2.0.21 ↔ passende KSP). AAB: `https://expo.dev/artifacts/eas/saFTciRW9kVJygKydMDSo7.aab` (lokal `~/Downloads/fisora-build17-v0.0.4-vc17.aab`, 68 MB). **16-KB lokal verifiziert** (NDK `llvm-readelf -lW`: alle 42 64-bit-.so LOAD-Align ≥0x4000 → Play-Block löst NICHT mehr aus). 🔴 **SOFORT IM NEUEN CHAT:** AAB in Play Console → Production-Release **bearbeiten/neu** (Build 16 durch 17 ersetzen) → einreichen. Danach voller Vivo-Re-Test (Video, IAP, Cloud-Render, Thumbnails, Subtitles) wg. SDK-Sprung 52→53.
-> ⚠️ **runtimeVersion-Falle:** Build 17 = v0.0.4 (runtime 0.0.4), **bewusst ≠** den SDK-52-OTAs (runtime 0.0.3) → kein inkompatibler OTA-Pull/Crash. Alle Fixes sind im Build-17-Binary (committed). Künftige SDK-53-OTAs müssen aus dem SDK-53-Code via `eas update` auf runtime **0.0.4** gepusht werden. EAS braucht `.npmrc` (`legacy-peer-deps=true`, schon committed) für `npm ci`.
+> ⚠️ **runtimeVersion-Falle (Stand Build 18):** **Build 18 = v0.0.5 (runtime 0.0.5)** ist der neue Production-Build — bündelt ALLE heutigen JS-Fixes (URL-Import, Popup-AppAlert-Look, Abo-Resume/Poll) direkt ins Binary. Version bewusst 0.0.4→**0.0.5** gebumpt, damit Build 18 die 0.0.4-OTAs NICHT zieht → **kein Update-Popup bei neuen Nutzern, alles sofort im Binary**. 🔴 **Künftige OTAs MÜSSEN auf runtime `0.0.5` gepusht werden** (`eas update`); die 0.0.4-OTAs gelten nur noch für Build-17-Alt-Installs (Closed Test). Build 17 (0.0.4) bleibt im Closed Test; Build 16 (0.0.3) = abgelehnt. EAS braucht `.npmrc` (`legacy-peer-deps=true`) für `npm ci`.
 
 ---
 
