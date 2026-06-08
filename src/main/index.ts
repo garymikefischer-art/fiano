@@ -248,13 +248,14 @@ function createWindow() {
     icon, // Win/Linux nutzen das aus dem BrowserWindow
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      // Phase A6.8.1 (2026-05-18): sandbox=true brach Renderer-Boot (black
-      // screen) — preload nutzt Node-APIs (path/fs) für IPC die in
-      // sandbox-mode nicht verfügbar sind. Zurück auf false. Re-enable
-      // sandbox=true erfordert preload-Refactor (kein require'fs', alles
-      // über IPC zu main).
-      // webSecurity bleibt true (default + explicit).
-      sandbox: false,
+      // D5 (2026-06-02): sandbox=true re-enabled.
+      // Historischer Hintergrund: A6.8.1 (2026-05-18) reverted sandbox=true
+      // weil preload Node-APIs (path/fs) nutzte → Renderer-Boot brach.
+      // Aktueller preload (src/preload/index.ts) nutzt NUR `electron`-Imports
+      // (contextBridge + ipcRenderer) — keine Node-APIs mehr. Sandbox sollte
+      // jetzt klappen. Falls Renderer schwarz bleibt: zurück auf false + im
+      // preload-Build-Bundle (Vite) nach inlined Node-Modulen suchen.
+      sandbox: true,
       contextIsolation: true,
       webSecurity: true,
       // Production: DevTools komplett aus. Dev-Mode (npm run dev): an für Debug.
@@ -345,19 +346,26 @@ app.whenReady().then(async () => {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
       const csp = [
         "default-src 'self'",
-        // Tailwind hat inline styles. Scripts: 'unsafe-inline' notwendig
-        // wegen Vite-bundled inline-loader-scripts. 'unsafe-eval' für
-        // einige Libs die Function-constructor nutzen.
-        "style-src 'self' 'unsafe-inline'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        // Tailwind hat inline styles → 'unsafe-inline' für styles bleibt.
+        // Google-Fonts (CSS stylesheet wird von index.html geladen).
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        // D5 (2026-06-02): 'unsafe-eval' ENTFERNT (war A6.8 noch drin).
+        // Vite-production-Bundle hat keine eval()-Calls + libs sind eval-frei.
+        // 'unsafe-inline' bleibt — Vite bundled inline-loader-scripts.
+        // 'wasm-unsafe-eval' für eventuelle Wasm-Module (z.B. ffmpeg.wasm später).
+        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:",
+        "worker-src 'self' blob:",
         "img-src 'self' data: media: https: blob:",
         "media-src 'self' media: https: blob:",
-        "font-src 'self' data:",
-        "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.openai.com https://*.run.app https://api.youtube.com https://www.googleapis.com https://generativelanguage.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.openai.com https://*.run.app https://api.youtube.com https://www.googleapis.com https://generativelanguage.googleapis.com",
         "frame-src 'self' https://js.stripe.com https://*.stripe.com",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",
+        // D5: Mixed-Content blocken, Clickjacking-Schutz
+        "upgrade-insecure-requests",
+        "frame-ancestors 'none'",
       ].join('; ');
       callback({
         responseHeaders: {

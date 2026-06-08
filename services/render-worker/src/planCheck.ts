@@ -5,10 +5,10 @@
  * Adressiert SECURITY_AUDIT P0-2: Mobile-Paywall war client-only, ein User
  * mit gültigem JWT konnte via curl unlimited 4K-Renders ausführen.
  *
- * Plan-Limits (sync gehalten mit `supabase/migrations/003_creator_limit_50.sql`):
+ * Plan-Limits (sync gehalten mit `supabase/migrations/006_pro_limit_100.sql`):
  *   inactive/no-sub:  0 renders     → subscription_required
  *   creator:          50 renders    max 1080p (kein 4K)
- *   pro:              200 renders   4K OK
+ *   pro:              100 renders   4K OK
  *
  * Lifetime ist Desktop-only (lokales FFmpeg, kein Worker-Render). User mit
  * lifetime-flag aber ohne aktive creator/pro Sub bekommen 0 Renders (Mobile
@@ -78,8 +78,31 @@ export async function checkAndIncrementRenderQuota(
 }
 
 /**
- * Optional: für Endpunkte die KEINEN render machen (z.B. /v1/transcribe).
- * Hier wollen wir auch limitieren, aber keinen Counter incrementen — daher
- * nur Plan-Lookup ohne Update. (TODO: separate RPC oder direkt subscriptions
- * lesen. Vorerst skippen — transcribe nutzt eigene rate-limits.)
+ * Audit-H-3 (2026-06-05): Leichtes Abo-Gate für Endpunkte die KEINEN Render-
+ * Counter brauchen (/v1/transcribe, /v1/download), aber trotzdem nur zahlenden
+ * Usern offenstehen sollen. Ohne dieses Gate konnte ein Free-Account mit
+ * gültigem JWT Cloud-Run-CPU (Audio-Extract / yt-dlp) im Rate-Limit-Takt
+ * abusen — reine Fisora-Kosten ohne Revenue-Bindung.
+ *
+ * Liest `subscriptions` direkt via service_role (Worker bypasst RLS), KEIN
+ * Increment. Logik gespiegelt zur Quota-RPC: status active/trialing +
+ * plan ∈ {creator,pro} + current_period_end in der Zukunft (oder NULL =
+ * unbefristet, z.B. lifetime). Bei Fehler/keiner Row → false (fail-closed).
  */
+export async function hasActiveSubscription(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('plan, status, current_period_end')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) return false;
+  const statusOk = data.status === 'active' || data.status === 'trialing';
+  const planOk = data.plan === 'creator' || data.plan === 'pro';
+  const periodOk =
+    !data.current_period_end ||
+    new Date(data.current_period_end as string) > new Date();
+  return statusOk && planOk && periodOk;
+}

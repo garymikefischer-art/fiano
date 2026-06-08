@@ -1,5 +1,8 @@
 appId: app.fiano.video
-productName: fiano
+# productName: "Fisora" als Display-Name + .app-Filename.
+# appId bleibt "app.fiano.video" damit electron-updater Auto-Updates für
+# existing Installs weiterhin funktionieren (appId = Update-Identität).
+productName: Fisora
 directories:
   output: dist
   buildResources: build

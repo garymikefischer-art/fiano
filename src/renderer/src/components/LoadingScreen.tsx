@@ -20,7 +20,7 @@ export function LoadingScreen() {
 
       <div className="relative flex flex-col items-center gap-7 animate-fade-in">
         {/* fiano Wortmarke mit pulsierendem Glow */}
-        <FisoraLogo className="h-40 w-auto animate-glow-pulse" />
+        <FisoraLogo className="h-28 w-auto animate-glow-pulse" />
 
         {/* Indeterminate Progress-Bar */}
         <div className="w-40 h-[2px] rounded-full bg-white/[0.06] overflow-hidden relative">

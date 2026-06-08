@@ -42,7 +42,9 @@ function ensureHandler(N: NotificationsModule) {
   handlerConfigured = true;
   N.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      // SDK 53: shouldShowAlert wurde in shouldShowBanner + shouldShowList aufgeteilt.
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: false,
       shouldSetBadge: true,
     }),

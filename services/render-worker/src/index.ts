@@ -28,7 +28,7 @@ import path from 'node:path';
 import { authMiddleware, type AuthedRequest } from './auth.js';
 import { runFFmpeg } from './render.js';
 import { validateAssContent } from './assValidator.js';
-import { checkAndIncrementRenderQuota } from './planCheck.js';
+import { checkAndIncrementRenderQuota, hasActiveSubscription } from './planCheck.js';
 import { buildTikTokExportArgs } from './ffmpegArgs.js';
 import { validateRenderSpec, specToTikTokOpts, type ClientRenderSpec } from './renderSpec.js';
 import { renderSubtitleCueToPng } from './subtitleCanvas.js';
@@ -36,6 +36,7 @@ import {
   createOutputDownloadUrl,
   createUploadUrlForKey,
   downloadToFile,
+  MAX_UPLOAD_BYTES,
   uploadFile,
 } from './r2.js';
 import { downloadVideo, isAllowedUrl } from './youtube.js';
@@ -207,7 +208,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
   const userId = req.userId!;
 
   try {
-    const { inputs, args, spec, projectId, outputName } = req.body as {
+    const { inputs, spec, projectId, outputName } = req.body as {
       inputs?: {
         source?: string;
         /** Phase 9.5.8: Multi-Clip-Sources (alternative zu `source`). */
@@ -220,10 +221,9 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
         /** Phase C5 (2026-05-19): Watermark-Image für Overlay. */
         watermark?: string;
       };
-      /** Legacy (deprecated): pre-built FFmpeg args. */
-      args?: string[];
       /** Phase A6.4 (2026-05-18): typed RenderSpec. Worker baut args[]
-       *  selber → keine Command-Injection via args[] möglich. */
+       *  selber → keine Command-Injection. Audit-H-1 (2026-06-05): der alte
+       *  rohe args[]-Pfad wurde komplett entfernt (FFmpeg-Arg-Injection-Vektor). */
       spec?: unknown;
       projectId?: string;
       outputName?: string;
@@ -243,18 +243,16 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
         error: 'inputs.source or inputs.sources + projectId required',
       });
     }
-    // Phase A6.4: entweder spec ODER args muss vorhanden sein. Beide
-    // optional, aber genau einer. Neue Clients nutzen spec (typed +
-    // sicher), legacy clients dürfen weiterhin args[] schicken
-    // (deprecated, wird in einer späteren Phase entfernt).
-    if (!spec && !args) {
+    // Audit-H-1 (2026-06-05): NUR der typed spec-Pfad ist erlaubt. Der frühere
+    // legacy args[]-Pfad erlaubte rohe FFmpeg-Argumente (z.B.
+    // `-i /proc/self/environ` → service_role-Key-Exfiltration). Der Mobile-
+    // Client schickt seit A6.4 ausschließlich `spec` (renderJob.ts) — es gibt
+    // keinen legitimen args[]-Consumer mehr.
+    if (!spec) {
       return res.status(400).json({
         ok: false,
-        error: 'spec (typed) or args[] required',
+        error: 'spec (typed RenderSpec) required',
       });
-    }
-    if (args && (!Array.isArray(args) || args.length > 400)) {
-      return res.status(400).json({ ok: false, error: 'args invalid' });
     }
     // Ownership-Check: alle keys müssen mit `sources/${userId}/` starten.
     const allKeys: string[] = [
@@ -283,17 +281,9 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     // Resolution-Detection: bei spec-flow direkt aus spec.width/height,
     // bei legacy args-flow via regex auf scale=W:H im filter_complex.
     let requestedResolution: '720p' | '1080p' | '4k' = '1080p';
-    if (spec && typeof spec === 'object' && spec !== null) {
+    if (spec && typeof spec === 'object') {
       const s = spec as { width?: number; height?: number };
       const maxDim = Math.max(s.width ?? 0, s.height ?? 0);
-      requestedResolution = maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
-    } else if (args) {
-      const argsJoined = args.join(' ');
-      const scaleMatches = [...argsJoined.matchAll(/scale=(\d+):(\d+)/g)];
-      let maxDim = 0;
-      for (const m of scaleMatches) {
-        maxDim = Math.max(maxDim, parseInt(m[1], 10), parseInt(m[2], 10));
-      }
       requestedResolution = maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
     }
 
@@ -330,7 +320,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // Builder-Phase-3 (per-source-trim, einheitliche indizierte Platzhalter
       // auch bei 1 source).
       const sourceTmp = path.join(tmpdir(), `${jobId}-src.mp4`);
-      await downloadToFile(sources[0], sourceTmp);
+      await downloadToFile(sources[0], sourceTmp, { maxBytes: MAX_UPLOAD_BYTES.source });
       replaceMap['{SRC}'] = sourceTmp;
       replaceMap['{SRC_0}'] = sourceTmp;
       tmpFiles.push(sourceTmp);
@@ -338,7 +328,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // Multi-Clip: {SRC_0}, {SRC_1}, ... Platzhalter.
       for (let i = 0; i < sources.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-src-${i}.mp4`);
-        await downloadToFile(sources[i], tmp);
+        await downloadToFile(sources[i], tmp, { maxBytes: MAX_UPLOAD_BYTES.source });
         replaceMap[`{SRC_${i}}`] = tmp;
         tmpFiles.push(tmp);
       }
@@ -346,7 +336,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
 
     if (inputs?.intro) {
       const introTmp = path.join(tmpdir(), `${jobId}-intro.mp4`);
-      await downloadToFile(inputs.intro, introTmp);
+      await downloadToFile(inputs.intro, introTmp, { maxBytes: MAX_UPLOAD_BYTES.intro });
       replaceMap['{INTRO}'] = introTmp;
       tmpFiles.push(introTmp);
     }
@@ -354,7 +344,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     if (inputs?.music?.length) {
       for (let i = 0; i < inputs.music.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-music-${i}.mp3`);
-        await downloadToFile(inputs.music[i], tmp);
+        await downloadToFile(inputs.music[i], tmp, { maxBytes: MAX_UPLOAD_BYTES.music });
         replaceMap[`{MUSIC_${i}}`] = tmp;
         tmpFiles.push(tmp);
       }
@@ -363,7 +353,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     if (inputs?.voiceOvers?.length) {
       for (let i = 0; i < inputs.voiceOvers.length; i++) {
         const tmp = path.join(tmpdir(), `${jobId}-vo-${i}.mp3`);
-        await downloadToFile(inputs.voiceOvers[i], tmp);
+        await downloadToFile(inputs.voiceOvers[i], tmp, { maxBytes: MAX_UPLOAD_BYTES['voice-over'] });
         replaceMap[`{VO_${i}}`] = tmp;
         tmpFiles.push(tmp);
       }
@@ -374,7 +364,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // damit FFmpeg den richtigen decoder wählt (.png vs .jpg).
       const ext = inputs.watermark.match(/\.(png|jpg|jpeg)$/i)?.[1] ?? 'png';
       const wmTmp = path.join(tmpdir(), `${jobId}-watermark.${ext}`);
-      await downloadToFile(inputs.watermark, wmTmp);
+      await downloadToFile(inputs.watermark, wmTmp, { maxBytes: MAX_UPLOAD_BYTES.watermark });
       replaceMap['{WATERMARK}'] = wmTmp;
       tmpFiles.push(wmTmp);
     }
@@ -383,7 +373,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       // Phase 9.6.7h: libass burn-in. .ass-Datei nach /tmp/, Platzhalter {ASS}
       // wird im filter-arg ass=${path}:original_size=WxH ersetzt.
       const assTmp = path.join(tmpdir(), `${jobId}-subs.ass`);
-      await downloadToFile(inputs.subtitle, assTmp);
+      await downloadToFile(inputs.subtitle, assTmp, { maxBytes: MAX_UPLOAD_BYTES.subtitle });
       // Phase A6.2 (2026-05-18): Server-side .ass content-validation gegen
       // libass DoS / fontconfig path-traversal. Defense-in-depth: Mobile
       // validiert auch vor Upload, aber Worker re-validates da R2-content
@@ -407,69 +397,49 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     const outputTmp = path.join(tmpdir(), `${jobId}-out.mp4`);
     replaceMap['{DST}'] = outputTmp;
 
-    // ── 2. Args bauen — Phase A6.4: spec-Pfad oder legacy args-Pfad ──
-    // Spec-Pfad: validiere RenderSpec, baue args[] selber → keine FFmpeg-
-    // Argument-Injection möglich (Worker hat volle Kontrolle).
-    // Args-Pfad (deprecated): legacy clients schicken pre-built args mit
-    // Platzhaltern, Worker substituiert sie.
-    let finalArgs: string[];
-    // Phase D1 (2026-05-20): validatedSpec wird gehoisted damit der
-    // subtitlePng-2-Pass nach dem Pass-1-Render auf v.spec.subtitlePng
-    // zugreifen kann.
-    let validatedSpec: ClientRenderSpec | undefined;
-    if (spec) {
-      const v = validateRenderSpec(spec);
-      if (!v.ok) {
-        console.warn(`[${jobId}] spec validation failed: ${v.error}`);
-        return res.status(400).json({
-          ok: false,
-          jobId,
-          error: `spec invalid: ${v.error}`,
-        });
-      }
-      validatedSpec = v.spec;
-      // Sammle resolved-Pfade in derselben Reihenfolge wie das spec sie
-      // erwartet (sources[]-Index → /tmp/jobId-src-N.mp4).
-      const sourcePaths: string[] = [];
-      if (sources.length === 1) {
-        sourcePaths.push(replaceMap['{SRC_0}']!);
-      } else {
-        for (let i = 0; i < sources.length; i++) {
-          sourcePaths.push(replaceMap[`{SRC_${i}}`]!);
-        }
-      }
-      const musicPaths: string[] = [];
-      for (let i = 0; i < (inputs?.music?.length ?? 0); i++) {
-        musicPaths.push(replaceMap[`{MUSIC_${i}}`]!);
-      }
-      const voPaths: string[] = [];
-      for (let i = 0; i < (inputs?.voiceOvers?.length ?? 0); i++) {
-        voPaths.push(replaceMap[`{VO_${i}}`]!);
-      }
-      const opts = specToTikTokOpts(v.spec, {
-        sources: sourcePaths,
-        dst: outputTmp,
-        intro: replaceMap['{INTRO}'],
-        music: musicPaths,
-        voiceOvers: voPaths,
-        assPath: replaceMap['{ASS}'],
-        watermark: replaceMap['{WATERMARK}'],
-      });
-      finalArgs = buildTikTokExportArgs(opts, 'other');
-    } else {
-      // Legacy args[]-Pfad (deprecated): substitute placeholders.
-      finalArgs = args!.map((a) => {
-        const s = String(a);
-        if (replaceMap[s]) return replaceMap[s];
-        let out = s;
-        for (const [token, real] of Object.entries(replaceMap)) {
-          if (out.includes(token)) {
-            out = out.split(token).join(real);
-          }
-        }
-        return out;
+    // ── 2. Args bauen — Phase A6.4 + Audit-H-1: NUR typed spec-Pfad ──
+    // Worker validiert die RenderSpec (Allow-List + Clamping in renderSpec.ts)
+    // und baut args[] selbst → keine FFmpeg-Argument-Injection möglich. Der
+    // alte rohe args[]-Pfad wurde entfernt (Audit-H-1, 2026-06-05).
+    const v = validateRenderSpec(spec);
+    if (!v.ok) {
+      console.warn(`[${jobId}] spec validation failed: ${v.error}`);
+      return res.status(400).json({
+        ok: false,
+        jobId,
+        error: `spec invalid: ${v.error}`,
       });
     }
+    // validatedSpec wird für den subtitlePng-Pass-2 (unten) wiederverwendet.
+    const validatedSpec: ClientRenderSpec = v.spec;
+    // Sammle resolved-Pfade in derselben Reihenfolge wie das spec sie
+    // erwartet (sources[]-Index → /tmp/jobId-src-N.mp4).
+    const sourcePaths: string[] = [];
+    if (sources.length === 1) {
+      sourcePaths.push(replaceMap['{SRC_0}']!);
+    } else {
+      for (let i = 0; i < sources.length; i++) {
+        sourcePaths.push(replaceMap[`{SRC_${i}}`]!);
+      }
+    }
+    const musicPaths: string[] = [];
+    for (let i = 0; i < (inputs?.music?.length ?? 0); i++) {
+      musicPaths.push(replaceMap[`{MUSIC_${i}}`]!);
+    }
+    const voPaths: string[] = [];
+    for (let i = 0; i < (inputs?.voiceOvers?.length ?? 0); i++) {
+      voPaths.push(replaceMap[`{VO_${i}}`]!);
+    }
+    const opts = specToTikTokOpts(v.spec, {
+      sources: sourcePaths,
+      dst: outputTmp,
+      intro: replaceMap['{INTRO}'],
+      music: musicPaths,
+      voiceOvers: voPaths,
+      assPath: replaceMap['{ASS}'],
+      watermark: replaceMap['{WATERMARK}'],
+    });
+    const finalArgs = buildTikTokExportArgs(opts, 'other');
 
     // Phase A6.5 (2026-05-18): finalArgs nicht mehr loggen — enthielt
     // user file paths + filter strings (PII-Risk in Cloud Logging).
@@ -647,6 +617,11 @@ app.post('/v1/download', authMiddleware(supabase), limitDownload, async (req: Au
       .status(400)
       .json({ ok: false, error: 'Only YouTube and Twitch URLs are supported' });
   }
+  // Audit-H-3 (2026-06-05): Abo-Gate — yt-dlp (bis 480s/500MB) ist Fisora-
+  // Cloud-Cost. Nur aktive Creator/Pro-User, sonst Free-Account-Abuse.
+  if (!(await hasActiveSubscription(supabase, userId))) {
+    return res.status(402).json({ ok: false, error: 'subscription_required' });
+  }
 
   const tmpPath = path.join(tmpdir(), `${jobId}-yt.mp4`);
 
@@ -721,12 +696,19 @@ app.post('/v1/transcribe', authMiddleware(supabase), limitTranscribe, async (req
   }
   const mode = videoType === 'gaming' || videoType === 'podcast' ? videoType : 'auto';
 
+  // Audit-H-3 (2026-06-05): Abo-Gate — Audio-Extract (Download bis 1GB + FFmpeg-
+  // CPU) ist Fisora-Cost. Whisper zahlt zwar der User (eigener Key), aber den
+  // Extract nur aktiven Creator/Pro-Usern erlauben, sonst Free-Account-Abuse.
+  if (!(await hasActiveSubscription(supabase, userId))) {
+    return res.status(402).json({ ok: false, error: 'subscription_required' });
+  }
+
   const sourceTmp = path.join(tmpdir(), `${jobId}-transcribe-src.mp4`);
 
   try {
     // Phase A6.5: sourceKey enthält user-uuid; nur hash für log.
     console.log(`[${jobId}] transcribe user=${userId} mode=${mode}`);
-    await downloadToFile(sourceKey, sourceTmp);
+    await downloadToFile(sourceKey, sourceTmp, { maxBytes: MAX_UPLOAD_BYTES.source });
     const result = await transcribeAudio({
       sourcePath: sourceTmp,
       openaiApiKey,

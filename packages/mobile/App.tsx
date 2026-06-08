@@ -5,7 +5,7 @@
  * navigiert zwischen Auth-Stack und App-Stack basierend auf Login-State.
  */
 
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -21,11 +21,13 @@ import { useAppStore } from './src/stores/appStore';
 import { useNotificationsStore } from './src/stores/notificationsStore';
 import { useProjectsStore } from './src/stores/projectsStore';
 import { supabase } from './src/lib/supabase';
-import { initLanguage } from './src/lib/i18n';
+import { initLanguage, useT } from './src/lib/i18n';
 import { initSounds, appStart as playAppStart } from './src/lib/sounds';
 import { UpgradeModal } from './src/components/UpgradeModal';
-import { AppAlertHost } from './src/components/AppAlert';
+import { AppAlertHost, appAlert } from './src/components/AppAlert';
 import { initThumbnailBackfill } from './src/lib/thumbnails';
+import { configurePurchases } from './src/lib/iap';
+import { otaEnabled, useOtaDownloadedPrompt } from './src/lib/updates';
 import { useColors, useResolvedMode } from './src/lib/theme';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -61,6 +63,27 @@ console.error = (...args: unknown[]) => {
   if (SILENCED_WARNINGS.some((p) => msg.includes(p))) return;
   originalConsoleError(...args);
 };
+
+/**
+ * Zeigt EINMALIG ein bestätigendes Popup, sobald ein OTA-Update im Hintergrund
+ * fertig geladen wurde (Fix 2026-06-05). Wird nur in Production/Preview-Builds
+ * gemountet (otaEnabled) → in Dev-Builds greift useUpdates() nicht. Kein Auto-
+ * Reload (white-screen SDK 52) — der Hinweis bittet um manuellen Kaltstart.
+ */
+function OtaUpdateWatcher() {
+  const t = useT();
+  const onDownloaded = useCallback(() => {
+    appAlert(
+      t('settings.updateReadyTitle', 'Update ready'),
+      t(
+        'settings.updateReadyBody',
+        'Update downloaded. Fully close Fisora (swipe it from recent apps) and reopen it — the update applies on the next start.',
+      ),
+    );
+  }, [t]);
+  useOtaDownloadedPrompt(onDownloaded);
+  return null;
+}
 
 export default function App() {
   const initAuth = useAuthStore((s) => s.init);
@@ -104,6 +127,11 @@ export default function App() {
     void initApp();
     void initNotifications();
     void initProjects();
+    // M5 (2026-06-05): RevenueCat einmal beim Start konfigurieren (anonym).
+    // authStore.init/onAuthStateChange ruft danach Purchases.logIn(userId),
+    // sobald die Supabase-Session geladen ist. configurePurchases ist idempotent
+    // + degradiert sauber wenn kein gültiger Key / Native-Modul fehlt (Expo Go).
+    configurePurchases();
     initAuth();
     void initSounds().then(() => playAppStart());
     // Phase A2: Thumbnail-Backfill für alte Library-Cards ohne thumbUri.
@@ -173,6 +201,9 @@ export default function App() {
           {/* Phase A6.3.7 (2026-05-18): custom-styled Alert. Drop-in für
               RN's Alert.alert(), aber in fiano-Design. */}
           <AppAlertHost />
+          {/* Fix (2026-06-05): bestätigendes Popup, wenn der ON_LOAD-Auto-Check
+              ein OTA-Update im Hintergrund geladen hat. Nur in OTA-Builds. */}
+          {otaEnabled && <OtaUpdateWatcher />}
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>

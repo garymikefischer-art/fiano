@@ -123,12 +123,12 @@ const FIELD_PLACEHOLDERS: Record<Genre, { background: string; effects: string; w
 // Hardcoded Custom-Style-Defaults für 'comic' und 'realistic' (mit Markennamen —
 // User-bewusste Wahl mit Disclaimer). Direkt portiert aus Desktop.
 const COMIC_STYLE_DEFAULTS = {
-  background: 'Painted Palms, daylight, stink bomb explosion, yellow gas clouds spreading through desert buildings, debris, depth of field.',
+  background: 'abandoned tropical resort town, daylight, stink bomb explosion, yellow gas clouds spreading through buildings, debris, depth of field.',
   effects: 'Strong rim light, toxic yellow glow, volumetric gas, cinematic.',
   weapons: 'futuristic rifle with skin',
 };
 const REALISTIC_STYLE_DEFAULTS = {
-  background: 'Verdansk Dam area, daylight, massive water-side explosion, shockwave, spray mist, debris, smoke pillars, bullet tracers, depth of field.',
+  background: 'large dam and reservoir, daylight, massive water-side explosion, shockwave, spray mist, debris, smoke pillars, bullet tracers, depth of field.',
   effects: 'Strong rim light, sunlight + water reflections, cool shadows, volumetric smoke, particles, high contrast, cinematic.',
   weapons: 'tactical assault rifle in hand',
 };
@@ -194,15 +194,16 @@ const GENRE_PROMPTS: Record<Genre, { intro: string; eyes: string; faceDetails: s
  */
 function buildPrompt(
   genre: Genre,
-  fields: { background: string; effects: string; weapons: string },
+  fields: { background: string; effects: string; weapons: string; skin: string },
   customGameName: string,
   customStyle: CustomStyle,
 ): string {
   // Custom-Mode mit Hardcoded-Styles
   if (genre === 'custom' && customStyle === 'comic') {
-    const game = customGameName.trim() || 'Fortnite';
+    const game = customGameName.trim() || 'a video game of your choice';
+    const skin = fields.skin.trim() || 'an esport-style operator';
     return `Create a highly realistic YouTube thumbnail inspired by ${game}.
-Elite operator styled as Siren skin (esport sweat), ${game} outfit, no helmet. Ultra close-up (Dutch tilt).
+Elite operator styled as ${skin} (esport sweat), ${game} outfit, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
@@ -218,12 +219,14 @@ EFFECTS:
 ${fields.effects.trim() || COMIC_STYLE_DEFAULTS.effects}
 WEAPONS/SKINS:
 ${fields.weapons.trim() || COMIC_STYLE_DEFAULTS.weapons}
+RESTRICTIONS:
+Do not include game logos, HUD, watermarks or exact copyrighted characters — original design.
 STYLE:
 Ultra-realistic, NO TEXT.`;
   }
 
   if (genre === 'custom' && customStyle === 'realistic') {
-    const game = customGameName.trim() || 'Call of Duty: Warzone (Verdansk)';
+    const game = customGameName.trim() || 'a video game of your choice';
     const weaponsBlock = fields.weapons.trim() ? `\nWEAPONS/SKINS:\n${fields.weapons.trim()}\n` : '';
     return `Create a highly realistic YouTube thumbnail inspired by ${game}.
 Elite special forces operator, dark tactical gear, no helmet. Ultra close-up (cinematic action tilt, slight zoom-in), face dominant, slightly off-center, aggressive forward-leaning pose.
@@ -240,7 +243,9 @@ BACKGROUND:
 ${fields.background.trim() || REALISTIC_STYLE_DEFAULTS.background}
 EFFECTS:
 ${fields.effects.trim() || REALISTIC_STYLE_DEFAULTS.effects}
-${weaponsBlock}STYLE:
+${weaponsBlock}RESTRICTIONS:
+Do not include game logos, HUD, watermarks or exact copyrighted characters — original design.
+STYLE:
 Ultra-realistic, no text`;
   }
 
@@ -289,6 +294,7 @@ export function ThumbnailGeneratorScreen() {
   const [background, setBackground] = useState('');
   const [effects, setEffects] = useState('');
   const [weapons, setWeapons] = useState('');
+  const [skin, setSkin] = useState('');
   const [customGameName, setCustomGameName] = useState('');
   const [refImageBase64, setRefImageBase64] = useState<string | null>(null);
   const [refImageUri, setRefImageUri] = useState<string | null>(null);
@@ -299,6 +305,10 @@ export function ThumbnailGeneratorScreen() {
 
   const history = project?.thumbnailHistory ?? [];
   const placeholders = FIELD_PLACEHOLDERS[genre];
+  // Pflichtfelder im Custom-Genre: Spielname + Background (User-Eingabe statt
+  // markenbehafteter Defaults). Genre-Presets bleiben optional.
+  const missingRequired =
+    genre === 'custom' && (!customGameName.trim() || !background.trim());
 
   const pickReferenceImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -337,7 +347,7 @@ export function ThumbnailGeneratorScreen() {
     try {
       const prompt = buildPrompt(
         genre,
-        { background, effects, weapons },
+        { background, effects, weapons, skin },
         customGameName,
         customStyle,
       );
@@ -626,18 +636,13 @@ export function ThumbnailGeneratorScreen() {
                   );
                 })}
               </View>
-              {customStyle !== 'default' && (
-                <Text style={{ color: '#fbbf24', fontSize: 10, lineHeight: 14 }}>
-                  ⚠ {customStyle === 'comic' ? 'Comic' : 'Realistic'} preset uses hardcoded references to real games (Fortnite / Warzone). You are responsible for trademark compliance.
-                </Text>
-              )}
             </View>
             <View style={{ gap: 6 }}>
-              <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>CUSTOM GAME NAME (OPTIONAL)</Text>
+              <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>CUSTOM GAME NAME *</Text>
               <TextInput
                 value={customGameName}
                 onChangeText={setCustomGameName}
-                placeholder="e.g. Fortnite, Warzone, Valorant — type your own"
+                placeholder="Type your own"
                 placeholderTextColor="#52525b"
                 style={[INPUT_STYLE, { color: colors.text.primary, backgroundColor: colors.bg.elevated, borderColor: colors.border.subtle }]}
               />
@@ -645,12 +650,24 @@ export function ThumbnailGeneratorScreen() {
                 Using a real game name? You are responsible for trademark compliance.
               </Text>
             </View>
+            {customStyle === 'comic' && (
+              <View style={{ gap: 6 }}>
+                <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>SKIN / CHARACTER LOOK</Text>
+                <TextInput
+                  value={skin}
+                  onChangeText={setSkin}
+                  placeholder="e.g. your character look (optional)"
+                  placeholderTextColor="#52525b"
+                  style={[INPUT_STYLE, { color: colors.text.primary, backgroundColor: colors.bg.elevated, borderColor: colors.border.subtle }]}
+                />
+              </View>
+            )}
           </>
         )}
 
         {/* Prompt-Fields */}
         <View style={{ gap: 6 }}>
-          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>BACKGROUND</Text>
+          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>{`BACKGROUND${genre === 'custom' ? ' *' : ''}`}</Text>
           <TextInput
             value={background}
             onChangeText={setBackground}
@@ -674,7 +691,7 @@ export function ThumbnailGeneratorScreen() {
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>WEAPONS / SKINS / FOREGROUND</Text>
+          <Text style={[SECTION_LABEL, { color: colors.text.secondary }]}>WEAPONS / FOREGROUND</Text>
           <TextInput
             value={weapons}
             onChangeText={setWeapons}
@@ -746,7 +763,7 @@ export function ThumbnailGeneratorScreen() {
         {/* Generate Button */}
         <Pressable
           onPress={onGenerate}
-          disabled={busy || !geminiKey?.trim()}
+          disabled={busy || !geminiKey?.trim() || missingRequired}
           style={({ pressed }) => ({
             flexDirection: 'row',
             alignItems: 'center',
@@ -754,12 +771,12 @@ export function ThumbnailGeneratorScreen() {
             gap: 8,
             paddingVertical: 14,
             borderRadius: 12,
-            backgroundColor: busy || !geminiKey?.trim()
+            backgroundColor: busy || !geminiKey?.trim() || missingRequired
               ? colors.bg.elevated
               : pressed
                 ? '#cc0d2e'
                 : '#ff1039',
-            opacity: busy || !geminiKey?.trim() ? 0.5 : 1,
+            opacity: busy || !geminiKey?.trim() || missingRequired ? 0.5 : 1,
             marginTop: 4,
           })}
         >

@@ -9,21 +9,27 @@
  * mobile i18n in einer eigenen Phase aktiviert wird).
  */
 
-import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, StatusBar as RNStatusBar } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View, StatusBar as RNStatusBar } from 'react-native';
+import type { PurchasesOffering } from 'react-native-purchases';
 import { appAlert } from '../components/AppAlert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
 import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
-import { supabase } from '../lib/supabase';
-import { ENV } from '../lib/env';
+import {
+  getCurrentOffering,
+  packageForPlan,
+  purchase,
+  restore,
+  iapAvailable,
+  getManagementUrl,
+} from '../lib/iap';
 import { useT } from '../lib/i18n';
 import { useColors } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
@@ -105,7 +111,35 @@ export function PricingScreen() {
   const subscription = useAuthStore((s) => s.subscription);
   const signOut = useAuthStore((s) => s.signOut);
   const fetchSubscription = useAuthStore((s) => s.fetchSubscription);
+  const applyIapCustomerInfo = useAuthStore((s) => s.applyIapCustomerInfo);
   const [busy, setBusy] = useState<PlanId | null>(null);
+
+  // M5 (2026-06-05): RevenueCat-Offering `default` beim Mount laden. Liefert
+  // die lokalisierten Store-Preise (inkl. lokaler Steuer) + verfügbare Packages.
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null);
+  const [offeringLoading, setOfferingLoading] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const off = await getCurrentOffering();
+      if (alive) {
+        setOffering(off);
+        setOfferingLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Store-Preis für einen Plan (lokalisiert, inkl. Steuer) — Fallback auf den
+  // hardcoded PLANS-Preis bis das Offering geladen ist.
+  const priceFor = (id: PlanId): string => {
+    const fallback = PLANS.find((p) => p.id === id)?.price ?? '';
+    if (!offering) return fallback;
+    const pkg = packageForPlan(offering, id);
+    return pkg?.product.priceString ?? fallback;
+  };
 
   // Phase R10 (Bug-3): "current plan" (grüne Karte) nur wenn der Status auch aktiv ist — sonst stand fälschlich grün "current plan" bei inaktivem/abgelaufenem Abo.
   const subActive =
@@ -117,81 +151,114 @@ export function PricingScreen() {
   // Plan-Row existiert (unabhängig vom Status) — für Refresh-Button + Status-Diagnose.
   const hasPlanRow = subscription?.plan === 'creator' || subscription?.plan === 'pro';
 
-  // Phase A6.3.5 (2026-05-18): Stripe Checkout für Mobile via WebBrowser.
-  // Flow: Edge-Function /functions/v1/stripe-checkout returnt eine
-  // Checkout-URL. Mobile öffnet die in einem ASWebAuthSession (in-app
-  // browser), Stripe redirected nach Bezahlung zu fiano://stripe-success.
-  // Webhook (existing) updated parallel die subscriptions-Tabelle.
-  // Nach success: fetchSubscription → Paywall-Gate öffnet automatisch.
-  //
-  // ⚠️ Für iOS App-Store-Submit später (Phase D3): Apple verlangt IAP
-  //   für digitale Subs. Stripe-Checkout-Web ist nur Android-tauglich +
-  //   für TestFlight/Sideload. RevenueCat IAP folgt in D3.
-  const onCheckout = async (plan: PlanDef) => {
-    setBusy(plan.id);
-    try {
-      const session = await supabase.auth.getSession();
-      const accessToken = session.data.session?.access_token;
-      if (!accessToken) {
-        throw new Error('Not authenticated');
-      }
-      const successUrl = Linking.createURL('stripe-success');
-      const cancelUrl = Linking.createURL('stripe-cancel');
-      const res = await fetch(
-        `${ENV.SUPABASE_URL}/functions/v1/stripe-checkout`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            plan: plan.id,
-            success_url: successUrl,
-            cancel_url: cancelUrl,
-          }),
-        },
+  // M5 (2026-06-05): RevenueCat In-App-Purchase. Ersetzt den früheren Stripe-
+  // Web-Checkout — Google verlangt IAP für digitale Subs INNERHALB der Mobile-
+  // App (Desktop nutzt weiter Stripe, siehe PROJECT_SUMMARY §7a).
+  // Flow: Package aus dem geladenen Offering ziehen → purchasePackage öffnet den
+  // nativen Google-Play-Kauf-Dialog → bei Erfolg Entitlement sofort optimistisch
+  // lokal anwenden (Instant-Paywall-Open) + auf den RevenueCat-Webhook pollen,
+  // der die kanonische subscriptions-Row schreibt (gleiches Pattern wie Stripe).
+  const onPurchase = async (plan: PlanDef) => {
+    if (!iapAvailable()) {
+      appAlert(
+        t('pricing.iapUnavailableTitle', 'Purchases unavailable'),
+        t(
+          'pricing.iapUnavailableBody',
+          'In-app purchases are not available in this build. Please install Fisora from Google Play.',
+        ),
       );
-      const data = (await res.json().catch(() => ({}))) as {
-        url?: string;
-        error?: string;
-      };
-      if (!res.ok || !data.url) {
-        throw new Error(data.error ?? `HTTP ${res.status}`);
-      }
-      const result = await WebBrowser.openAuthSessionAsync(data.url, successUrl);
-      if (result.type === 'success') {
-        // Phase A6.3.6 (2026-05-18): Stripe redirected sofort, aber der
-        // Stripe-Webhook braucht 1-3s um die subscriptions-Table zu updaten
-        // (race condition). Wir pollen alle 1.5s bis status='active' ist
-        // (max 20s = 13 versuche), dann öffnet Paywall-Gate sich automatisch.
-        for (let i = 0; i < 13; i++) {
-          await new Promise((r) => setTimeout(r, 1500));
-          await fetchSubscription();
-          const latest = useAuthStore.getState().subscription;
-          if (
-            (latest?.status === 'active' || latest?.status === 'trialing') &&
-            (latest?.plan === 'creator' || latest?.plan === 'pro')
-          ) {
-            console.log('[PricingScreen] sub activated after poll iteration', i);
-            return;
-          }
-        }
-        // Fallback: webhook noch nicht durch — User soll manuell continue
-        // probieren oder paar Sekunden warten.
-        appAlert(
-          t('pricing.checkoutPendingTitle', 'Payment received'),
-          t(
-            'pricing.checkoutPending',
-            'Your payment was processed. Our system is still activating your subscription — tap "Refresh" below to check again.',
-          ),
-        );
-      }
-      // cancel oder dismiss: User landet wieder auf PricingScreen, kein Error.
-    } catch (err: any) {
+      return;
+    }
+    if (!offering) {
+      appAlert(
+        t('pricing.iapLoadingTitle', 'Please wait'),
+        t('pricing.iapLoadingBody', 'Products are still loading — try again in a moment.'),
+      );
+      return;
+    }
+    const pkg = packageForPlan(offering, plan.id);
+    if (!pkg) {
       appAlert(
         t('pricing.checkoutErrorTitle', 'Checkout failed'),
-        err?.message ?? String(err),
+        t('pricing.iapNoProduct', 'This plan is not available right now.'),
+      );
+      return;
+    }
+    setBusy(plan.id);
+    try {
+      // Plan-Wechsel: besteht schon ein aktives Abo, dessen Store-Produkt-ID
+      // mitgeben → Google ERSETZT das alte Abo statt ein zweites abzuschließen
+      // (Creator→Pro-Doppelabo-Fix 2026-06-08).
+      const oldProductId =
+        currentPlan && currentPlan !== plan.id
+          ? (packageForPlan(offering, currentPlan)?.product.identifier ?? null)
+          : null;
+      const result = await purchase(pkg, oldProductId);
+      if (result.userCancelled) return; // User hat abgebrochen — kein Fehler.
+      if (!result.ok) {
+        appAlert(
+          t('pricing.checkoutErrorTitle', 'Checkout failed'),
+          result.error ?? 'Purchase failed',
+        );
+        return;
+      }
+      // Erfolg: Entitlement sofort lokal anwenden (Paywall öffnet instant),
+      // dann auf den Webhook pollen der die kanonische subscriptions-Row schreibt
+      // (max 20s = 13 Versuche à 1.5s).
+      if (result.customerInfo) applyIapCustomerInfo(result.customerInfo);
+      for (let i = 0; i < 13; i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        await fetchSubscription();
+        const latest = useAuthStore.getState().subscription;
+        if (
+          (latest?.status === 'active' || latest?.status === 'trialing') &&
+          (latest?.plan === 'creator' || latest?.plan === 'pro')
+        ) {
+          return;
+        }
+      }
+      // Webhook noch nicht durch — das optimistische Entitlement bleibt aktiv;
+      // fetchSubscription beim nächsten App-Start korrigiert/bestätigt es.
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // M5: Käufe wiederherstellen — Google-Pflicht für IAP-Apps. Z.B. nach
+  // Neuinstallation oder Gerätewechsel; RevenueCat verknüpft anhand der
+  // App-User-ID (= Supabase-user_id) die vorhandenen Entitlements.
+  const onRestore = async () => {
+    if (!iapAvailable()) {
+      appAlert(
+        t('pricing.iapUnavailableTitle', 'Purchases unavailable'),
+        t(
+          'pricing.iapUnavailableBody',
+          'In-app purchases are not available in this build. Please install Fisora from Google Play.',
+        ),
+      );
+      return;
+    }
+    setBusy('creator');
+    try {
+      const result = await restore();
+      if (result.ok && result.customerInfo) {
+        applyIapCustomerInfo(result.customerInfo);
+        await fetchSubscription();
+      }
+      const latest = useAuthStore.getState().subscription;
+      const active =
+        (latest?.status === 'active' || latest?.status === 'trialing') &&
+        (latest?.plan === 'creator' || latest?.plan === 'pro');
+      appAlert(
+        active
+          ? t('pricing.restoreOkTitle', 'Purchases restored')
+          : t('pricing.restoreNoneTitle', 'Nothing to restore'),
+        active
+          ? t('pricing.restoreOkBody', 'Your subscription has been restored.')
+          : t(
+              'pricing.restoreNoneBody',
+              'We could not find an active subscription for this account.',
+            ),
       );
     } finally {
       setBusy(null);
@@ -356,9 +423,11 @@ export function PricingScreen() {
           <PlanCard
             key={plan.id}
             plan={plan}
+            price={priceFor(plan.id)}
+            priceLoading={offeringLoading}
             current={currentPlan === plan.id}
             busy={busy === plan.id}
-            onCheckout={() => onCheckout(plan)}
+            onPress={() => onPurchase(plan)}
             t={t}
           />
         ))}
@@ -403,8 +472,49 @@ export function PricingScreen() {
           </View>
         )}
 
+        {/* M5: Restore-Purchases — Google-Pflicht für IAP-Apps. */}
+        <Pressable
+          onPress={onRestore}
+          disabled={busy !== null}
+          hitSlop={8}
+          style={{ alignSelf: 'center', paddingVertical: 8, marginTop: 4 }}
+        >
+          <Text style={{ color: colors.text.tertiary, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>
+            {t('pricing.restorePurchases', 'Restore purchases')}
+          </Text>
+        </Pressable>
+
+        {/* Fix (2026-06-05): Kündigen/Verwalten lebt jetzt hier (aus den
+            Einstellungen hierher verschoben — dort war der Button zu prominent).
+            Google-Play-Abos sind NUR im Play Store kündbar (Google-Policy) →
+            Deep-Link via RevenueCat-managementURL, Fallback Play-Subscriptions-
+            Seite. Nur sichtbar bei aktivem Abo. */}
+        {subActive && (
+          <Pressable
+            onPress={async () => {
+              const url =
+                (await getManagementUrl()) ??
+                'https://play.google.com/store/account/subscriptions';
+              try {
+                await Linking.openURL(url);
+              } catch (e) {
+                appAlert(
+                  t('settings.account.manageOpenError', 'Could not open Google Play'),
+                  String(e),
+                );
+              }
+            }}
+            hitSlop={8}
+            style={{ alignSelf: 'center', paddingVertical: 8, marginTop: 2 }}
+          >
+            <Text style={{ color: colors.text.tertiary, fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>
+              {t('settings.account.cancelSub', 'Cancel / manage on Google Play')}
+            </Text>
+          </Pressable>
+        )}
+
         <Text style={{ color: '#52525b', fontSize: 11, textAlign: 'center', marginTop: 8, lineHeight: 16 }}>
-          {t('pricing.footnote')}
+          {t('pricing.footnoteIap')}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -413,15 +523,21 @@ export function PricingScreen() {
 
 function PlanCard({
   plan,
+  price,
+  priceLoading,
   current,
   busy,
-  onCheckout,
+  onPress,
   t,
 }: {
   plan: PlanDef;
+  /** Lokalisierter Store-Preis (RevenueCat), Fallback auf plan.price. */
+  price: string;
+  /** true solange das Offering noch lädt — zeigt einen Platzhalter statt Preis. */
+  priceLoading: boolean;
   current: boolean;
   busy: boolean;
-  onCheckout: () => void;
+  onPress: () => void;
   t: (k: string, f?: string) => string;
 }) {
   const colors = useColors();
@@ -482,7 +598,7 @@ function PlanCard({
 
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
         <Text style={{ color: colors.text.primary, fontSize: 32, fontWeight: '700', letterSpacing: -0.6 }}>
-          {plan.price}
+          {priceLoading ? '…' : price}
         </Text>
         <Text style={{ color: colors.text.tertiary, fontSize: 13 }}>{t(plan.periodKey)}</Text>
       </View>
@@ -515,7 +631,7 @@ function PlanCard({
       </View>
 
       <Pressable
-        onPress={onCheckout}
+        onPress={onPress}
         disabled={current || busy}
         style={({ pressed }) => ({
           marginTop: 4,

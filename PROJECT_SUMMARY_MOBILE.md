@@ -1,510 +1,183 @@
 # 📋 PROJECT SUMMARY — Fisora (Hybrid Desktop + Mobile + Cloud-Render)
 
-> **Stand: 2026-06-01** — Multi-Font ✅ + Multi-Weight-Picker ✅ + E4 Render-Sync ✅ + Creator-Limit 50 ✅ + Fisora-Rebrand ✅ + i18n Help/Legal ✅ + Icon-Shrink ✅
-> **Branch: `claude/edge-to-edge` HEAD `81994e4`** — NOCH NICHT in `main` gemerged. User merged via `git merge --no-ff`.
-> **Worker-Rev:** `fiano-render-worker-00051-hf2` (E4 Iter 9 deployed — alle Effekt-Skalierungen sync zur Preview, BT.709 Color, single-layer Glow, gradient-fallback).
-> **App-Version:** Mobile `0.0.2`. Desktop `v0.2.0`.
-> **Backup-Tags:** `pre-handoff-fisora-context-limit-20260601` (HEAD), `pre-fisora-rename-20260526`, `pre-handoff-context-limit-20260525`.
+> **Stand: 2026-06-08** — ✅ **BUILD 17 (Expo SDK 53) GEBAUT + 16-KB-VERIFIZIERT** (EAS `d3e7e0ae`, AAB lokal `~/Downloads/fisora-build17-v0.0.4-vc17.aab`, alle 42 nativen 64-bit-.so ≥0x4000-aligned). 🔴 **JETZT: AAB in Play Console hoch (Build 16 ersetzen) → Production einreichen → dann Vivo-Re-Test (SDK 52→53).** Davor erledigt: Trim-Bug · Update-Popup · Kündigen→Pricing · Thumbnails markenfrei · Builder „16:9" (alle OTA live auf SDK-52-runtime 0.0.3) · Desktop v0.2.3 (Mac+Win) GitHub · Cost-Cap · DPAs (Supabase signiert, Cloudflare-PDFs, R2-Lifecycle).
+> **Branch: `claude/edge-to-edge` · HEAD `d3a08a4`** — NICHT in `main` (User merged via `git merge --no-ff`). Diese Session SEHR viele Commits (Trim/UX/Thumbnail+Builder-De-Branding/Desktop 0.2.2+0.2.3/**SDK-53-Upgrade**).
+> **Worker-Rev (live):** `fiano-render-worker-00053-gnt` (unverändert).
+> **Mobile:** **Build 16 (vCode 16, v0.0.3, SDK 52)** in Production eingereicht — **wird wg. 16-KB ABGELEHNT** (Hard-Block seit 1.11.2025). **Build 17 (vCode 17, v0.0.4, SDK 53 = RN 0.79/React 19) = der 16-KB-Fix** → bauen + statt Build 16 ins Production-Release.
+> **Desktop:** **v0.2.3** (Mac+Win) GitHub-Release live.
 
-> 🔴 **SOFORT-NÄCHSTER SCHRITT (User-Action):**
-> 1. Google Play Console: **Datensicherheit-Form ausfüllen** (CSV-Template-Antworten in dieser Doku §7c)
-> 2. Google Play Console: **App-Icon hochgeladen** (assets/icon.png oder selbst gerendert), Listing-Texte einfügen (§7d)
-> 3. Supabase: Migration 003 (`creator_limit_50.sql`) ausführen + Edge Functions deployen (stripe-portal, stripe-checkout, delete-account)
-> 4. Resend: DKIM-DNS für `fisora.app` verifizieren
-> 5. **Multi-Font + Subtitle-Test on-device** (alle 20 Schriften + 5 Weights wechseln + Gradient/Stroke vergleichen Preview ↔ Export)
+> ✅ **BUILD 17 ERLEDIGT (2026-06-08):** EAS-Build `d3e7e0ae` (commit `cb326f0`) finished. KSP-Fix bestätigt (`:expo-updates:kspReleaseKotlin` lief durch, Default-Kotlin 2.0.21 ↔ passende KSP). AAB: `https://expo.dev/artifacts/eas/saFTciRW9kVJygKydMDSo7.aab` (lokal `~/Downloads/fisora-build17-v0.0.4-vc17.aab`, 68 MB). **16-KB lokal verifiziert** (NDK `llvm-readelf -lW`: alle 42 64-bit-.so LOAD-Align ≥0x4000 → Play-Block löst NICHT mehr aus). 🔴 **SOFORT IM NEUEN CHAT:** AAB in Play Console → Production-Release **bearbeiten/neu** (Build 16 durch 17 ersetzen) → einreichen. Danach voller Vivo-Re-Test (Video, IAP, Cloud-Render, Thumbnails, Subtitles) wg. SDK-Sprung 52→53.
+> ⚠️ **runtimeVersion-Falle:** Build 17 = v0.0.4 (runtime 0.0.4), **bewusst ≠** den SDK-52-OTAs (runtime 0.0.3) → kein inkompatibler OTA-Pull/Crash. Alle Fixes sind im Build-17-Binary (committed). Künftige SDK-53-OTAs müssen aus dem SDK-53-Code via `eas update` auf runtime **0.0.4** gepusht werden. EAS braucht `.npmrc` (`legacy-peer-deps=true`, schon committed) für `npm ci`.
 
 ---
 
-## 1. Architektur
-
+## 1. STACK
 | Plattform | Stack |
 |---|---|
-| **Desktop** | Electron 31 (CJS Main + Vite Renderer), TS strict, React 18 + Tailwind + Zustand, HashRouter, bundled FFmpeg/yt-dlp, electron-updater, Supabase, Stripe. 9 Sprachen. v0.2.0. |
-| **Mobile** | Expo SDK 52, RN 0.76 (New Arch), React-Navigation v7, Zustand, react-native-video v6, react-native-svg ~15.10, react-native-edge-to-edge, expo-av/font/haptics/localization/secure-store/document-picker/image-picker/video-thumbnails/notifications/blur/web-browser/linking/updates/navigation-bar, Supabase JS, reanimated 3.16, draggable-flatlist 4.0.3. Package: `app.fisora.video`. Scheme: `fisora://`. App-Name: `Fisora`. Slug: `fisora-mobile`. runtimeVersion-Policy `appVersion`. |
-| **Cloud-Render** | Google Cloud Run (Node 22 + Express + apt-ffmpeg + yt-dlp + fonts-liberation + @napi-rs/canvas + 60 Font-Familys: 20 Display + 10 Sans-Serif × 5 Weights). Cloudflare R2 (S3-API). GCP-Projekt `fiano-render-2026`. Service-Name `fiano-render-worker` (intern, nicht renamed). |
+| **Mobile** | **Expo SDK 53, RN 0.79, React 19** (New Arch) — *2026-06-08 von SDK 52/RN 0.76 hochgezogen für Android-16-KB.* React-Navigation v7, Zustand, react-native-video 6.19, react-native-purchases v10.2.2, reanimated 3.17, edge-to-edge. Package `app.fisora.video`, Scheme `fisora://`, Slug `fiano-mobile`, **versionCode 17, version 0.0.4** (runtime-Policy `appVersion`). ⚠️ Root-`package.json` darf KEIN `expo`/`react-native` enthalten (Hoisting-Konflikt Desktop-React-18 ↔ Mobile-React-19); `.npmrc` `legacy-peer-deps=true` nötig (EAS `npm ci`). EAS `27f6d175-…` (User `garyfischer`). |
+| **Desktop** | Electron 31 (CJS Main + Vite Renderer), React 18 + Tailwind + Zustand, bundled FFmpeg/yt-dlp/libass, electron-updater, Stripe. appId `app.fiano.video`, productName Fisora. v0.2.0. |
+| **Cloud-Render** | Google Cloud Run `fiano-render-worker` (Node 22 + Express + ffmpeg + yt-dlp + @napi-rs/canvas + 60 Fonts). GCP-Projekt `fiano-render-2026`. Cloudflare R2 (S3-API). |
+| **Backend** | Supabase `zibzcaknqzxgwootfjxc` (Site URL https://fisora.app). 5 Edge Functions, 9 Migrationen, RLS. |
+| **Zahlung** | Desktop=Stripe (LIVE). Mobile=**RevenueCat → Google Play IAP (LIVE, M5 fertig)**. RC-Projekt „Fisora Real". |
+| **Push** | Firebase FCM (Android only, Projekt `fiano-2bf11`). |
+| **Webseite** | world4you Apache, https://www.fisora.app. Source: `/Users/garyfischer/Downloads/claude-webseite-neu` (KEIN git → Backup als `claude-webseite-neu.bak-20260605`). |
 
-**Wichtige Systeme:**
-- **`media://` Custom-Protocol** (Desktop): lokale Video/Audio mit Range + path-validation.
-- **Job-Queue** (Desktop `core/queue.ts`): serialisiert FFmpeg, concurrency=1.
-- **IPC** (Desktop): typed `IpcResponse<T>`.
-- **Cloud-Render-API** (Mobile `lib/renderJob.ts`): Multi-File-Upload zu R2 (signed PUT) → typed RenderSpec → Worker.
-- **A6.4 Typed RenderSpec**: Mobile schickt typed JSON, Worker baut `args[]` selbst — NIE user-args[]. Neue Felder server-side allow-list-validieren (`renderSpec.ts`).
-- **Settings**: Mobile expo-secure-store, chunked-Adapter (1.9 KB/chunk) für Supabase-Session.
-
-**Cloud-Render-Pipeline:** `POST /v1/upload-url` → `PUT file` → R2 `sources/` → `POST /v1/render` (typed Spec) → **Pass 1** ffmpeg (Layout/Effekte/Audio) → **Pass 2** ffmpeg (PNG-Untertitel-Overlay via `@napi-rs/canvas`) → R2 `outputs/` → signed DL-URL. Plus `/v1/download` (yt-dlp), `/v1/transcribe` (Whisper).
-
-**Color-Pipeline (E4-Phase, 2026-05-26):**
-- Effekt-Skalierung: shared `resolveSubtitleEffectScale(canvasH) = canvasH / 720` synchron in Worker + Preview-Pfad → Stroke/Shadow/Glow proportional zur Schrift.
-- BT.709 Color-Metadata in beiden FFmpeg-Pässen (`-colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv`).
-- Preset `medium` statt `veryfast` für Subtitle-Encode.
-- Glow Single-Layer mit `fill = glowColor + alpha-hex` (statt 4-Pass-Multi-Layer) — matched Preview SVG.
-- Gradient-Range über 1.2 × fontSize (≈ glyph-bbox / Preview-SVG-objectBoundingBox).
-- Gradient/Shadow/Glow Fallback-Defaults exakt wie Preview (shadowBlur=4, offsetY=2, glowBlur=8, gradientFrom=textColor, gradientTo=#ff8c00) — Worker rendert auch wenn User nur enable-Toggle umlegt.
+- Worker-URL: `https://fiano-render-worker-491699066139.europe-west1.run.app`
+- Repo: `/Users/garyfischer/Downloads/fiano-monorepo` (GitHub `garymikefischer-art/fiano`)
+- Phone: Vivo V40 Lite, Android 15, `ANDROID_SERIAL=10AF7Y16R70010X`, MediaTek HEVC, 256MB heap
+- Support: support@fisora.app
 
 ---
 
-## 2. Ordnerstruktur + WO ändern (Desktop ↔ Mobile)
-
+## 2. ORDNERSTRUKTUR + WO ÄNDERN
 ```
-/Users/garyfischer/Downloads/fiano-monorepo/
+fiano-monorepo/
 ├── src/                          ← DESKTOP (Electron)
-│   ├── main/                     ← Main-Prozess (core/ffmpeg.ts, core/queue.ts, ipc.ts)
-│   └── renderer/src/             ← Renderer (React UI)
-│       ├── pages/                ← Desktop-Seiten (Home, Library, ProjectDetail, …)
-│       └── lib/subtitleCanvas.ts ← Desktop layered-Subtitle (PNG-Canvas)
+│   ├── main/                     ← index.ts, ipc.ts, core/{ffmpeg,queue,projects,settings,auth,bin}
+│   │   └── core/pipeline/download.ts  ← yt-dlp (M-4: jetzt URL-Allow-List)
+│   └── renderer/src/{pages,components,stores,lib}/
 ├── packages/
-│   ├── shared/src/               ← GETEILT Desktop+Mobile (via @fiano/shared)
-│   │   ├── types.ts              ← Project, SubtitleSettings, ClipEffects
-│   │   ├── ffmpegArgs.ts         ← buildEffectsFilter + buildTikTokExportArgs
-│   │   ├── assBuilder.ts         ← .ass-Builder — NUR Mobile-Fallback
-│   │   ├── subtitleLayout.ts     ← resolveSubtitleFontPx + resolveSubtitleEffectScale + LAYERED_*
-│   │   ├── subtitles.ts          ← Cue-Parser
-│   │   └── i18n/locales/         ← 9 Sprachen (de/en/es/fr/it/nl/pl/pt/ru). Plus helpScreen.* + legalScreen.* keys.
+│   ├── shared/src/               ← GETEILT (via @fiano/shared, Import in Desktop+Mobile)
+│   │   ├── types.ts              ← Project, DemoClip, AIHighlight, SubtitleSettings, ClipEffects, Subscription
+│   │   ├── ffmpegArgs.ts         ← buildEffectsFilter + buildTikTokExportArgs  ⚠️ KOPIE im Worker
+│   │   ├── subtitleLayout.ts     ← resolveSubtitleFontPx + resolveSubtitleEffectScale  ⚠️ Inline-Kopie im Worker
+│   │   ├── subtitles.ts, assBuilder.ts
+│   │   └── i18n/locales/         ← 9 Sprachen (de/en/es/fr/it/nl/pl/pt/ru)
 │   └── mobile/                   ← EXPO + RN
-│       ├── App.tsx               ← Root: Auth/Theme/Deep-Links/SystemBars/NavBar
-│       ├── app.json              ← Expo-Config (Plugins, edge-to-edge, expo-font mit 60 .ttf, googleServicesFile)
-│       ├── app.config.js         ← largeHeap-Plugin
-│       ├── google-services.json  ← Firebase FCM — beide Android-Clients (alt fiano + neu fisora)
-│       ├── assets/fonts/         ← 60 .ttf (20 base + 4 Weights × 10 Sans-Serifs = 40 Weights)
-│       ├── assets/fisora-logo.svg  ← Source-SVG des Fisora-Wortmarks
-│       └── src/{screens,components,stores,lib,navigation,data}/
-└── services/render-worker/       ← CLOUD WORKER (separates Deploy)
-    ├── Dockerfile                ← apt-ffmpeg + yt-dlp + fonts-liberation + COPY assets ./assets
-    ├── assets/fonts/             ← 60 .ttf (Kopie, im Docker-Image)
-    └── src/{index,render,renderSpec,ffmpegArgs,subtitleCanvas,assValidator,planCheck,…}.ts
+│       ├── App.tsx               ← Root. M5: configurePurchases() beim Start
+│       ├── app.json              ← versionCode 14 (nächster Native-Build → 15). BILLING-Permission drin.
+│       ├── .env                  ← gitignored. EXPO_PUBLIC_REVENUECAT_ANDROID_KEY=goog_wVPNxQSXBedWuHttLcODnVRLGqk
+│       └── src/
+│           ├── lib/iap.ts        ← NEU (M5): RevenueCat-Wrapper (configure/login/purchase/restore/getManagementUrl)
+│           ├── stores/authStore.ts  ← M5: logIn/logOut, monthlyLimitFor (Creator50/Pro100), applyIapCustomerInfo
+│           ├── screens/PricingScreen.tsx  ← M5: Offerings + purchasePackage + restore (statt Stripe-Web)
+│           ├── screens/SettingsScreen.tsx ← NEU: „Kündigen/bei Google Play verwalten"-Button
+│           └── navigation/{RootNavigator,types}.tsx ← Paywall-Gate: Route „Paywall" (NICHT „Pricing"!)
+├── services/render-worker/       ← CLOUD WORKER (separates Deploy via gcloud)
+│   ├── Dockerfile, assets/fonts/ (60 .ttf KOPIE)
+│   └── src/{index,render,renderSpec,ffmpegArgs,subtitleCanvas,assValidator,planCheck,r2,youtube,transcribe}.ts
+├── supabase/
+│   ├── migrations/               ← 001..009 (006=pro100, 007=revenuecat-col, 008=quota-atomic, 009=constraint+rc-dedupe)
+│   └── functions/                ← delete-account, revenuecat-webhook (NEU M5), stripe-checkout/webhook/portal
+├── legal/                        ← NEU: L1_DPA_Tracker.md + L2_ROPA.md (DSGVO-Pflichtdocs)
+├── .claude/projects/.../memory/  ← Auto-Memory (test_phone, revenuecat_setup, cost_protection, …)
+└── PROJECT_SUMMARY_MOBILE.md     ← DIESE Doku
+
+claude-webseite-neu/              ← world4you Hosting (SEPARAT, kein git)
+├── index.html, agb.html, datenschutz.html, impressum.html, account-deletion.html, auth-callback.html
+├── i18n-data.js (9 Sprachen), i18n-apply.js, consent.js, styles.css, legal.css, .htaccess
+└── config.js (gitignored)
 ```
-
-**WO ÄNDERN für beide Plattformen:**
-- **Logik/Types/i18n für BEIDE** → `packages/shared/src/`. Wird via `@fiano/shared` von Desktop + Mobile importiert.
-- **Desktop-UI** → `src/renderer/src/pages/`. **Desktop-Render-Logik** → `src/main/core/`.
-- **Mobile-UI/Logik** → `packages/mobile/src/`.
-- **Worker** → `services/render-worker/src/` (separates Deploy).
-- **Fonts (Multi-Font + Multi-Weight)** → BEIDE: `packages/mobile/assets/fonts/` UND `services/render-worker/assets/fonts/`. Bei neuer Font: `lib/fonts.ts` (Mobile) + `subtitleCanvas.ts` (Worker `SUBTITLE_FONT_FILES`) + `app.json` (expo-font-Plugin-Liste) — drei Stellen.
-
-⚠️ **KOPIEN-FILES (BEIDE syncen bei Änderung):**
-- `services/render-worker/src/ffmpegArgs.ts` ↔ `packages/shared/src/ffmpegArgs.ts` (Worker hat keine `@fiano/shared`-Dep).
-- `services/render-worker/src/subtitleCanvas.ts` ↔ `src/renderer/src/lib/subtitleCanvas.ts` (Desktop vs Worker).
-- Font-Files: `packages/mobile/assets/fonts/` ↔ `services/render-worker/assets/fonts/` (gleicher Dateiname, gleicher Inhalt).
-- `resolveSubtitleFontPx` + `resolveSubtitleEffectScale` in `packages/shared/src/subtitleLayout.ts` UND als Inline-Kopie im Worker.
+**WO ÄNDERN:** Logik/Types/i18n für BEIDE → `packages/shared/`. Mobile-only → `packages/mobile/src/`. Desktop-only → `src/`. Worker → `services/render-worker/src/`.
+**⚠️ KOPIEN syncen:** `ffmpegArgs.ts` (shared ↔ worker), `subtitleCanvas.ts` (desktop ↔ worker), `resolveSubtitleFontPx/EffectScale` (shared ↔ worker-inline), Fonts (mobile ↔ worker).
 
 ---
 
-## 3. Git-Workflow + Deploy + Auto-Updates + Push
-
-### Git
-- **Claude arbeitet auf Branch `claude/<name>`** direkt im Main-Repo. Edits gehen in `packages/`, `src/`, `services/`, `supabase/` — NICHT in `.claude/worktrees/` (stale, ignorieren).
-- **Backup vor großen Phasen:** `git tag pre-<phase>-YYYYMMDD && git push origin pre-<phase>-YYYYMMDD`.
-- **User merged in main:**
-  ```bash
-  cd /Users/garyfischer/Downloads/fiano-monorepo
-  git checkout main
-  git merge --no-ff claude/edge-to-edge -m "merge: <desc>"
-  git push origin main
-  git checkout claude/edge-to-edge   # zum Weiterarbeiten
-  ```
-- Bei „divergent branches": `git fetch + git merge --no-ff`, NICHT `git pull`.
-
-### Deploy
-
-| Plattform | Mechanismus |
+## 3. UPDATE-WORKFLOW — wie Änderungen auf Desktop+Mobile landen
+| Änderung in… | Was tun |
 |---|---|
-| **Desktop** | `git tag v0.2.X` → `npm run release:mac` → electron-updater. |
-| **Mobile — OTA (JS-only)** | `cd packages/mobile && eas update --branch preview`. Schickt nur den JS-Bundle. Greift NUR bei Apps mit gleicher `runtimeVersion` (= app.json `version`) UND gleichem Native-Code. |
-| **Mobile — Native Build** | `cd packages/mobile && eas build --profile preview --platform android`. Nötig bei: neuer nativer Dep, app.json-Plugin-Änderung (z.B. expo-font-Plugin oder googleServicesFile), geänderter `version`, geändertes Package. AAB/APK via Internal Distribution. Vor native-Änderung: `version` in app.json bumpen. |
-| **Mobile — Lokaler Dev-Build** (immer angeben!) | `cd /Users/garyfischer/Downloads/fiano-monorepo/packages/mobile && npx expo prebuild --clean && ANDROID_HOME=/Users/garyfischer/Library/Android/sdk ANDROID_SERIAL=10AF7Y16R70010X npm run android`. `prebuild --clean` nur nach app.json/Plugin/Package-Änderung; sonst `npm run android` reicht. **Nach `prebuild --clean`** muss `android/local.properties` manuell mit `sdk.dir=/Users/garyfischer/Library/Android/sdk` wiederhergestellt werden — wird sonst Gradle-„SDK location not found"-Fehler. **Bevorzugter Test-Pfad** (User-Memory): `__DEV__=true` → Paywall via Bypass aus. |
-| **Worker** | `cd services/render-worker && gcloud run deploy fiano-render-worker --source . --region europe-west1 --memory 2Gi --cpu 2 --timeout 900 --max-instances 10 --quiet`. Cloud Build baut Docker neu. |
-| **Supabase Edge Function** | `supabase functions deploy <name>` (CLI gelinkt; project-ref `zibzcaknqzxgwootfjxc`). |
-| **Supabase Migration** | `supabase db push` ODER SQL im Dashboard-Editor. Migrations in `supabase/migrations/`. |
+| `packages/shared/*` | Auto in Mobile+Desktop (TS-Import). ⚠️ Worker hat eigene KOPIE von ffmpegArgs → manuell syncen + Worker redeploy. |
+| `packages/mobile/src/*` **JS-only** | `cd packages/mobile && eas update --branch production` → OTA, kein Store-Review. Greift bei gleichem `runtimeVersion` (=version 0.0.3). ⚠️ `Updates.reloadAsync()` BEWUSST NICHT genutzt (white-screen SDK52+NewArch) → User sieht Update beim nächsten **Kaltstart**. |
+| `packages/mobile` **Native** (Dep/Plugin/Package/app.json/versionCode) | `cd packages/mobile && eas build --profile production --platform android` → AAB → Play Console Closed/Prod Track. **versionCode in app.json hochbumpen!** |
+| `src/*` (Desktop) | `npm run build:mac` (macOS) / `build:win`. Bei version-bump in package.json → GitHub Release → electron-updater. |
+| `services/render-worker/*` | `cd services/render-worker && gcloud run deploy fiano-render-worker --source . --region europe-west1 --memory 2Gi --cpu 2 --timeout 900 --max-instances 10 --quiet` (Cloud Build, ~4-6min). |
+| `supabase/migrations/*` | `supabase db push` (im Repo-Root, fragt [Y/n]). |
+| `supabase/functions/*` | `supabase functions deploy <name> [--no-verify-jwt für Webhooks]`. |
 
-⚠️ **OTA vs. Build:** OTA kann NIEMALS native Änderungen ausliefern. Bei nativen Änderungen (`expo-font`-Plugin-Liste, neue Dep, googleServicesFile, Package-Name, …) IMMER `eas build` + `version` bumpen.
+### AUTO-UPDATES
+- **Mobile OTA:** `eas update --branch production` → Channel `production` (Build 14 hängt dran). App `lib/updates.ts` auto-checkt on-launch + Settings-Button. Update beim Kaltstart aktiv.
+  - ⚠️ **OTA-ENV-GOTCHA (2026-06-05, hart gelernt):** `eas update` inlinet `EXPO_PUBLIC_*` aus dem **lokalen `.env`** (packages/mobile/.env, gitignored). Das `.env` MUSS den echten `goog_wVPNxQSXBedWuHttLcODnVRLGqk` enthalten (NICHT `goog_xxx`!). UND: **Metro cached das transformierte env.ts-Modul** → bei Key-/Env-Änderung IMMER `--clear-cache`, sonst landet der alte (Placeholder-)Key im Bundle → RevenueCat `InvalidCredentialsError`, „products still loading". Sichere Form: `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY=goog_wVPNxQSXBedWuHttLcODnVRLGqk eas update --branch production --clear-cache --message "…"`. Verifizieren via `adb logcat | grep InvalidCredentials` (muss 0 sein).
+- **Desktop:** `git tag v0.X.Y` → `npm run release:mac` (braucht `GH_TOKEN` env, PAT mit 'repo'-scope) → GitHub Release → electron-updater zeigt „Update available". Ohne Token manuell: `gh release create v0.X.Y --repo garymikefischer-art/fiano --target claude/edge-to-edge --title "Fisora 0.X.Y" --notes "…" dist/*.dmg dist/*.dmg.blockmap dist/*.zip dist/*.zip.blockmap dist/latest-mac.yml`.
+- **Worker:** kein Auto-Update, jeder Deploy ersetzt die Revision.
 
-### Auto-Updates (Mobile, D2 erledigt)
-- `lib/updates.ts` — `checkForOtaUpdate()` (manueller Settings-Button).
-- Auto-Check beim App-Start: `app.json` `updates.checkAutomatically: ON_LOAD` (Default).
-- ⚠️ `Updates.reloadAsync()` BEWUSST entfernt (white-screen auf SDK 52 + New Arch). Update wird beim **nächsten Kaltstart** übernommen.
-
-### Push (origin)
-- `git push origin claude/edge-to-edge` — Branch hochladen.
-- `git push origin <tag>` — Backup-Tag.
-- `git push origin main` — User nach Merge.
-
----
-
-## 4. Features FERTIG ✅
-
-**Block A — Security (A1, A6.1–A6.10):** RLS, Worker Rate-Limit per-userId, .ass-Validation, Plan-Check + monthly counter, A6.4 typed RenderSpec, Logs sanitisiert, Stripe-Webhook dedupe, yt-dlp gehärtet, R2 path-regex. 📄 `SECURITY_AUDIT_2026-05-16.md`.
-
-**Block B — QoL (B0–B5):** Trim+Split-at-playhead, Drag-Reorder Builder (NestableDraggableFlatList), Drag-to-Seek, Light/Dark/System-Theme (B3), TrimModal Multi-Range.
-
-**Block C — Effects/Watermark/Greenscreen (C1–C7):** ClipEffects, Audio-Ducking, Watermark-Overlay, Greenscreen-Chromakey, Color-Wheels, Layered Big-Word-Zoom. *(C8 Multi-Cam-Sync + C9 YT-Direct-Upload bewusst übersprungen.)*
-
-**Round-9:** Intro-Fixes, Builder-Subtitle-Modal `isInline`-Pattern, Layered-Subtitle-Geometrie, First-Launch-Dark-Mode, Google-Sign-in-Fix.
-
-**Round-10 (alle 5 Bugs):** Edge-to-edge, OTA-White-Screen-Fix, Stripe-Webhook frische Subscription-Reads, Paywall-Gate ohne period_end-Check, Login + Passwort-Reset SMTP, Untertitel-Export-Schriftgröße via `resolveSubtitleFontPx`.
-
-**D1 — Push-Token-Registrierung ✅** (on-device verifiziert): `004_push_token.sql`, `getExpoPushToken()`, `authStore.syncPushToken`, FCM-Wiring (`google-services.json` + Firebase `fiano-2bf11`).
-
-**D2 — EAS Auto-Update ✅:** Settings-Check-Button + `checkAutomatically: ON_LOAD`.
-
-**Custom Game = Thumbnail-Default ✅:** Commit `83a154e` (Round-10) — `custom`-Chip ist erstes Element der Genre-Leiste UND Default-Genre.
-
-**Multi-Font (20 Schriften, Phase D-Fonts) ✅:** Root-Cause-Fix Commit `3dfbfeb` (2026-05-26):
-- Bug-Wurzel: RN-Android ReactFontManager `EXTENSIONS=['','_bold',...]` mit `fontWeight: '700'` sucht `<family>_bold.ttf` — fehlte → silent Fallback auf System-Roboto-Bold für alle 20 Schriften.
-- Fix: SubtitleOverlay nutzt `resolveWeightedFamily` statt hardcoded fontWeight=700. Weight steckt jetzt im Family-Namen (z.B. `InterBlack` lädt InterBlack.ttf direkt).
-- 20 Display- + Sans-Serif-Fonts in `assets/fonts/` (Montserrat, Inter, Poppins, Outfit, Sora, BebasNeue, Anton, Oswald, Teko, BarlowCondensed, FjallaOne, ArchivoBlack, Bungee, TitanOne, LuckiestGuy, Bangers, RussoOne, Orbitron, ChakraPetch, PermanentMarker).
-
-**Multi-Weight-Picker (5 Stufen, Phase D-Weight) ✅:** Commit `3dfbfeb`:
-- `SubtitleFontWeight = 'light' | 'regular' | 'medium' | 'bold' | 'black'`.
-- 10 Sans-Serif-Fonts haben echte Weight-Varianten (Statics für Poppins/BarlowCondensed/ChakraPetch direkt aus google/fonts; Variable-Fonts Montserrat/Inter/Outfit/Sora/Oswald/Teko/Orbitron via `fonttools instantiateVariableFont` instantiiert).
-- Oswald/Teko Max-Weight 700 → Black=Bold-Cap. Sora Max=800. ChakraPetch hat kein Black → Bold-Copy.
-- Display-Fonts (10) ignorieren Weight visuell, Modal zeigt Hinweis „X is single-weight".
-
-**E4 Worker↔Preview Render-Sync ✅:** Commit `3dfbfeb` (Iter 1-9):
-- `effectScale = canvasH/720` ersetzt `baseScale = canvasW/540` für Stroke/Shadow/Glow.
-- Stroke × effectScale × 2 (paint-order match Preview SVG).
-- Gradient-Range über 1.2 × fontSize (= glyph-bbox approximation).
-- BT.709 Color-Metadata + `-preset medium` in Pass 1 + Pass 2.
-- Glow Single-Layer mit `fill = glowColor + alpha-hex` (statt 4-Pass).
-- Gradient/Shadow/Glow Fallback-Defaults synchron zu Preview.
-- Shared `resolveSubtitleEffectScale` Utility in `subtitleLayout.ts`.
-
-**Creator-Plan-Limit 30 → 50 ✅:** Commit `3dfbfeb`. `authStore.ts` + `planCheck.ts` doc + `003_creator_limit_50.sql` (CREATE OR REPLACE der zwei RPCs). **⚠️ SQL Migration MUSS noch ausgeführt werden** (`supabase db push`).
-
-**Fisora Rebrand ✅:** Commit `a600bb4` (2026-05-26):
-- App-Name `fiano` → `Fisora`, Slug `fisora-mobile`, Scheme `fisora://`, Package `app.fisora.video`.
-- Logo: `FianoLogo.tsx` → `FisoraLogo.tsx` (Mobile + Desktop) mit Fisora-SVG aus `assets/fisora-logo.svg`. ViewBox 1.75-aspect-ratio preserved (538-tall mit Padding) damit Größen-Konsistenz zu altem fiano-Wordmark. `marginLeft=-9` aus HomeScreen + LibraryScreen entfernt (neues Logo hat kein SVG-Whitespace).
-- Impressum: „Fisora / Eine App der / Werbeagentur FIANO e.U." als Anbieter. Firmenname FIANO + Domain `fiano.at` + Social-Handles unverändert.
-- Support-Email: `support@fisora.app`.
-- Domain-Allow-Lists in 3 Supabase Edge Functions (`stripe-portal`, `stripe-checkout`, `delete-account`) auf `fisora.app` umgestellt.
-- Style-Label „Fiano" → „Brand" (interne Style-ID `'fiano'` bleibt für Backward-Compat).
-- DEFAULT_SUBTITLES.fontFamily auf undefined (war Legacy `'helvetica'` → fallback auf Inter, daher Style-Switch zeigte keinen Font-Wechsel). Plus SubtitleOverlay validiert gegen SUBTITLE_FONT_IDS, ungültige Werte → `defaultFontFor(style)`.
-- google-services.json: parallele Android-Client-Section mit `app.fisora.video` (alte fiano-Section bleibt für Backward-Compat).
-- 9 i18n-Locales: User-facing „fiano" → „Fisora" (Domains `fiano.at`/`fiano.app` bleiben).
-
-**i18n HelpScreen + LegalScreen ✅:** Commit `ca3d8da` (2026-05-26):
-- HelpScreen: 19 `helpScreen.*` keys in allen 9 Locales.
-- LegalScreen: 5 `legalScreen.*` keys (Header, 3 Tabs, lastUpdated, deOnlyNotice). Body bleibt deutsch (rechtsverbindlich, Anbieter-Sitz Österreich); bei non-DE Locales erscheint Hinweis-Banner.
-
-**Icon-Shrink ✅:** Commit `81994e4` (2026-06-01):
-- `icon.png` + `adaptive-icon.png` + `splash.png`: Pfeil-Symbol auf 85 % verkleinert (~53 % der Bildhöhe statt vorher 62 %). Entspricht Android-Adaptive-Icon Safe-Zone-Konvention.
+### GIT-WORKFLOW (User-Constraint)
+- Claude arbeitet auf `claude/edge-to-edge` im MAIN-Repo (NICHT `.claude/worktrees/`, die sind STALE).
+- Commits beenden mit `Co-Authored-By: Claude…`. Nur committen/pushen wenn User es sagt.
+- Vor großen Phasen: `git tag pre-<phase>-YYYYMMDD`.
+- User merged selbst: `git checkout main && git merge --no-ff claude/edge-to-edge && git push origin main && git checkout claude/edge-to-edge`.
+- Bei „divergent branches": `git fetch + git merge --no-ff` (NICHT `git pull`).
+- **Webseite-Upload:** Die 7 geänderten Files in `claude-webseite-neu/` lädt der User per world4you/FTP hoch (kein git/deploy-Automatismus).
 
 ---
 
-## 5. Features TEILWEISE / mit OFFENEM Bug
+## 4. WAS SESSION 2026-06-07 ERLEDIGT (LAUNCH-SPRINT)
+- **PHASE 1 Trim-Bug GEFIXT (Root-Cause):** `clips[0]` = voller „Imported clip" (0..durationSec, von AddVideoProjectScreen) war Default-`selectedClip` im 9:16-Tab → Export rendert volle Source statt Highlight. Fix: `selectedClipIdx` defaultet jetzt auf ersten `kind==='highlight'`-Clip (ProjectDetailScreen.tsx, Lazy-Init, greift beim TikTokTab-Mount). Worker (`-ss`/`-t`) + ActionSheet-Path-A waren korrekt. OTA live.
+- **2 UX-Fixes (OTA):** (a) `lib/updates.ts` `useOtaDownloadedPrompt` + `<OtaUpdateWatcher>` in App.tsx → einmaliges „Update bereit"-Popup beim ON_LOAD-Auto-Check (kein Auto-Reload, white-screen). (b) Kündigen-Block aus SettingsScreen RAUS → dezenter „Kündigen/verwalten"-Link in PricingScreen (nur bei aktivem Abo).
+- **Thumbnail-Prompts MARKENFREI** (Desktop `ThumbnailPage.tsx` + Mobile `ThumbnailGeneratorScreen.tsx` + i18n 9 Spr.): Fortnite / „Call of Duty: Warzone (Verdansk)" / „Siren skin" / „Painted Palms" / „Verdansk Dam" ENTFERNT. Game-Name + Background = **Pflichtfelder**, neues **„Skin / Character Look"-Feld** (Comic-Style), generische brand-freie Defaults, Guardrail „no logos/HUD/exact copyrighted characters — original design". Backup-Tag `pre-thumbnail-neutralize-20260606`.
+- **Builder de-YouTubed:** „16:9 Video" statt „YouTube Video" (i18n: builder.title/buildBtn/clipsTab.buildYouTube/emptyBody/feat3Title/pricing.f.builder/clipCard.exportYouTube/step5, 9 Spr. + Mobile-Fallbacks). „YouTube/Twitch-URL"-Import-Strings BLEIBEN (nominativ/beschreibend).
+- **Mobile Build 15 → Build 16** (versionCode 16): alle Fixes ins Binary. **Bei Google Play PRODUCTION eingereicht (weltweit „176 Länder + Rest der Welt", in Review).** 16-KB-Fehler per „Trotzdem fortfahren" bypassed.
+- **Desktop v0.2.1→0.2.2→0.2.3** (Mac arm64+x64 + **Windows via Wine**) als GitHub-Releases. v0.2.3 hat das De-Branding im Binary. Mac unsigned (`identity: null`). Wine: `/Volumes/PortableSSD/Programme/Wine Stable.app/Contents/Resources/wine/bin` (einmal `xattr -dr com.apple.quarantine` nötig).
+- **Cost-Cap verifiziert** (gcloud): €50-Budget + Killswitch ACTIVE + Worker max-instances 10.
+- **DPAs angestoßen:** Supabase via PandaDoc **signiert** (FIANO e.U., Gary Fischer/Inhaber, None bei Special Categories); Cloudflare-PDFs (ISO 27001/27701, EU Cloud CoC, TIA-USA, +C5/SOC2) in `~/Downloads/DPA Fisora`; **R2-Lifecycle `sources/*>7d` gesetzt**; Supabase Spend-Cap = Free locked-on. **3 Mails (Expo/RevenueCat/Resend) gesendet — Antworten AUSSTÄNDIG.** WKO-Thumbnail-Mail nicht mehr nötig (De-Branding löst es).
+- **Website fisora.app verifiziert:** alle Legal-Pages live, Branding durchgehend „Fisora". **Privacy-URL fürs Play-Listing: `https://www.fisora.app/datenschutz.html`.** Store-Listing (M6) eingetragen.
 
-**Subtitle Multi-Font + Multi-Weight on-device Verifizierung:** Code committed + Worker deployed (Rev 00051-hf2), aber User hat **noch nicht final auf Phone getestet** ob:
-- Alle 20 Fonts + 5 Weights wechseln sichtbar in Preview UND Export.
-- Gradient (z.B. `#ff1039 → #ff8c00` rot→orange) sieht in Worker proportional gleich aus wie in Preview.
-- Stroke + Glow proportional matched.
-
-Letzte User-Beobachtung Iter 7: bei `gradient #e5e5e5 → #a1a1aa` (weiß→grau) noch subtil unterschiedlich. Iter 9 (Glow-Single-Layer + Saturation-Filter raus) ist deployed aber von User noch nicht in Vergleichs-Render gegen-gecheckt.
-
-**Stripe-Subscription-Flow:** Mobile-Stripe-Checkout-Web ist Stopgap (Apple/Google verlangen IAP). Wird in D3 durch RevenueCat ersetzt. Webhook + `subscriptions`-Tabelle bleiben (Desktop nutzt Stripe weiter).
-
----
-
-## 6. Aktueller Branch-Stand (seit letztem Handoff)
-
-Branch `claude/edge-to-edge` über `main` (`d423032`):
-```
-81994e4  fix:  App-Icon / Adaptive-Icon / Splash — Pfeil-Symbol auf 85 % verkleinert
-ca3d8da  feat: i18n HelpScreen + LegalScreen (9 Sprachen)
-a600bb4  feat: Rebrand fiano → Fisora (Marken-Rename, komplettes Repo)
-3dfbfeb  feat: Multi-Font Preview-Bug Fix + 5-Weight-Picker + E4 Worker-Sync
-aa4db9c  docs: handoff update — Multi-Font WIP, D1 done, D3 setup pending
-c92ecce  wip:  Multi-Font — build-time-Embedding (Preview-Bug offen)  ← gefixt durch 3dfbfeb
-93417a7  feat: Multi-Font — 20 caption/gaming Google Fonts (Preview + Export)
-3881426  chore: D1 — FCM-Wiring für Android-Push
-3129ea0  feat: D1 — Expo-Push-Token bei Login in profiles registrieren
-49cc4bf  fix:  Bug 2 — Update-Popup-Text (kein Auto-Restart)
-4220e60  fix:  Bug 3b — Paywall-Gate ohne current_period_end-Check + signOut robust
-b697ec4  fix:  Bug 3 — Webhook liest Subscription-Status frisch von Stripe
-f5a51c2  fix:  Bug 5 — Untertitel-Export-Schriftgröße = Preview
-83a154e  feat: Thumbnail-Generator — Custom Game als Default-Genre
-```
+### Frühere Session (2026-06-05)
+- **M5 RevenueCat-IAP komplett LIVE** (Commits b5fc496→c468b0c): `lib/iap.ts`, PricingScreen auf purchasePackage, authStore logIn/logOut+Sync, `revenuecat-webhook` Edge Function (Secret-Auth, Event→Plan/Status, upsert subscriptions). RC-Dashboard „Fisora Real" voll konfiguriert (App+JSON, Entitlements creator/pro, Products creator_monthly/pro_monthly, Offering `default` current). goog-Key in EAS prod env + .env. Webhook-Secret in Supabase `REVENUECAT_WEBHOOK_AUTH`. **Echter Test-Kauf durchgelaufen** (richtiger Preis, Plan grün, Row geschrieben).
+- **Pro-Limit 200 → 100** (Migration 006 + i18n 9 Sprachen + AGB). Creator bleibt 50.
+- **Play Console:** beide Abos `creator_monthly`/`pro_monthly` mit aktiven Base-Plans angelegt; Service-Account `revenuecat-iap-validator` berechtigt (Finanzdaten + Abos verwalten); androidpublisher-API aktiv; License-Tester-Liste „Fisora Tester".
+- **Security-Audit (3 Agents) + Fixes:** HOCH H-1 (args[]-Pfad → service_role-Leak ENTFERNT), H-2 (Quota-Race → atomarer pg_advisory_xact_lock, Migration 008), H-3 (transcribe/download Abo-Gate). MITTEL M-1 (subscriptions UNIQUE-Constraint Migration 009), M-2 (RC-Webhook Replay-Dedupe `rc_events_processed`), M-3 (Upload-Limits + Stream-to-disk), M-4 (Desktop yt-dlp URL-Allow-List), M-5 (Webhook timing-safe compare). Alle live (Worker 00053, Migrationen, Webhook). Commits 49727b3 + 86fa500.
+- **Website-Legal (13 Edits):** AGB Pro 200→100, Impressum Kleinunternehmer-Satz (§6 UStG, keine UID), Datenschutz §8.9 Resend + §8.10 Drittland-Transfer + iOS-Erwähnungen raus (kein iOS), `user-scalable=no` entfernt (Zoom/WCAG) in allen 6 HTML, Footer-Email. **NOCH HOCHZULADEN.**
+- **L1/L2 DSGVO-Docs** in `legal/` (DPA-Tracker + ROPA).
+- **Google-Kostenschutz LIVE:** €50-Budget (id 6c668c90) + Email-Alerts 50/90/100% + Pub/Sub-Topic + **Cloud Function `fisora-billing-killswitch`** (setzt bei >€50 `max-instances=0` auf den Worker, reversibel mit `--max-instances=10`). Getestet (unter-Budget-Guard). Siehe Memory `cost_protection`.
+- **Paywall+Kündigen-Fixes (OTA `872a32d4`):** Paywall-Gate-Screen „Pricing"→„Paywall" umbenannt (verschwand nach Kauf sonst erst nach Neustart); SettingsScreen „Kündigen/bei Google Play verwalten"-Button (Google-Play-Abos nur im Play Store kündbar). Commit 61a78d2.
 
 ---
 
-## 7. Offene TODOs (nach Priorität)
+## 5. 🔴 OFFENE LISTE (NÄCHSTE SCHRITTE)
 
-### 🔴 1. Google Play Console Setup (User-Action, BEVOR Code-Wiring D3)
+### 🔴 #1 SOFORT: BUILD 17 IN PLAY CONSOLE HOCHLADEN (SDK 53 = 16-KB-Fix)
+✅ Build gebaut + 16-KB-verifiziert (EAS `d3e7e0ae`, AAB `~/Downloads/fisora-build17-v0.0.4-vc17.aab`). **JETZT:** Play Console → Test and release → Production → Release **bearbeiten** (falls Build-16-Entwurf noch editierbar: Build-16-Bundle entfernen, Build 17 hochladen) **oder** „Create new release" (falls Build 16 bereits in Review/eingereicht — neuer Release ersetzt den alten) → Build 17 (vCode 17) hochladen → **der 16-KB-Warnhinweis darf NICHT mehr erscheinen** (lokal verifiziert) → Release-Notes → einreichen. Danach Vivo-Re-Test (SDK 52→53). Backup: `git reset --hard pre-build17-rebuild-20260608`.
+Hinweis 12-Tester-/14-Tage-Regel (neue Privat-Konten) ggf. vor Production-Freigabe nötig — Dashboard prüfen.
 
-Aktueller Schritt (User-blockiert): **Datensicherheit-Form** muss ausgefüllt werden. Antworten siehe §7c.
+### OFFEN — nach Go-Live / parallel (User + Claude)
+✅ **Abo-Upgrade-Bug (IAP) GEFIXT 06-08 (Code, tsc-clean) — 🔴 OTA-PENDING:** Creator→Pro schloss ein ZWEITES Abo ab statt Creator zu ersetzen (2 aktive Abos). Fix: `lib/iap.ts` `purchase(pkg, oldProductIdentifier?)` → `StoreProductChangeInfo` mit `STORE_REPLACEMENT_MODE.WITH_TIME_PRORATION`; `PricingScreen.onPurchase` gibt bei aktivem `currentPlan` das Store-Produkt des alten Plans mit (`packageForPlan(offering,currentPlan)?.product.identifier`). Downgrade Pro→Creator-Feinschliff (DEFERRED) noch offen. War schon Build 16, kein SDK-53-Regress.
+✅ **NEU: URL-Popup im Add-Video-Highlights-Flow (06-08, tsc-clean) — 🔴 OTA-PENDING:** `AddVideoProjectScreen` `askSource()` hat jetzt 3. Option „YouTube / Twitch URL" → öffnet Eingabe-Popup → neue `createFromUrl(mode,url,videoType)` (teilt `downloadFromUrl` mit der Multi-URL-Sektion). Strings auf EN-Fallback (ganzer Screen ist EN, `addProject.*` nicht in shared-Locales → separates i18n-Projekt).
+🔴 **OTA-Push für beide (JS-only, runtime 0.0.4):** `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY=goog_wVPNxQSXBedWuHttLcODnVRLGqk eas update --branch production --clear-cache --message "…"` (Memory `eas_update_command`-Gotcha: RC-Key inline + --clear-cache zwingend). Danach Vivo-Test: Abo (Pro kündigen→nur Creator→Pro kaufen = 1 Abo) + URL-Popup. Preexisting: 10 tsc-Fehler React-19-ReactNode (kein Build-Blocker, Metro ignoriert tsc).
+1. **Website-Download-Buttons** verknüpfen — **erst NACH Play-Store-Live**: in `claude-webseite-neu/` die Download-Buttons auf **Desktop v0.2.3 GitHub-Release** + **Play-Store-Badge/Link** setzen. Diff baut Claude, User lädt per world4you hoch.
+2. **3 DPA-Mail-Antworten** (Expo/RevenueCat/Resend) abwarten → gegengezeichnete Kopien in `~/Downloads/DPA Fisora`. **Claude trackt das (Erinnerung).**
+3. **16-KB-Page-Size Rebuild** (Android 15) bei einem der nächsten Updates — Build 16 ist bypassed. Memory `android_16kb_pagesize`.
+4. **Vorstellungsgrafik** fiano→Fisora (Play-Grafik, evtl. noch altes Logo) — jederzeit änderbar.
 
-Davor abgeschlossen:
-- ✅ App angelegt (Package `app.fisora.video`)
-- ✅ Standardsprache: English (US)
-- ✅ Kostenlos
-- ✅ Altersgruppen: 16-17 + 18+
-- ✅ Kategorie: Videoplayer & Editoren
-- ✅ Reviewer-Access-Anleitung
-- ✅ App-Name + Listing-Texte vorbereitet (siehe §7d für Marketing-Copy)
+### 🟡 POLISH / QoL (post-launch)
+- **Phase 9.11** Multi-Clip Manual-Mode + Drag-Reorder (~2-3h) — AddVideoProject hat noch SOON-Badge, react-native-draggable-flatlist einbauen
+- **Phase 9.7** Light-Theme (~4-6h) — lib/theme.ts dark/light-Tokens, Settings → Appearance Switch
+- **Phase 9.14** Effects-System Mobile (~3-4h) — clip.effects analog Desktop
+- **Phase 9.13** Cross-Device-Sync Desktop↔Mobile (~6-8h) — Supabase projects-Tabelle + Storage
+- npm audit Mobile/Root (6 Build-Toolchain-CVEs, build-time-only, beim SDK-Upgrade)
+- Vorstellungsgrafik fiano→Fisora (zeigt noch altes Logo; vor Production ändern; Play-Grafiken jederzeit änderbar)
 
-Danach (User-Action für RevenueCat D3-Voraussetzung):
-1. **Play Console Abo-Produkte erstellen:**
-   - Monetarisierung → Produkte → Abos → 2 Abos
-   - `creator_monthly` · „Creator" · monatlich · 17,99 €
-   - `pro_monthly` · „Pro" · monatlich · 29,99 €
-2. **Lizenztests** mit Test-Gmail-Adresse.
-3. **Google Cloud Service-Account-JSON** für RevenueCat-Server-Validation.
-4. **RevenueCat (app.revenuecat.com):**
-   - Project „Fisora" + App mit Package `app.fisora.video` + JSON hochladen.
-   - Entitlements: `creator`, `pro`.
-   - Products: `creator_monthly` → `creator`, `pro_monthly` → `pro`.
-   - Offering `default` mit 2 Packages.
-   - **API-Key `goog_…`** kopieren + zu Claude schicken → dann D3-Code-Wiring.
-
-⚠️ **D3 Testen geht NICHT mit `npm run android`** — nur signed Play-Build via internem Test-Track.
-
-### 🔴 2. Subtitle Multi-Font + E4 Final-Verify on-device (User-Action)
-- Phone-Test: alle 20 Schriften + 5 Weights wechseln sichtbar in Preview UND Export-Render.
-- Vergleichs-Render mit kontrastreichem Gradient (`#ff1039 → #ff8c00`) — Iter-9-Glow-Fix verifizieren.
-
-### 🟡 Block D — Pre-Launch / Monetization (Rest)
-| # | Phase | Aufwand | Status |
-|---|---|---|---|
-| D3 | RevenueCat IAP (Android) | ~3-4h Code | wartet auf User: goog-Key |
-| D4 | Hosted Auth-Web-Page `fisora.app/auth-callback` | ~3h | Cross-Device-Bridge für Email-Confirm + Passwort-Reset; aktuell führt Email-Link zu 404 weil `https://fisora.app/auth-callback` noch nicht gehostet |
-| D5 | Desktop `sandbox=true` + nonce-CSP | ~3h | A6.8 partial reverted (P1-8/P2-7) |
-| D6 | `npm audit fix` (root + mobile + worker) | ~1h | Pre-Release-Hygiene |
-
-### 🟡 Block E — Quality-of-Life
-| # | Phase | Aufwand | Status |
-|---|---|---|---|
-| E1 | Thumbnail-on-demand backfill | ~1h | Beim Library-/ProjectDetail-Mount `extractVideoThumbnail()` async für alte Projekte ohne `thumbUri`. |
-| E2 | Intro-Position-Slider im Export-Modal | TBD | Aktuell nur in ProjectDetail via `IntroOverlayControls`. Desktop-Export-UI als Vorlage. User-Wunsch. |
-| E3 | R2-Lifecycle-Rule `sources/* > 7d` | 10m | Cloudflare R2 Dashboard. |
-| E4 | ✅ Worker↔Preview Render-Sync | erledigt | Commit 3dfbfeb (Iter 1-9). Final-Verify offen. |
-| E5 | i18n DE-Strings für `pricing.checkoutPendingTitle/Body`, `stillPendingTitle/Body`, `subStatusLabel`, `refreshSub` | 30m | Mit D3-Refactor erledigen. |
-
-### 🟢 Deferred (Desktop-Mobile-Feature-Lücken)
-| # | Feature | Aufwand | Status |
-|---|---|---|---|
-| — | **Cross-Device-Sync** (Supabase `projects`-Tabelle + Storage, Desktop↔Mobile Pull-Sync) | ~6-8h | Größtes deferred Feature. |
-| — | **C8 Multi-Cam-Sync** | — | Bewusst übersprungen. |
-| — | **C9 YT-Direct-Upload** | — | Bewusst übersprungen. |
-
-### Aktionen außerhalb vom Code (User, Status)
-- ✅ `fisora://auth-callback` ist in Supabase-Auth-Redirect-URLs whitelisted.
-- ✅ Supabase Site URL: `https://fisora.app`.
-- ✅ Supabase SMTP umgestellt: Sender `support@fisora.app`, Name "fisora".
-- ✅ Firebase: parallele Android-App `app.fisora.video` registriert + google-services.json im Repo.
-- ✅ Play Console: App angelegt mit `app.fisora.video`.
-- ⏳ **Resend Domain `fisora.app` DKIM-DNS-Records** verifizieren (für SMTP-Sender).
-- ⏳ **Supabase Migration 003** ausführen (Creator-Limit 50): `supabase db push`.
-- ⏳ **Supabase Edge Functions** redeployen (CORS-Whitelists für fisora.app): `supabase functions deploy stripe-portal stripe-checkout delete-account`.
-- ⏳ **`fisora.app` Webpage** hosten: `/privacy`, `/terms`, `/auth-callback` (D4-Phase).
-- ⏳ Google-Play-Developer-Account + Identity-Verify — läuft.
-- ⏳ EAS Project: Display-Name geändert; Slug folgt automatisch beim nächsten Build.
+### ✅ AUS ALTER PHASEN-LISTE BEREITS ERLEDIGT
+- Phase 9.10 Thumbnail-on-demand = E1 ✅ · Phase 9.15 Push-Token = D1 ✅ · Phase 9.16 Auto-Update Mobile = D2 ✅ · **Phase 9.17 RevenueCat IAP = M5 ✅ (diese Session)**
 
 ---
 
-## 7a. Stripe (Desktop) + Google IAP (Mobile) — Rechtliche Klarheit
-
-User-Frage: Wenn Desktop Stripe nutzt und Mobile Google IAP, bekommt Google nichts von Stripe-Zahlungen. Rechtlich OK?
-
-**Kurzantwort: JA, ist OK.** Industry-Standard, z.B. Spotify, Netflix, Disney+ machen das genau so:
-
-- **Google Play Policy 2024+:** Apps DÜRFEN auf externe Payment-Routes hinweisen (User-Choice-Billing in EU verpflichtend nach DMA). Subscription, die User AUSSERHALB der mobile App schließt (z.B. über fisora.app-Web oder Desktop-App), läuft komplett am Google-IAP-Anteil vorbei.
-- **Voraussetzung:** Innerhalb der Mobile-App MUSS Google IAP angeboten werden, wenn man dort Subs verkauft. Was OFF-APP (Desktop / Web) passiert, ist Google egal.
-- **fiano-Modell:**
-  - Desktop-User → Stripe-Subscription über die Desktop-App.
-  - Mobile-User → Google IAP über die Mobile-App.
-  - Beide haben denselben Supabase-Account → derselbe Subscription-Status synchronisiert.
-- **Cross-Device:** Wenn ein User Desktop-Stripe-Abo hat und Mobile login öffnet, sieht er das Abo (= keine Mobile-Paywall). Google bekommt darauf nichts. Komplett legitim.
-- **Aktuelles Risiko:** Wenn Mobile-User auf der MOBILE-App auf `/billing` getoggt wird mit Stripe-Web-Checkout (aktueller Stopgap aus pre-D3-Zeit), könnte Google das als Policy-Bruch werten. Daher D3 RevenueCat-Wiring nötig BEVOR Public-Release: Mobile-App ZEIGT NUR Google IAP-Flow, Stripe nur off-app.
-
-→ Solange Mobile-App AUSSCHLIESSLICH Google IAP verwendet für In-App-Subs, ist alles regelkonform. Stripe auf Desktop ist Googles Anliegen NICHT.
+## 6. SECURITY-STAND
+ERLEDIGT: A6.1-A6.10 (Vor-Audit) + **diese Session H-1/H-2/H-3 + M-1..M-5** (alle live). Worker-Endpoints: authMiddleware + Rate-Limit (render 5/min) + typed RenderSpec Allow-List (NIE roh args[]) + isOwnedSafeKey + Abo-Gate. RLS auf allen Tabellen. Stripe+RC-Webhooks signatur/secret + replay-geprüft. Kostendeckel: Pro 100/User + Abo-Gate + max-instances 10 + **€50-Kill-Switch**.
+OFFEN (NIEDRIG, nicht launch-blocking): N-1..N-5 (kosmetisch), R2-Lifecycle-Rule (Cloudflare-Dashboard), npm audit Mobile.
 
 ---
 
-## 7b. Data Safety CSV — Antworten
-
-Die Datei `/Users/garyfischer/Downloads/data_safety_export.csv` ist Template — User füllt Spalte „Response value" mit `YES`/`NO`/`true`/`false` aus + lädt re-import. Hier die Antworten:
-
-**Datenerhebung allgemein:**
-- `PSL_DATA_COLLECTION_COLLECTS_PERSONAL_DATA` → `YES` (Email, Name optional, User-ID, Subscription-Status)
-- `PSL_DATA_COLLECTION_ENCRYPTED_IN_TRANSIT` → `YES` (TLS für Supabase/R2/Stripe APIs)
-
-**Kontoerstellung (Multiple Choice):**
-- `PSL_ACM_USER_ID_PASSWORD` → `YES`
-- `PSL_ACM_OAUTH` → `YES` (Google Sign-in)
-- Andere → leer
-
-**Datenlöschung:**
-- `DATA_DELETION_YES` → `YES` (Edge Function `delete-account` löscht User komplett)
-- `PSL_DATA_DELETION_URL` → `https://fisora.app/account-deletion`
-
-**Datentypen (Multiple Choice — nur die zutreffenden mit YES):**
-- `PSL_NAME` → YES (Anzeigename optional)
-- `PSL_EMAIL` → YES (Auth)
-- `PSL_USER_ACCOUNT` → YES (User-ID, JWT-Token)
-- `PSL_PURCHASE_HISTORY` → YES (Stripe-Subscription-Status, Plan, period_end)
-- `PSL_PHOTOS` → NO (Videos stay on device)
-- `PSL_VIDEOS` → YES (Cloud-Render lädt Video temporär nach R2, auto-delete 7d)
-- `PSL_FILES_AND_DOCS` → YES (gleiches Video-Material)
-- `PSL_CRASH_LOGS` → YES (Supabase + EAS-Update collecten Build-Crashes)
-- `PSL_PERFORMANCE_DIAGNOSTICS` → YES (Console-Logs ohne PII)
-- Alle anderen → NO (kein Standort, kein Kontakt, keine SMS, keine Gesundheit, keine Audio, kein Krypto, kein Browser-Verlauf)
-
-**Datennutzung — pro Datentyp folgende Combos:**
-- Email/User-ID/Name → `Funktionen der App` + `Kontoverwaltung`. Erhoben = YES, geteilt = NO. User-Kontrolle = Erforderlich.
-- Bisherige Käufe → `Funktionen der App` + `Kontoverwaltung`. Erhoben = YES, geteilt = NO (Stripe ist Processor, kein „Geteilt" iSv Play-Policy).
-- Videos / Files → `Funktionen der App`. Erhoben = YES (Cloud-Render-Upload), geteilt = NO. **Sitzungsspezifisch = YES** (R2 auto-delete nach 7d für `sources/`, 7d für `outputs/`).
-- Crash-Logs / Performance → `Analyse` + `Betrugsprävention, Sicherheit und Compliance`. Erhoben = YES.
-
-**Optional Logos:**
-- `PSL_INDEPENDENTLY_VALIDATED` (MASA-Audit) → NO (kein Audit gemacht)
-- `PSL_UPI_BADGE_OPT_IN` → NO (Indien-spezifisch, nicht relevant)
+## 7. USER-CONSTRAINTS (VERBINDLICH)
+- Auf `claude/edge-to-edge` im MAIN-Repo. User merged via `git merge --no-ff`. `.claude/worktrees/` STALE.
+- Theme: jede Component mit `colors.X` braucht eigenes `const colors = useColors()` IM function body. NIE module-level.
+- Worker `ffmpegArgs.ts`/`subtitleCanvas.ts` sind KOPIEN von shared/desktop — bei Änderung BEIDE syncen.
+- A6.4: NIE user-`args[]` — typed RenderSpec, neue Client-Felder server-side allow-list-validieren.
+- Bei Bugs ZUERST den echten Code lesen + an der Wurzel fixen — keine spekulativen Style-Patches.
+- Bei jedem Ship-Block: konkrete Shell-Befehle + Click-Path + Expected-Outcomes.
+- Storage-Keys (`fiano.projects`, `fiano.api.openai`) BLEIBEN `fiano.*` (Migration zerstört User-Daten).
+- Tailwind `fiano-red/black/white` + EAS-Slug `fiano-mobile` + Firma „Werbeagentur FIANO e.U."/fiano.at BLEIBEN (Produkt=Fisora, Firma=FIANO).
+- Antworte Deutsch, Code-Kommentare/Logs Deutsch, Variablen Englisch. Knapp, technisch.
 
 ---
 
-## 7c. Play Store Listing — Texte (siehe Chat-History für full)
+## 8. QUICK-REFERENCE (Secrets/IDs)
+- Worker: `https://fiano-render-worker-491699066139.europe-west1.run.app` · GCP `fiano-render-2026` · Billing `0163D0-FEB608-399413`
+- Supabase: `zibzcaknqzxgwootfjxc` · Secrets gesetzt: STRIPE_*, REVENUECAT_WEBHOOK_AUTH
+- RevenueCat: Projekt „Fisora Real" (id 011d02d7), Android-goog-Key `goog_wVPNxQSXBedWuHttLcODnVRLGqk` (public, in EAS prod env + .env)
+- EAS: `garyfischer/fiano-mobile` · Projekt `27f6d175-b3fd-4d87-bff9-f7d4642fae1a` · **Build 16 (versionCode 16) bei PRODUCTION in Review** · OTA-Channel `production` (runtime 0.0.3)
+- Desktop GitHub-Releases: v0.2.2 + **v0.2.3** (Mac arm64+x64 dmg/zip + Win Setup.exe) auf `garymikefischer-art/fiano`
+- Firebase `fiano-2bf11` · Play Developer-Konto-ID `6703219868415568447` · App-ID `4974515670189856538` · Package `app.fisora.video`
+- Backup-Tags: `pre-thumbnail-neutralize-20260606`, `pre-handoff-security-iap-20260605`, `pre-security-mediums-legal-20260605`, `pre-handoff-stripe-live-20260602`
+- Memory-Files: test_phone, revenuecat_setup, cost_protection, eas_update_command, **android_16kb_pagesize**, feedback_test_instructions, feedback_root_cause, expo_prebuild_local_properties
 
-App-Name (max 30, 27 chars): `Fisora - Gaming Clip Editor`
-Short Description (max 80, 76 chars): `AI clip editor for streamers. Find highlights + auto-captions + 9:16 export.`
-Full Description: siehe Streamer-Fokus-Version aus Chat-History. Made in Austria, Werbeagentur FIANO e.U. Footer.
-
-App-Symbol (512×512): aus `packages/mobile/assets/icon.png` (bereits geshrinkt).
-
-Vorstellungsgrafik (1024×500): User-Action (Figma/Canva).
-
-Screenshots Phone (2-8, ideal 4-6): User-Action via `adb -s 10AF7Y16R70010X exec-out screencap -p > screen.png` von Home/9:16/Highlights/Subtitle-Modal/Builder/Export.
-
-Tablet 7"+10": optional, skipbar.
-
-Video: optional aber empfohlen.
-
-**App-Icon nachträglich änderbar:** Ja, jederzeit in Play Console „Hauptlisting" → „Grafiken" → App-Symbol. Bei Update wird Icon innerhalb 1-2h für alle Listings ausgespielt.
-
----
-
-## 7d. Was kommt NACH Datensicherheit (Play-Console-Roadmap)
-
-1. **App-Inhalte → „Werbung enthalten?"** → NO (du hast keine Ads).
-2. **Zielgruppe** → 16-17 + 18+ (siehe Chat).
-3. **Inhaltliche Bewertung** (IARC-Fragebogen) → bei Editor durchweg NO zu Gewalt/Sex/Drogen → PEGI 3 oder PEGI 7.
-4. **Hauptlisting** (Texte + Grafiken aus §7c) ausfüllen.
-5. **Internal Testing Track**: erste AAB hochladen via `eas build --profile preview --platform android` + Internal-Distribution-Link an dich + License-Tester-Gmail eintragen → ich Test-Render mit echtem Google-IAP-Flow.
-6. **Pre-Launch Report** abwarten — Google scannt automatisch auf Crashes / Policy-Violations.
-7. **Production Track** — Public Release.
-
----
-
-## 8. Datenmodell (gekürzt — Volltext in `packages/shared/src/types.ts`)
-
-```ts
-interface DemoProject {
-  id, title, subtitle, durationSec, status, thumbHue, clips,
-  sourceUri?, sourceUris?, sourceUrl?, thumbUri?, videoType?, sourceType?,
-  trimStart?, trimEnd?, createdAt?, mode?,
-  facecamRegion?, gameplayRegion?, splitRatio?, fullOffsetX?, tiktokLayout?, clipOrder?,
-  voiceOvers?, subtitles?, musicTracks?, musicShuffle?, intro?, builderExtras?,
-  aiHighlights?: AIHighlight[], perClipDurations?: number[],
-  effectsAll?: ClipEffects, watermark?: ProjectWatermark,
-  errorMessage?, thumbnailHistory?,
-}
-
-interface DemoClip { id, startSec, endSec, label, score, thumbUri?,
-  sourceIdx?, kind?: 'source'|'highlight', reason?, effects?: ClipEffects }
-
-interface ClipEffects {
-  brightness?: -1..1; contrast?: 0.5..2; saturation?: 0..2; sharpen?: 0..5;
-  motionBlur?: 'off'|'low'|'medium'|'high';
-  colorWheels?: { liftR/G/B?, gammaR/G/B?, gainR/G/B? };
-}
-
-interface SubtitleSettings {
-  style: 'default'|'bold'|'gaming'|'fiano'|'layered';
-  enabled, cues?, fontFamily?: string, fontWeight?: 'light'|'regular'|'medium'|'bold'|'black',
-  fontSize?(UI-Token ~26), letterSpacing?, uppercase?,
-  textColor?, highlightColor?, highlightWords?: {text,big}[],
-  highlightFontScale?(default 1.8), highlightGlow?, highlightGlowColor?, highlightGlowStrength?,
-  highlightDropShadow?, highlightUseGradient?, highlightGradientFrom/To?, highlightMetallic?,
-  glowEnabled?, glowColor?, glowBlur?, glowStrength?,
-  shadowEnabled?, shadowColor?, shadowOffsetX/Y?, shadowBlur?,
-  strokeEnabled?, strokeColor?, strokeWidth?, useGradient?, gradientFrom/To?, metallic?,
-  position?, customY?, maxWordsPerChunk?,
-}
-
-interface Subscription { plan:'creator'|'pro'|'studio_lifetime'|null, status, lifetime,
-  current_period_end, cancel_at_period_end, render_count?, monthly_limit? }
-```
-
-**`SubtitleFontFamily` = `string`** (Multi-Font-Library: 20 base + 40 weight-varianten = 60 IDs in `lib/fonts.ts` `SUBTITLE_FONTS` + Worker `SUBTITLE_FONT_FILES`).
-
-**RenderSpec (`renderSpec.ts`):** Mobile→Worker. `subtitlePng: { settings: SubtitleRenderSettings, highlightWords?, cues }`. `settings.fontFamily` allow-list-validiert gegen `SUBTITLE_FONT_IDS`. Mobile sendet fully-resolved Family-Namen (z.B. `InterBlack`) statt `Inter` + separate weight.
-
----
-
-## 9. Bekannte Bugs / Limits
-
-| Bug / Limit | Status |
-|---|---|
-| Multi-Font Preview wechselt nicht | ✅ gefixt (Commit 3dfbfeb) |
-| Gradient blasser im Export | ✅ gefixt (E4 Iter 1-9) — User-Final-Verify offen |
-| Glow im Export zu stark | ✅ gefixt (E4 Iter 9 Single-Layer) |
-| Stroke andere Stärke | ✅ gefixt (E4 Iter 5: × effectScale × 2) |
-| Whisper-Quality bei reinem Game-Audio | by-design |
-| Vivo HEVC 1-Decoder OOM-Risk | env — sequential thumb-queue + largeHeap |
-| Greenscreen Live-Preview | by-design — RN ohne GL |
-| `Invalid Refresh Token` Emulator | harmlos bei frischer Installation |
-| HelpScreen / LegalScreen DE-only | ✅ gefixt (i18n Commit ca3d8da) |
-| App-Icon Pfeil zu groß | ✅ gefixt (Commit 81994e4) |
-
----
-
-## 10. Wichtige Designentscheidungen + Gotchas
-
-- **16:9 Master-First** — Pipeline rendert 16:9, alles leitet ab.
-- **Cloud-Render statt Local-FFmpeg auf Mobile** — MPEG-LA-Patent + Hardware.
-- **Theme-Pattern (B3):** Jede Component mit `colors.X.Y` braucht eigenes `const colors = useColors()` im function body. NIE module-level.
-- **A6.4 Security:** NIE user-`args[]` — typed RenderSpec, Worker baut args. Neue Client-Felder server-side allow-list-validieren.
-- **Worker `ffmpegArgs.ts` ist KOPIE** von `packages/shared` — bei Filter-Änderung BEIDE syncen.
-- **`subtitleCanvas.ts` existiert 2×** (Desktop Browser-Canvas + Worker `@napi-rs/canvas`) — Render-Logik bewusst identisch halten.
-- **Multi-Font + Multi-Weight:** dieselbe `.ttf`-Datei + derselbe Dateiname in `packages/mobile/assets/fonts/` UND `services/render-worker/assets/fonts/`. Family-Name = Dateiname ohne `.ttf`. Weight-Suffix-Convention: `Inter` (Regular), `InterLight`, `InterMedium`, `InterBold`, `InterBlack`. Mobile baut Family-Name aus `resolveWeightedFamily(baseId, weight)`. Worker hat 60 Entries in `SUBTITLE_FONT_FILES`.
-- **`expo-updates reloadAsync()`** white-screen-t auf SDK 52 + New Arch → NICHT nutzen. Update kommt beim nächsten Kaltstart.
-- **Edge-to-edge:** `react-native-edge-to-edge` (`SystemBars` für Bar-Icon-Style) + `expo-navigation-bar` (nur für Nav-Bar-Hintergrundfarbe).
-- **Test-Befehl IMMER inkl. `npm run android`** (Memory-Feedback): `cd packages/mobile && ANDROID_HOME=/Users/garyfischer/Library/Android/sdk ANDROID_SERIAL=10AF7Y16R70010X npm run android`. Lokaler Dev-Build hat `__DEV__=true` → Paywall-Bypass.
-- **Bei Bugs ZUERST den echten verantwortlichen Code lesen + an der Wurzel fixen** — keine spekulativen Style-Patches.
-- **`.claude/worktrees/`** sind STALE — ignorieren, im Main-Repo arbeiten.
-- **expo prebuild --clean** löscht `android/local.properties` → muss mit `sdk.dir=/Users/garyfischer/Library/Android/sdk` wiederhergestellt werden.
-- **Stripe (Desktop) + IAP (Mobile) parallel** — rechtlich sauber (DMA / Spotify-Modell).
-
----
-
-## 11. Security — Stand
-
-**Erledigt (A6.x):** A6.1 Rate-Limit, A6.2 .ass-Validation, A6.3 Plan-Check + Monthly-Counter, A6.4 typed RenderSpec, A6.5 Log-Sanitize + R2-Path-Regex, A6.6 Stripe-Webhook-Dedup + Edge-Function-CORS-Whitelist (jetzt fisora.app), A6.7 yt-dlp gehärtet, A6.9 R2-Body-Limit + SourceKey-Ext-Check, A6.10 (partial).
-
-**Round-10-Addendum (`SECURITY_AUDIT_2026-05-16.md`):**
-- Stripe-Webhook gehärtet.
-- `subtitlePng` allow-list-validiert (Numbers geclampt, Colors 6-hex-regex, Enums, fontFamily seit Multi-Font in der Allow-List).
-- `__DEV__`-Paywall-Bypass nur in Dev-Builds (Release/Preview = `__DEV__=false`).
-
-**Noch offen aus dem Audit:**
-- **D5** Electron `sandbox=true` + nonce-CSP — A6.8 partial reverted (P1-8/P2-7).
-- **D6** `npm audit fix` (root + mobile + worker) — P3-12.
-- **E3** R2-Lifecycle `sources/* > 7d` — P2-1.
-
----
-
-## 12. Quick-Reference
-
-- **Worker-URL:** `https://fiano-render-worker-491699066139.europe-west1.run.app` · Rev `00051-hf2` · GCP `fiano-render-2026`.
-- **GitHub:** `garymikefischer-art/fiano` (Repo-Rename optional, noch nicht durchgeführt).
-- **EAS-Projekt:** `27f6d175-b3fd-4d87-bff9-f7d4642fae1a` (Display-Name auf „fisora-mobile" geändert). User: `garyfischer`.
-- **Supabase-Projekt:** `zibzcaknqzxgwootfjxc` (CLI gelinkt). Site URL `https://fisora.app`. Auth Redirect URLs whitelist enthält `fisora://auth-callback`.
-- **Firebase:** `fiano-2bf11` (intern unverändert), zwei Android-Apps (alt `app.fiano.video` + neu `app.fisora.video`).
-- **Branch:** `claude/edge-to-edge` · HEAD `81994e4`.
-- **Backups:** `pre-handoff-fisora-context-limit-20260601` (HEAD), `pre-fisora-rename-20260526`, `pre-handoff-context-limit-20260525`, `pre-d3-fonts-20260520`, `pre-handoff-round10-20260520`.
-- **Phone:** `ANDROID_SERIAL=10AF7Y16R70010X` (Vivo V40 Lite, Android 15, MediaTek HEVC `c2.mtk.hevc.decoder`, 256 MB Default-Heap).
-- **Mobile-Speicher:** expo-secure-store (API-Keys, themeMode, Supabase-Session chunked), AsyncStorage (`fiano.projects`, `fiano.notifications` — Storage-Keys BLEIBEN „fiano.*" um User-Daten nicht zu zerstören!), `documentDirectory/{imports,thumbs,voice-overs,exports,thumbnails,watermarks}/`.
-- **R2:** `fiano-renders/sources/{userId}/{projectId}/...` (7d lifecycle TODO), `outputs/...` (7d).
-- **Marketing-Assets:** `~/Downloads/fiano-marketing/` (logo.png, logo-adaptive.png, output/).
-- **Fisora-Marketing:** `https://fisora.app` (Domain hosten noch User-Action).
-- **Support:** `support@fisora.app`.
-
----
-
-*Stand 2026-06-01. Nächster Chat: Datensicherheit-Form ausfüllen (§7b), dann Listing-Texte + Screenshots hochladen (§7c-d), dann Pre-Launch-Track Build via EAS, dann D3 RevenueCat-Wiring sobald `goog_…`-Key da.*
+*Stand 2026-06-08. 🔴 SOFORT im neuen Chat: **Build 17 bauen** (`cd packages/mobile && eas build --profile production --platform android` — KSP/Kotlin-Fix ist drin) → Play Console Production (ersetzt Build 16, der wg. 16-KB abgelehnt wird). Dann: Review abwarten · Website-Download-Buttons NACH Go-Live · 3 DPA-Mail-Antworten (Expo/RevenueCat/Formspree). Erledigt: Phase 1 (Trim) + 9.10/9.15/9.16/9.17 + SDK-53-Upgrade. Offen (Polish): 9.7 Light-Theme, 9.11 Drag-Reorder, 9.13 Cross-Device-Sync, 9.14 Effects-Mobile.*

@@ -1,9 +1,9 @@
 {
   "expo": {
     "name": "Fisora",
-    "slug": "fisora-mobile",
+    "slug": "fiano-mobile",
     "scheme": "fisora",
-    "version": "0.0.2",
+    "version": "0.0.4",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -29,6 +29,7 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png",
         "backgroundColor": "#090b0c"
       },
       "permissions": [
@@ -42,10 +43,16 @@
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.READ_MEDIA_AUDIO",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.RECORD_AUDIO"
-      ]
+        "android.permission.RECORD_AUDIO",
+        "com.android.vending.BILLING"
+      ],
+      "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID"
+      ],
+      "versionCode": 17
     },
     "plugins": [
+      "expo-web-browser",
       "expo-secure-store",
       "expo-image-picker",
       "expo-media-library",
@@ -58,8 +65,7 @@
           "android": {
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
-            "minSdkVersion": 24,
-            "kotlinVersion": "1.9.25"
+            "minSdkVersion": 24
           }
         }
       ],

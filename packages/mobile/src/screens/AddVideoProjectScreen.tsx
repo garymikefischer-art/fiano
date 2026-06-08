@@ -15,6 +15,7 @@ import { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -82,6 +83,10 @@ export function AddVideoProjectScreen() {
   const [urlProgress, setUrlProgress] = useState(0);
   // Phase A3.3: Multi-URL-Import — Progress über mehrere URLs.
   const [multiUrlProgress, setMultiUrlProgress] = useState<{ current: number; total: number } | null>(null);
+  // URL-Popup (Dialog-Option „URL"): Single-URL-Eingabe → createFromUrl. Merkt sich
+  // den aufrufenden Mode/VideoType, damit das Popup das richtige Projekt erstellt.
+  const [urlModalFor, setUrlModalFor] = useState<{ mode: ProjectMode; videoType?: VideoType } | null>(null);
+  const [modalUrl, setModalUrl] = useState('');
 
   // Phase A3.7: Helper für URL-Array-Manipulation.
   const updateUrlAt = (i: number, v: string) => {
@@ -121,16 +126,29 @@ export function AddVideoProjectScreen() {
     return false;
   };
 
-  const askSource = (): Promise<'gallery' | 'files' | null> => {
+  const askSource = (
+    opts: { allowUrl?: boolean } = {},
+  ): Promise<'gallery' | 'files' | 'url' | null> => {
     return new Promise((resolve) => {
+      const buttons: Array<{
+        text: string;
+        style?: 'cancel' | 'destructive';
+        onPress?: () => void;
+      }> = [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
+        { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
+        { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
+      ];
+      if (opts.allowUrl) {
+        buttons.push({
+          text: t('addProject.sourceUrl', 'YouTube / Twitch URL'),
+          onPress: () => resolve('url'),
+        });
+      }
       appAlert(
         t('addProject.sourceSheetTitle', 'Pick a source'),
         t('addProject.sourceSheetBody', 'Where is the video you want to import?'),
-        [
-          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
-          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
-          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
-        ],
+        buttons,
       );
     });
   };
@@ -140,8 +158,15 @@ export function AddVideoProjectScreen() {
     options: { videoType?: VideoType } = {},
   ) => {
     if (!ensureCanCreate()) return;
-    const source = await askSource();
+    const source = await askSource({ allowUrl: true });
     if (!source) return;
+    if (source === 'url') {
+      // Dialog-Option „URL" → Popup öffnen statt Datei-Picker. Mode/VideoType
+      // werden gemerkt, damit das Popup dasselbe Projekt wie createFromFile baut.
+      setModalUrl('');
+      setUrlModalFor({ mode, videoType: options.videoType });
+      return;
+    }
     setBusy(mode);
     try {
       const picker = source === 'files' ? pickVideoFromFiles : pickVideoFromGallery;
@@ -188,6 +213,65 @@ export function AddVideoProjectScreen() {
       appAlert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
     } finally {
       setBusy(null);
+    }
+  };
+
+  // URL-Popup-Import (Dialog-Option „URL"): EINE URL → Projekt im jeweiligen Mode
+  // (highlights/tiktok/manual, je nach aufrufender Karte). Teilt downloadFromUrl
+  // mit der Multi-URL-Sektion (onUrlImport); hier bewusst Single-URL.
+  const createFromUrl = async (mode: ProjectMode, rawUrl: string, videoType?: VideoType) => {
+    const url = rawUrl.trim();
+    if (!isYoutubeOrTwitchUrl(url)) {
+      haptic.error();
+      appAlert(
+        t('addProject.urlInvalidTitle', 'Invalid URL'),
+        `${url.slice(0, 80)}\n\n${t('addProject.urlInvalidBody', 'Please enter a YouTube or Twitch URL.')}`,
+      );
+      return;
+    }
+    haptic.medium();
+    setBusy(mode);
+    setUrlPhase('requesting');
+    setUrlProgress(0);
+    try {
+      const result = await downloadFromUrl({ url, onPhase: setUrlPhase, onProgress: setUrlProgress });
+      const title = (result.title || url).slice(0, 80);
+      const project = addProject({
+        title,
+        durationSec: result.durationSec,
+        sourceUri: result.uri,
+        sourceType: 'url',
+        mode,
+        videoType,
+      });
+      useProjectsStore.getState().updateProject(project.id, {
+        status: 'ready',
+        clips: [
+          {
+            id: `c-${Date.now().toString(36)}`,
+            startSec: 0,
+            endSec: result.durationSec,
+            label: 'Imported clip',
+            score: 1,
+          },
+        ],
+      });
+      void extractVideoThumbnail(result.uri, 1000).then((thumbUri) => {
+        if (thumbUri) {
+          useProjectsStore.getState().updateProject(project.id, { thumbUri });
+        }
+      });
+      haptic.success();
+      setUrlModalFor(null);
+      setModalUrl('');
+      nav.replace('ProjectDetail', { projectId: project.id, initialTab: TAB_FOR_MODE[mode] });
+    } catch (err: any) {
+      haptic.error();
+      appAlert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
+    } finally {
+      setBusy(null);
+      setUrlPhase(null);
+      setUrlProgress(0);
     }
   };
 
@@ -657,6 +741,121 @@ export function AddVideoProjectScreen() {
             <Ionicons name="chevron-forward" size={14} color="#52525b" />
           </Pressable>
         </ScrollView>
+
+        {/* URL-Eingabe-Popup — Dialog-Option „YouTube / Twitch URL". Single-URL,
+            nutzt createFromUrl (teilt downloadFromUrl mit der Multi-URL-Sektion).
+            Backdrop-/Cancel-Tap nur erlaubt solange kein Download läuft. */}
+        <Modal
+          visible={urlModalFor !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            if (busy === null) {
+              setUrlModalFor(null);
+              setModalUrl('');
+            }
+          }}
+        >
+          <Pressable
+            onPress={() => {
+              if (busy === null) {
+                setUrlModalFor(null);
+                setModalUrl('');
+              }
+            }}
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', padding: 26 }}
+          >
+            <Pressable
+              onPress={() => {}}
+              style={{
+                backgroundColor: colors.bg.elevated,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: colors.border.subtle,
+                padding: 20,
+                gap: 14,
+              }}
+            >
+              <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
+                {t('addProject.urlModalTitle', 'Paste a YouTube / Twitch link')}
+              </Text>
+              <View
+                style={{
+                  backgroundColor: colors.bg.primary,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border.subtle,
+                  paddingHorizontal: 14,
+                }}
+              >
+                <TextInput
+                  value={modalUrl}
+                  onChangeText={setModalUrl}
+                  placeholder={t('addProject.urlPlaceholder', 'YouTube / Twitch URL…')}
+                  placeholderTextColor="#52525b"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoFocus
+                  editable={busy === null}
+                  onSubmitEditing={() => {
+                    if (urlModalFor) createFromUrl(urlModalFor.mode, modalUrl, urlModalFor.videoType);
+                  }}
+                  style={{ color: colors.text.primary, fontSize: 14, paddingVertical: 14 }}
+                />
+              </View>
+              {busy !== null && urlPhase && (
+                <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
+                  {urlPhase === 'requesting'
+                    ? t('addProject.urlPhaseRequesting', 'Server downloading from YouTube/Twitch…')
+                    : t('addProject.urlPhaseDownloading', `Downloading to phone… ${Math.round(urlProgress * 100)}%`)}
+                </Text>
+              )}
+              <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end', marginTop: 2 }}>
+                <Pressable
+                  onPress={() => {
+                    setUrlModalFor(null);
+                    setModalUrl('');
+                  }}
+                  disabled={busy !== null}
+                  hitSlop={6}
+                  style={{ paddingVertical: 11, paddingHorizontal: 16, opacity: busy !== null ? 0.4 : 1 }}
+                >
+                  <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '700' }}>
+                    {t('common.cancel', 'Cancel')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    if (urlModalFor) createFromUrl(urlModalFor.mode, modalUrl, urlModalFor.videoType);
+                  }}
+                  disabled={busy !== null || modalUrl.trim().length === 0}
+                  style={({ pressed }) => ({
+                    paddingVertical: 11,
+                    paddingHorizontal: 22,
+                    borderRadius: 12,
+                    backgroundColor:
+                      busy !== null || modalUrl.trim().length === 0
+                        ? colors.bg.primary
+                        : pressed
+                          ? '#cc0d2e'
+                          : '#ff1039',
+                    opacity: busy !== null || modalUrl.trim().length === 0 ? 0.5 : 1,
+                  })}
+                >
+                  <Text
+                    style={{
+                      color: busy !== null || modalUrl.trim().length === 0 ? '#a1a1aa' : '#fff',
+                      fontSize: 13,
+                      fontWeight: '700',
+                    }}
+                  >
+                    {busy !== null ? t('common.busy', 'Working…') : t('addProject.importButton', 'Import')}
+                  </Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );

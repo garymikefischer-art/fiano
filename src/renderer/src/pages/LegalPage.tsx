@@ -5,7 +5,7 @@ import { FisoraLogo } from '../components/FisoraLogo';
 import { useT } from '../lib/i18n';
 
 /**
- * Legal-Page für fiano (Phase 6.4).
+ * Legal-Page für Fisora (Phase 6.4).
  *
  * Vier Sub-Pages: Impressum, Privacy/Datenschutz, Terms/AGB, Licenses + Trademarks.
  * Erreichbar via /legal/:doc?  (default: imprint).
@@ -284,7 +284,7 @@ function PrivacyDE() {
 
       <H2>4. Cookies und Tracking</H2>
       <P>
-        fiano ist eine Desktop-App und nutzt keine Cookies, kein Tracking und kein Analytics. Die App-Telemetrie ist deaktiviert.
+        Fisora ist eine Desktop-App und nutzt keine Cookies, kein Tracking und kein Analytics. Die App-Telemetrie ist deaktiviert.
       </P>
 
       <H2>5. E-Mail-Versand</H2>
@@ -367,7 +367,7 @@ function PrivacyEN() {
       <UL>
         <li>Stripe customer ID (for plan management)</li>
         <li>Plan status and subscription period</li>
-        <li>Payment data is processed exclusively by Stripe — fiano never sees credit card numbers</li>
+        <li>Payment data is processed exclusively by Stripe — Fisora never sees credit card numbers</li>
       </UL>
       <P><strong className="text-zinc-300">Local App Data</strong> (on your device):</P>
       <UL>
@@ -378,18 +378,18 @@ function PrivacyEN() {
 
       <H2>3. Use of External AI Services (BYO-Key)</H2>
       <P>
-        fiano follows a "Bring Your Own Key" approach: you use your own API keys for OpenAI (Whisper, TTS) and Google Gemini (thumbnails). When you use these features:
+        Fisora follows a "Bring Your Own Key" approach: you use your own API keys for OpenAI (Whisper, TTS) and Google Gemini (thumbnails). When you use these features:
       </P>
       <UL>
         <li>Audio and image content is sent directly from your device to OpenAI or Google</li>
-        <li>fiano does not relay any data and stores no content server-side</li>
+        <li>Fisora does not relay any data and stores no content server-side</li>
         <li>The privacy policies of <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-fiano-red hover:underline">OpenAI</a> and <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-fiano-red hover:underline">Google</a> apply</li>
         <li>You can opt out of these features by not entering an API key</li>
       </UL>
 
       <H2>4. Cookies and Tracking</H2>
       <P>
-        fiano is a desktop application and uses no cookies, no tracking, no analytics. App telemetry is disabled.
+        Fisora is a desktop application and uses no cookies, no tracking, no analytics. App telemetry is disabled.
       </P>
 
       <H2>5. Email Sending</H2>
@@ -635,7 +635,7 @@ function LicensesContent({ lang }: { lang: LegalLang }) {
       <P>
         {lang === 'de'
           ? 'Fisora nutzt folgende Open-Source-Komponenten:'
-          : 'fiano uses the following open-source components:'}
+          : 'Fisora uses the following open-source components:'}
       </P>
       <UL>
         <li><strong>FFmpeg</strong> — LGPL/GPL ({lang === 'de' ? 'je nach System-Build' : 'depending on system build'}) — <a href="https://ffmpeg.org/legal.html" target="_blank" rel="noopener noreferrer" className="text-fiano-red hover:underline">ffmpeg.org/legal</a></li>
@@ -667,8 +667,8 @@ function LicensesContent({ lang }: { lang: LegalLang }) {
       <H2>{lang === 'de' ? 'Markenhinweise' : 'Trademark Notices'}</H2>
       <P>
         {lang === 'de'
-          ? 'Alle in der App genannten Marken-, Plattform- oder Spielnamen sind eingetragene Marken ihrer jeweiligen Inhaber und werden ausschließlich zur Beschreibung von Funktionen und Zielformaten verwendet (nominativer Markengebrauch). fiano steht in keinerlei geschäftlicher Verbindung zu diesen Marken oder ihren Inhabern.'
-          : 'All brand, platform or game names mentioned in the App are registered trademarks of their respective owners and are used exclusively to describe features and target formats (nominative trademark use). fiano has no commercial affiliation with these brands or their owners.'}
+          ? 'Alle in der App genannten Marken-, Plattform- oder Spielnamen sind eingetragene Marken ihrer jeweiligen Inhaber und werden ausschließlich zur Beschreibung von Funktionen und Zielformaten verwendet (nominativer Markengebrauch). Fisora steht in keinerlei geschäftlicher Verbindung zu diesen Marken oder ihren Inhabern.'
+          : 'All brand, platform or game names mentioned in the App are registered trademarks of their respective owners and are used exclusively to describe features and target formats (nominative trademark use). Fisora has no commercial affiliation with these brands or their owners.'}
       </P>
       <UL>
         <li><strong>TikTok®</strong> — {lang === 'de' ? 'Marke von ByteDance Ltd.' : 'trademark of ByteDance Ltd.'}</li>
@@ -685,11 +685,11 @@ function LicensesContent({ lang }: { lang: LegalLang }) {
           : 'If you enter your own game names in the thumbnail generator, they are passed unchanged to Google Gemini. You are solely responsible for the trademark compliance of the entered terms and the generated content.'}
       </P>
 
-      <H2>{lang === 'de' ? 'fiano-Marke' : 'fiano Brand'}</H2>
+      <H2>{lang === 'de' ? 'Fisora-Marke' : 'Fisora Brand'}</H2>
       <P>
         {lang === 'de'
           ? 'Der Name "Fisora" sowie das Logo sind Marken der Werbeagentur FIANO e.U.'
-          : 'The name "fiano" and the logo are trademarks of Werbeagentur FIANO e.U.'}
+          : 'The name "Fisora" and the logo are trademarks of Werbeagentur FIANO e.U.'}
       </P>
 
       <HR />

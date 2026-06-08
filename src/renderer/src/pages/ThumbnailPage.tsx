@@ -35,6 +35,8 @@ interface FormFields {
   background: string;
   effects: string;
   weaponsSkins: string;
+  /** Eigenes Skin-/Character-Look-Feld (nur Comic-Style genutzt). */
+  customSkin: string;
   /** Frei eingegebener Spielname/Genre für 'custom' + 'default' style. */
   customGameName: string;
   /** Style-Preset für Custom-Mode. */
@@ -74,12 +76,12 @@ const FIELD_PLACEHOLDERS: Record<Genre, Omit<FormFields, 'customGameName' | 'cus
 /** Hardkodierte Style-Defaults für Custom-Mode (mit Markennamen — User-
  *  bewusste Wahl, Disclaimer wird im UI angezeigt). */
 const COMIC_STYLE_DEFAULTS = {
-  background:   'Painted Palms, daylight, stink bomb explosion, yellow gas clouds spreading through desert buildings, debris, depth of field.',
+  background:   'abandoned tropical resort town, daylight, stink bomb explosion, yellow gas clouds spreading through buildings, debris, depth of field.',
   effects:      'Strong rim light, toxic yellow glow, volumetric gas, cinematic.',
   weaponsSkins: 'futuristic rifle with skin',
 };
 const REALISTIC_STYLE_DEFAULTS = {
-  background:   'Verdansk Dam area, daylight, massive water-side explosion, shockwave, spray mist, debris, smoke pillars, bullet tracers, depth of field.',
+  background:   'large dam and reservoir, daylight, massive water-side explosion, shockwave, spray mist, debris, smoke pillars, bullet tracers, depth of field.',
   effects:      'Strong rim light, sunlight + water reflections, cool shadows, volumetric smoke, particles, high contrast, cinematic.',
   weaponsSkins: 'tactical assault rifle in hand',
 };
@@ -99,9 +101,10 @@ const REALISTIC_STYLE_DEFAULTS = {
  * Style-Spiele genauso (Reference-Prompt-Logik des Users).
  */
 const COMIC_STYLE_PROMPT = (f: FormFields) => {
-  const game = f.customGameName.trim() || 'Fortnite';
+  const game = f.customGameName.trim() || 'a video game of your choice';
+  const skin = f.customSkin.trim() || 'an esport-style operator';
   return `Create a highly realistic YouTube thumbnail inspired by ${game}.
-Elite operator styled as Siren skin (esport sweat), ${game} outfit, no helmet. Ultra close-up (Dutch tilt).
+Elite operator styled as ${skin} (esport sweat), ${game} outfit, no helmet. Ultra close-up (Dutch tilt).
 Replace face with provided photo.
 FACE & HAIR (STRICT):
 Perfect alignment, head slightly larger (10–15%).
@@ -117,6 +120,8 @@ EFFECTS:
 ${f.effects || COMIC_STYLE_DEFAULTS.effects}
 WEAPONS/SKINS:
 ${f.weaponsSkins || COMIC_STYLE_DEFAULTS.weaponsSkins}
+RESTRICTIONS:
+Do not include game logos, HUD, watermarks or exact copyrighted characters — original design.
 STYLE:
 Ultra-realistic, NO TEXT.`;
 };
@@ -129,7 +134,7 @@ Ultra-realistic, NO TEXT.`;
  * nur angehängt wenn User das Feld füllt.
  */
 const REALISTIC_STYLE_PROMPT = (f: FormFields) => {
-  const game = f.customGameName.trim() || 'Call of Duty: Warzone (Verdansk)';
+  const game = f.customGameName.trim() || 'a video game of your choice';
   const weaponsBlock = f.weaponsSkins.trim()
     ? `\nWEAPONS/SKINS:\n${f.weaponsSkins}\n`
     : '';
@@ -148,7 +153,9 @@ BACKGROUND:
 ${f.background || REALISTIC_STYLE_DEFAULTS.background}
 EFFECTS:
 ${f.effects || REALISTIC_STYLE_DEFAULTS.effects}
-${weaponsBlock}STYLE:
+${weaponsBlock}RESTRICTIONS:
+Do not include game logos, HUD, watermarks or exact copyrighted characters — original design.
+STYLE:
 Ultra-realistic, no text`;
 };
 
@@ -330,7 +337,7 @@ export function ThumbnailPage() {
   } = useApp();
 
   const [genre, setGenre] = useState<Genre>('custom');
-  const [fields, setFields] = useState<FormFields>({ background: '', effects: '', weaponsSkins: '', customGameName: '', customStyle: 'default' });
+  const [fields, setFields] = useState<FormFields>({ background: '', effects: '', weaponsSkins: '', customSkin: '', customGameName: '', customStyle: 'default' });
   const [referencePath, setReferencePath] = useState<string | null>(null);
   const [resultPath, setResultPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -496,20 +503,24 @@ export function ThumbnailPage() {
                       Bei Comic/Realistic optional (leer = Reference-Default-Spiel),
                       bei Default required (User muss eigenen Namen tippen). */}
                   <FormField
-                    label={t('thumbnail.fieldCustomGame')}
-                    placeholder={
-                      fields.customStyle === 'comic'     ? t('thumbnail.fieldCustomGamePlaceholderComic') :
-                      fields.customStyle === 'realistic' ? t('thumbnail.fieldCustomGamePlaceholderRealistic') :
-                      t('thumbnail.fieldCustomGamePlaceholder')
-                    }
+                    label={`${t('thumbnail.fieldCustomGame')} *`}
+                    placeholder={t('thumbnail.fieldCustomGamePlaceholder')}
                     value={fields.customGameName}
                     onChange={(v) => setFields((s) => ({ ...s, customGameName: v }))}
                     hint={t('thumbnail.fieldCustomGameHint')}
                   />
+                  {fields.customStyle === 'comic' && (
+                    <FormField
+                      label={t('thumbnail.fieldCustomSkin')}
+                      placeholder={t('thumbnail.fieldCustomSkinPlaceholder')}
+                      value={fields.customSkin}
+                      onChange={(v) => setFields((s) => ({ ...s, customSkin: v }))}
+                    />
+                  )}
                 </>
               )}
               <FormField
-                label={t('thumbnail.fieldBackground')}
+                label={isCustom ? `${t('thumbnail.fieldBackground')} *` : t('thumbnail.fieldBackground')}
                 placeholder={
                   isCustom && fields.customStyle === 'comic'     ? COMIC_STYLE_DEFAULTS.background :
                   isCustom && fields.customStyle === 'realistic' ? REALISTIC_STYLE_DEFAULTS.background :
@@ -574,7 +585,7 @@ export function ThumbnailPage() {
 
             <button
               onClick={onGenerate}
-              disabled={busy || (isCustom && fields.customStyle === 'default' && !fields.customGameName.trim())}
+              disabled={busy || (isCustom && (!fields.customGameName.trim() || !fields.background.trim()))}
               className="w-full bg-fiano-red text-white py-3 rounded-xl font-semibold text-[13px]
                          hover:brightness-110 hover:shadow-[0_0_28px_rgba(255,16,57,0.45)]
                          active:scale-[0.99] disabled:opacity-50 transition-all

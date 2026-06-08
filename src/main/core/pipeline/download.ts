@@ -6,6 +6,25 @@ import type { JobContext, PipelineStep } from './types';
 
 interface Input { source: { kind: 'file' | 'url'; value: string } }
 
+/**
+ * M-4 (2026-06-05): URL-Allow-List + Option-Injection-Schutz (Parität zum
+ * Worker `youtube.ts`). yt-dlp interpretiert Argumente die mit `-` beginnen als
+ * Optionen (z.B. --exec) → potenzieller Code-/Datei-Vektor. Nur http(s)-URLs
+ * von YouTube/Twitch erlauben.
+ */
+function isAllowedVideoUrl(raw: string): boolean {
+  if (typeof raw !== 'string' || raw.startsWith('-')) return false;
+  let u: URL;
+  try { u = new URL(raw); } catch { return false; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  const allowed = [
+    'youtube.com', 'm.youtube.com', 'youtu.be', 'youtube-nocookie.com',
+    'twitch.tv', 'm.twitch.tv', 'clips.twitch.tv',
+  ];
+  return allowed.some((h) => host === h || host.endsWith('.' + h));
+}
+
 /** Lädt YouTube/Twitch-Video via yt-dlp herunter, oder nutzt lokale Datei direkt. */
 export const downloadStep: PipelineStep<Input, { sourcePath: string }> = {
   name: 'download',
@@ -14,6 +33,11 @@ export const downloadStep: PipelineStep<Input, { sourcePath: string }> = {
       ctx.emit({ type: 'log', step: 'download', message: `Using local file: ${source.value}` });
       ctx.emit({ type: 'progress', step: 'download', percent: 100 });
       return { sourcePath: source.value };
+    }
+
+    // M-4: URL validieren bevor sie an yt-dlp übergeben wird.
+    if (!isAllowedVideoUrl(source.value)) {
+      throw new Error('Only YouTube and Twitch URLs are supported.');
     }
 
     const bin = resolveBin('yt-dlp');
@@ -34,6 +58,7 @@ export const downloadStep: PipelineStep<Input, { sourcePath: string }> = {
       '--newline',
       '-o', out,
       ...(ffmpegBin ? ['--ffmpeg-location', ffmpegBin] : []),
+      '--',
       source.value,
     ];
 

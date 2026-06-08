@@ -34,7 +34,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuthStore } from '../stores/authStore';
 import { BackgroundGlow } from '../components/BackgroundGlow';
 import { GoogleButton } from '../components/GoogleButton';
-import { useT } from '../lib/i18n';
+import { useT, useLanguage, setLanguage as setI18nLanguage, LANGUAGES } from '../lib/i18n';
+import { Modal } from 'react-native';
 import { useColors, type ColorPalette } from '../lib/theme';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -54,6 +55,8 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [emailFocus, setEmailFocus] = useState(false);
   const [pwFocus, setPwFocus] = useState(false);
+  const [showLangModal, setShowLangModal] = useState(false);
+  const currentLang = useLanguage();
 
   const onSubmit = async () => {
     if (busy || !email || !password) return;
@@ -117,6 +120,68 @@ export function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <BackgroundGlow />
+
+      {/* Pre-Login-Sprach-Switcher — Top-Right, Modal mit allen 9 Sprachen */}
+      <Pressable
+        onPress={() => setShowLangModal(true)}
+        accessibilityLabel="Change language"
+        style={({ pressed }) => ({
+          position: 'absolute',
+          top: 60,
+          right: 20,
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderRadius: 100,
+          backgroundColor: colors.bg.elevated,
+          borderWidth: 1,
+          borderColor: colors.border.subtle,
+          zIndex: 100,
+          opacity: pressed ? 0.7 : 1,
+        })}>
+        <Text style={{ color: colors.text.primary, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 }}>
+          🌐 {currentLang.toUpperCase()}
+        </Text>
+      </Pressable>
+
+      <Modal
+        visible={showLangModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowLangModal(false)}>
+        <Pressable
+          onPress={() => setShowLangModal(false)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 32 }}>
+          <View style={{ backgroundColor: colors.bg.elevated, borderRadius: 16, padding: 8, borderWidth: 1, borderColor: colors.border.subtle }}>
+            {LANGUAGES.map((lang) => {
+              const isActive = lang.code === currentLang;
+              return (
+                <Pressable
+                  key={lang.code}
+                  onPress={() => {
+                    setI18nLanguage(lang.code);
+                    setShowLangModal(false);
+                  }}
+                  style={({ pressed }) => ({
+                    paddingVertical: 14,
+                    paddingHorizontal: 16,
+                    borderRadius: 10,
+                    backgroundColor: isActive ? 'rgba(255, 16, 57, 0.12)' : (pressed ? colors.bg.card : 'transparent'),
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  })}>
+                  <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: isActive ? '600' : '400' }}>
+                    {lang.nativeName}
+                  </Text>
+                  <Text style={{ color: colors.text.secondary, fontSize: 12, letterSpacing: 0.5 }}>
+                    {lang.code.toUpperCase()}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Modal>
 
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}

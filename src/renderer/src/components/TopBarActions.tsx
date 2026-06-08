@@ -194,21 +194,34 @@ function NotificationButton() {
   const currentJob = useApp((s) => s.currentJob);
   const projects = useApp((s) => s.projects);
   const [open, setOpen] = useState(false);
+  const [popupPos, setPopupPos] = useState<{ top: number; right: number } | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [checkStatus, setCheckStatus] = useState<CheckStatus>({ kind: 'idle' });
   const lastJobRef = useRef<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Click-Outside schließt
+  // Click-Outside schließt — wrapperRef enthält nur den Button (Dropdown ist im Portal),
+  // daher separat checken ob Click im Portal-Dropdown ist via data-attribute.
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inWrapper = wrapperRef.current?.contains(target);
+      const inPortal = (target as Element)?.closest?.('[data-notifications-portal]');
+      if (!inWrapper && !inPortal) {
         setOpen(false);
       }
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
+
+  // Position des Portal-Dropdowns relativ zum Bell-Button (analog Profile-Popup)
+  useEffect(() => {
+    if (!open || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setPopupPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+  }, [open]);
 
   // Listen auf Job-Completion → Notification
   useEffect(() => {
@@ -378,6 +391,7 @@ function NotificationButton() {
   return (
     <div className="relative" ref={wrapperRef}>
       <button
+        ref={buttonRef}
         onClick={toggleOpen}
         aria-label={t('topBar.notificationsAria')}
         className="relative w-8 h-8 rounded-lg flex items-center justify-center
@@ -398,11 +412,17 @@ function NotificationButton() {
         )}
       </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute top-full right-0 mt-2 w-80 max-h-[440px] z-50
-                        bg-fiano-black border border-white/[0.08] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)]
-                        flex flex-col">
+      {/* Dropdown — Portal nach document.body damit kein stacking-context
+          (Preview-Panel mit transform/backdrop-filter) das Popup einsperrt.
+          Position via getBoundingClientRect am Bell-Button. */}
+      {open && popupPos && createPortal(
+        <div
+          data-notifications-portal
+          className="fixed w-80 max-h-[440px] z-[9999]
+                     bg-fiano-black border border-white/[0.08] rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.6)]
+                     flex flex-col"
+          style={{ top: popupPos.top, right: popupPos.right }}
+          onMouseDown={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
             <div className="text-[12px] font-semibold text-zinc-200">{t('topBar.notifications')}</div>
             <div className="flex items-center gap-3">
@@ -483,7 +503,8 @@ function NotificationButton() {
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

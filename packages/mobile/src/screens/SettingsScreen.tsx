@@ -339,6 +339,10 @@ export function SettingsScreen() {
                 : t('settings.account.upgradeToPro')}
             </Text>
           </Pressable>
+
+          {/* Fix (2026-06-05): Kündigen/Verwalten lebt jetzt auf dem PricingScreen
+              („Manage billing"-Button oben führt dorthin) — der große Cancel-Block
+              hier war zu prominent in den Einstellungen. */}
         </View>
 
         {/* Preferences-Group */}

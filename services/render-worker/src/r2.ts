@@ -12,8 +12,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { createReadStream } from 'node:fs';
-import { stat, writeFile } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { stat, unlink } from 'node:fs/promises';
 
 const ACCOUNT_ID = (process.env.R2_ACCOUNT_ID ?? '').trim();
 const ACCESS_KEY_ID = (process.env.R2_ACCESS_KEY_ID ?? '').trim();
@@ -61,6 +61,7 @@ export const MAX_UPLOAD_BYTES: Record<string, number> = {
   music: 50 * 1024 * 1024,        // 50 MB music
   'voice-over': 20 * 1024 * 1024, // 20 MB VOs
   subtitle: 256 * 1024,           // 256 KB ASS (validator capped at 64KB but slack)
+  watermark: 10 * 1024 * 1024,    // 10 MB watermark PNG/JPG (M-3)
 };
 
 export async function createUploadUrlForKey(key: string): Promise<{ uploadUrl: string; key: string }> {
@@ -85,19 +86,35 @@ export async function downloadToFile(
   const res = await requireR2().send(cmd);
   if (!res.Body) throw new Error(`R2 object empty: ${key}`);
   const stream = res.Body as NodeJS.ReadableStream;
-  const chunks: Buffer[] = [];
+  // M-3 (2026-06-05): Stream-to-disk statt Buffer.concat in RAM (OOM-Schutz auf
+  // der 2-GiB-Instanz) + harter maxBytes-Cap pro Kind. Bei Überschreitung wird
+  // der Teil-Download abgebrochen und die Partial-Datei entfernt.
+  const out = createWriteStream(destPath);
   let total = 0;
-  for await (const chunk of stream) {
-    const b = chunk instanceof Buffer ? chunk : Buffer.from(chunk);
-    total += b.byteLength;
-    if (total > maxBytes) {
-      throw new Error(`R2 download too large: ${total} bytes > ${maxBytes} for ${key.slice(0, 40)}`);
+  try {
+    for await (const chunk of stream) {
+      const b = chunk instanceof Buffer ? chunk : Buffer.from(chunk);
+      total += b.byteLength;
+      if (total > maxBytes) {
+        throw new Error(`R2 download too large: ${total} bytes > ${maxBytes} for ${key.slice(0, 40)}`);
+      }
+      if (!out.write(b)) {
+        await new Promise<void>((resolve, reject) => {
+          out.once('drain', resolve);
+          out.once('error', reject);
+        });
+      }
     }
-    chunks.push(b);
+    await new Promise<void>((resolve, reject) => {
+      out.end(() => resolve());
+      out.once('error', reject);
+    });
+  } catch (e) {
+    out.destroy();
+    await unlink(destPath).catch(() => {});
+    throw e;
   }
-  const buf = Buffer.concat(chunks);
-  await writeFile(destPath, buf);
-  return buf.byteLength;
+  return total;
 }
 
 /** Upload local file to R2 under specified key. */

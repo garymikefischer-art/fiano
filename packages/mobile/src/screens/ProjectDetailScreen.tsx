@@ -1309,7 +1309,7 @@ function HighlightsTab({
                 fontWeight: '700',
               }}
             >
-              {t('highlights.buildVideo', 'Build YouTube video')}
+              {t('highlights.buildVideo', 'Build 16:9 video')}
             </Text>
           </Pressable>
         </View>
@@ -2520,7 +2520,19 @@ function TikTokTab({
   // Clip-Selector (Phase 9.5.8.1) — bei Multi-Clip-Projects oder Highlight-Cards-Projects.
   // selectedClipIdx wählt den aktiven Clip; effective-sourceUri/trim werden in
   // LayoutPreview UND Export-Navigation genutzt.
-  const [selectedClipIdx, setSelectedClipIdx] = useState(0);
+  //
+  // Trim-Bug-Fix (2026-06-05): Default auf den ersten AI-Highlight (kind==='highlight')
+  // statt clips[0]. clips[0] ist bei Auto-Projekten der volle "Imported clip"
+  // (0..durationSec, siehe AddVideoProjectScreen). War er der Default-Export-Clip,
+  // exportierte der 9:16-Tab die VOLLE Source-Länge statt des erkannten Highlights
+  // (User-Report: 5s-Highlight → 12s-Export, Trim "nicht angewendet"). Lazy-Initializer
+  // läuft beim Tab-Mount — TikTokTab wird conditional gemountet, greift also nach der
+  // Analyse. Manual-/No-Highlight-Projekte (findIndex=-1) bleiben bei 0.
+  const [selectedClipIdx, setSelectedClipIdx] = useState(() => {
+    const initialClips = project.clips ?? [];
+    const firstHighlightIdx = initialClips.findIndex((c) => c.kind === 'highlight');
+    return firstHighlightIdx >= 0 ? firstHighlightIdx : 0;
+  });
   // Phase B5 (2026-05-18): TrimModal-State. null = closed.
   const [editingClipIdx, setEditingClipIdx] = useState<number | null>(null);
   const clips = project.clips ?? [];
@@ -4040,7 +4052,7 @@ function FullModePreview({
   // mounted via key={activeUri}, im onLoad seeken wir dann dort hin.
   const [pendingSeekSec, setPendingSeekSec] = useState<number | null>(null);
   const videoRef = useRef<VideoRef>(null);
-  const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
+  const introRef = useRef<VideoRef | null>(null);
   const off = Math.min(1, Math.max(0, offsetX));
   const leftPct = -216 * off;
   const isPortrait = aspect < 1;
@@ -4699,7 +4711,7 @@ function StackedSplitPreview({
   const colors = useColors();
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
-  const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
+  const introRef = useRef<VideoRef | null>(null);
 
   // Click-to-play (Phase 9.5.4-hotfix2): erst nach erstem Play mounten wir die
   // beiden <Video>-Decoder. Vorher zeigen die Panes nur das Poster (thumbUri),
@@ -6109,7 +6121,7 @@ function BuilderTab({
         >
           {t(
             'builder.emptyBody',
-            'Switch to the Highlights tab, select the clips you want to combine, then tap "Build YouTube video".',
+            'Switch to the Highlights tab, select the clips you want to combine, then tap "Build 16:9 video".',
           )}
         </Text>
         <Pressable
@@ -6371,7 +6383,7 @@ function BuilderTab({
 
       <View style={{ gap: 4 }}>
         <Text style={{ color: colors.text.primary, fontSize: 22, fontWeight: '700', letterSpacing: -0.5 }}>
-          {t('builder.title', 'YouTube Builder')}
+          {t('builder.title', '16:9 Builder')}
         </Text>
         <Text style={{ color: colors.text.secondary, fontSize: 12 }}>
           {selected.length} {t('builder.clipsSelected', 'clips')} · {formatDuration(totalDuration)}{' '}

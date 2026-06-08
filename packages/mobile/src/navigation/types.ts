@@ -27,6 +27,9 @@ export type RootStackParamList = {
   };
   Settings: undefined;
   Pricing: { paywallMode?: boolean } | undefined;
+  /** Paywall-Gate (eigener Route-Name ≠ 'Pricing', damit der Navigator beim
+   *  Sub-Aktiv-Werden sauber zu MainTabs wechselt statt auf Pricing zu hängen). */
+  Paywall: { paywallMode?: boolean } | undefined;
   Notifications: undefined;
   Help: undefined;
   Legal: undefined;
