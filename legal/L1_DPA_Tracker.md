@@ -221,15 +221,19 @@ Für jeden Anbieter, der sich auf das **EU-US Data Privacy Framework** stützt (
 
 ---
 
-## 7. Offene To-dos (Stand 2026-06-05)
-- ☐ Supabase-DPA via PandaDoc signieren + TIA ablegen.
-- ☐ RevenueCat-DPA gegenzeichnen; DPF-Status erneut prüfen (war 2026-06 offen).
-- ☐ Cloudflare-R2-DPA im Dashboard akzeptieren **und** Lifecycle-Rule `sources/* > 7 Tage` aktiv schalten (derzeit als TODO offen — siehe ROPA Nr. 4).
-- ☐ Expo-DPA per privacy@expo.dev anfordern.
-- ☐ Resend-DPA akzeptieren + DKIM für `fisora.app` verifizieren.
-- ☐ Formspree-DPA anfordern (oder Kontaktformular-Alternative prüfen).
-- ☐ jsDelivr: Webseiten-Bibliotheken auf Self-Hosting umstellen (Drittland-IP-Transfer vermeiden).
-- ☐ DPF-Liste (dataprivacyframework.gov) für alle DPF-Anbieter dokumentiert prüfen + Prüfdatum eintragen.
+## 7. Offene To-dos (Stand 2026-06-08)
+- ✅ **Supabase**-DPA via PandaDoc **signiert** (2026-06-07; Special Categories = None).
+- ✅ **Cloudflare-R2**-DPA (Self-Serve auto) + Compliance-PDFs (ISO 27001/27701, EU Cloud CoC, TIA-USA, C5, SOC2) abgelegt; **Lifecycle-Rule `sources/*>7d` aktiv**.
+- ✅ **Resend**-DPA (Self-Serve, „fully executed") heruntergeladen. *(DKIM für `fisora.app` separat prüfen, falls noch offen.)*
+- ✅ **Stripe** + **Google (Cloud Run / Play Billing / Firebase-FCM)** — automatisch via Services Agreement / Google-Cloud-Terms (CDPA) / Play-DDA; PDF-Kopien abgelegt.
+- ⏳ **Expo**-DPA per `privacy@expo.dev` **angefordert** — Antwort ausständig.
+- ⏳ **RevenueCat**-DPA gilt via ToS; gegengezeichnete Kopie via `compliance@revenuecat.com` **angefordert** — Antwort ausständig.
+- ⏳ **Formspree**-DPA per `security@formspree.io` **angefordert** — Antwort ausständig.
+- ☐ **jsDelivr**: Webseiten-Libs auf Self-Hosting umstellen (Drittland-IP vermeiden) — offen, minor, kein Blocker.
+- ☐ DPF-Liste (dataprivacyframework.gov) für DPF-Anbieter dokumentiert prüfen + Prüfdatum eintragen.
+- ⚪ **OpenAI / Gemini** — kein FIANO-DPA nötig (BYOK), nur Transparenz-Hinweis (erledigt in Datenschutzerklärung).
+
+> **Alle Belege/PDFs:** `~/Downloads/DPA Fisora`. **Keiner** dieser Punkte blockiert den App-Launch (reine Compliance-Akte). Status-Spalte der Tabelle oben = analog (✅ erledigt / ⏳ Mail ausständig / ☐ offen).
 
 ---
 

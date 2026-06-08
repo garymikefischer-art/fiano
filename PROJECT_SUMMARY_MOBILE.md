@@ -1,15 +1,13 @@
 # 📋 PROJECT SUMMARY — Fisora (Hybrid Desktop + Mobile + Cloud-Render)
 
-> **Stand: 2026-06-05** — M5 RevenueCat-IAP komplett LIVE ✅ + Security-Audit (H+M gefixt) ✅ + Website-Legal-Fixes ✅ + L1/L2 DSGVO-Docs ✅ + Google-Kostenschutz (€50-Kill-Switch) ✅ + Paywall/Kündigen-Fixes (OTA) ✅
-> **Branch: `claude/edge-to-edge` · HEAD `61a78d2`** — NICHT in `main` gemerged. User merged via `git merge --no-ff`.
-> **Worker-Rev (live):** `fiano-render-worker-00053-gnt` (H-1 args-Pfad entfernt + H-3 Abo-Gate + M-3 Upload-Limits).
-> **Mobile:** Build 14 (versionCode 14, v0.0.3) im Closed Test + OTA-Update `872a32d4` (Paywall/Kündigen-Fix) auf Channel `production`.
-> **Desktop:** v0.2.0 in dist/ (M-4 yt-dlp-Fix + Pro-100 noch NICHT gebaut → Build v0.2.1 fällig).
+> **Stand: 2026-06-07** — 🎉 **Mobile Build 16 bei Google Play PRODUCTION eingereicht (weltweit, in Review).** Trim-Bug ✅ · Update-Popup ✅ · Kündigen→Pricing ✅ · Thumbnail-Prompts markenfrei ✅ · Builder „16:9" statt „YouTube" ✅ (alle per OTA live) · Desktop v0.2.3 (Mac+Win) auf GitHub ✅ · Cost-Cap verifiziert ✅ · DPAs angestoßen (Supabase signiert, Cloudflare-PDFs, R2-Lifecycle, 3 Mails gesendet).
+> **Branch: `claude/edge-to-edge` · HEAD `3b77554`** — NICHT in `main` gemerged. User merged via `git merge --no-ff`. (Diese Session viele neue Commits: Trim-Fix, UX, Thumbnail/Builder-De-Branding, versionCode 16, Desktop 0.2.2/0.2.3.)
+> **Worker-Rev (live):** `fiano-render-worker-00053-gnt` (unverändert).
+> **Mobile:** **Build 16 (versionCode 16, v0.0.3)** → Production-Track **eingereicht, in Google-Review** (Erst-Release: paar Tage–2 Wochen). OTA-Channel `production` (runtime 0.0.3) trägt alle JS-Fixes. Closed-Test Alpha-2 parallel.
+> **Desktop:** **v0.2.3** (Mac arm64+x64 + Windows) GitHub-Release live (mit Thumbnail/Builder-De-Branding im Binary).
 
-> 🔴 **ERSTE PHASE IM NEUEN CHAT — TRIM-BUG (AI-Highlight-Export):**
-> User-Report: AI erkennt z.B. ein 5-Sekunden-Highlight. User schneidet es in 9:16 zurecht (Anzeige „5 Sekunden"). **Beim Export sind es aber 12 Sekunden (= volle Original-Clip-Länge)** — der Trim wird NICHT auf den Export angewendet.
-> **Verdacht/Untersuchungspfad:** Der Highlight-Clip hat `startSec`/`endSec` (Trim). Beim Cloud-Render muss die `RenderSpec` den Trim enthalten (`-ss`/`-t` bzw. trim-Filter). Wahrscheinlich wird `startSec/endSec` (oder `trimStart/trimEnd`) NICHT in die Spec geschrieben ODER der Worker ignoriert ihn ODER das 9:16-Layout nimmt die volle Source-Dauer.
-> **Dateien lesen:** `packages/mobile/src/screens/ExportScreen.tsx` (wie wird der Export-Spec gebaut?), `packages/mobile/src/lib/renderJob.ts` (Spec-Aufbau), `packages/shared/src/ffmpegArgs.ts` `buildTikTokExportArgs` (wird trim/duration angewendet?), `services/render-worker/src/renderSpec.ts` + `ffmpegArgs.ts` (Worker-Kopie — Trim-Handling). `types.ts`: `DemoClip {startSec,endSec}`, `AIHighlight {start,end}`. → Root-Cause finden + an der Wurzel fixen (User-Constraint), dann **JS-only? → eas update** oder Native? → Build 15.
+> 🟢 **STATUS: WARTEN AUF GOOGLE-PRODUCTION-REVIEW.** Phase 1 (Trim-Bug) ist gefixt + live — KEIN offener Code-Blocker mehr. Offene Punkte siehe §5 (Website-Buttons NACH Live, 3 DPA-Mail-Antworten, 16-KB-Rebuild künftig).
+> ⚠️ **16-KB-Page-Size (Android 15):** Build 16 hat's per „Trotzdem fortfahren" bypassed (nicht blockierend). Nächste Updates: 16-KB-aligned Rebuild einplanen → Memory `android_16kb_pagesize`.
 
 ---
 
@@ -102,7 +100,18 @@ claude-webseite-neu/              ← world4you Hosting (SEPARAT, kein git)
 
 ---
 
-## 4. WAS DIESE SESSION (2026-06-05) ERLEDIGT WURDE
+## 4. WAS SESSION 2026-06-07 ERLEDIGT (LAUNCH-SPRINT)
+- **PHASE 1 Trim-Bug GEFIXT (Root-Cause):** `clips[0]` = voller „Imported clip" (0..durationSec, von AddVideoProjectScreen) war Default-`selectedClip` im 9:16-Tab → Export rendert volle Source statt Highlight. Fix: `selectedClipIdx` defaultet jetzt auf ersten `kind==='highlight'`-Clip (ProjectDetailScreen.tsx, Lazy-Init, greift beim TikTokTab-Mount). Worker (`-ss`/`-t`) + ActionSheet-Path-A waren korrekt. OTA live.
+- **2 UX-Fixes (OTA):** (a) `lib/updates.ts` `useOtaDownloadedPrompt` + `<OtaUpdateWatcher>` in App.tsx → einmaliges „Update bereit"-Popup beim ON_LOAD-Auto-Check (kein Auto-Reload, white-screen). (b) Kündigen-Block aus SettingsScreen RAUS → dezenter „Kündigen/verwalten"-Link in PricingScreen (nur bei aktivem Abo).
+- **Thumbnail-Prompts MARKENFREI** (Desktop `ThumbnailPage.tsx` + Mobile `ThumbnailGeneratorScreen.tsx` + i18n 9 Spr.): Fortnite / „Call of Duty: Warzone (Verdansk)" / „Siren skin" / „Painted Palms" / „Verdansk Dam" ENTFERNT. Game-Name + Background = **Pflichtfelder**, neues **„Skin / Character Look"-Feld** (Comic-Style), generische brand-freie Defaults, Guardrail „no logos/HUD/exact copyrighted characters — original design". Backup-Tag `pre-thumbnail-neutralize-20260606`.
+- **Builder de-YouTubed:** „16:9 Video" statt „YouTube Video" (i18n: builder.title/buildBtn/clipsTab.buildYouTube/emptyBody/feat3Title/pricing.f.builder/clipCard.exportYouTube/step5, 9 Spr. + Mobile-Fallbacks). „YouTube/Twitch-URL"-Import-Strings BLEIBEN (nominativ/beschreibend).
+- **Mobile Build 15 → Build 16** (versionCode 16): alle Fixes ins Binary. **Bei Google Play PRODUCTION eingereicht (weltweit „176 Länder + Rest der Welt", in Review).** 16-KB-Fehler per „Trotzdem fortfahren" bypassed.
+- **Desktop v0.2.1→0.2.2→0.2.3** (Mac arm64+x64 + **Windows via Wine**) als GitHub-Releases. v0.2.3 hat das De-Branding im Binary. Mac unsigned (`identity: null`). Wine: `/Volumes/PortableSSD/Programme/Wine Stable.app/Contents/Resources/wine/bin` (einmal `xattr -dr com.apple.quarantine` nötig).
+- **Cost-Cap verifiziert** (gcloud): €50-Budget + Killswitch ACTIVE + Worker max-instances 10.
+- **DPAs angestoßen:** Supabase via PandaDoc **signiert** (FIANO e.U., Gary Fischer/Inhaber, None bei Special Categories); Cloudflare-PDFs (ISO 27001/27701, EU Cloud CoC, TIA-USA, +C5/SOC2) in `~/Downloads/DPA Fisora`; **R2-Lifecycle `sources/*>7d` gesetzt**; Supabase Spend-Cap = Free locked-on. **3 Mails (Expo/RevenueCat/Resend) gesendet — Antworten AUSSTÄNDIG.** WKO-Thumbnail-Mail nicht mehr nötig (De-Branding löst es).
+- **Website fisora.app verifiziert:** alle Legal-Pages live, Branding durchgehend „Fisora". **Privacy-URL fürs Play-Listing: `https://www.fisora.app/datenschutz.html`.** Store-Listing (M6) eingetragen.
+
+### Frühere Session (2026-06-05)
 - **M5 RevenueCat-IAP komplett LIVE** (Commits b5fc496→c468b0c): `lib/iap.ts`, PricingScreen auf purchasePackage, authStore logIn/logOut+Sync, `revenuecat-webhook` Edge Function (Secret-Auth, Event→Plan/Status, upsert subscriptions). RC-Dashboard „Fisora Real" voll konfiguriert (App+JSON, Entitlements creator/pro, Products creator_monthly/pro_monthly, Offering `default` current). goog-Key in EAS prod env + .env. Webhook-Secret in Supabase `REVENUECAT_WEBHOOK_AUTH`. **Echter Test-Kauf durchgelaufen** (richtiger Preis, Plan grün, Row geschrieben).
 - **Pro-Limit 200 → 100** (Migration 006 + i18n 9 Sprachen + AGB). Creator bleibt 50.
 - **Play Console:** beide Abos `creator_monthly`/`pro_monthly` mit aktiven Base-Plans angelegt; Service-Account `revenuecat-iap-validator` berechtigt (Finanzdaten + Abos verwalten); androidpublisher-API aktiv; License-Tester-Liste „Fisora Tester".
@@ -116,21 +125,14 @@ claude-webseite-neu/              ← world4you Hosting (SEPARAT, kein git)
 
 ## 5. 🔴 OFFENE LISTE (NÄCHSTE SCHRITTE)
 
-### PHASE 1 — Trim-Bug fixen (siehe Kopf der Doku) — Code-Bug, höchste Prio
-AI-Highlight-Trim wird beim Export nicht angewendet (5s erkannt → 12s exportiert).
+### 🟢 WARTEN AUF GOOGLE-PRODUCTION-REVIEW (Build 16 weltweit eingereicht 2026-06-07)
+Status sehen: Play Console → Veröffentlichungen-Übersicht / Dashboard / Produktion-Track + Glocke/Email. Erst-Release: paar Tage–2 Wochen. Falls Ablehnung (z.B. 12-Tester-/14-Tage-Regel oder 16-KB-Hard-Requirement) → hier dokumentieren + angehen.
 
-### USER-ACTIONS (kein Code, parallel)
-1. **7 Website-Files hochladen** (world4you): index.html, agb.html, datenschutz.html, impressum.html, account-deletion.html, auth-callback.html, i18n-data.js
-2. **Supabase Spend-Cap** an (Dashboard → Org → Billing → Cost Control)
-3. **DPAs akzeptieren** (legal/L1_DPA_Tracker.md abarbeiten) + **Cloudflare R2 Lifecycle-Rule `sources/*>7d`** setzen
-4. **Google Closed-Test-Review** abwarten → ggf. weitere Test-Käufe
-5. **M6** Listing-Übersetzungen fertig eintragen (9 Sprachen, App-Name+Kurz+Voll — Texte wurden in der Session geliefert) → **M7 Production Track Release**
-6. **Build 15** (Native) wenn bereit für Production: bringt Paywall/Kündigen-Fix + M-4 ins Binary (Google-Policy-Review will Kündigungs-Pfad im Binary). versionCode 14→15.
-7. **Desktop v0.2.1** GitHub-Release (M-4 yt-dlp-Fix + Pro-100 sind committed, aber nicht gebaut)
-
-### 🟡 KLEINE UI-FIXES (User-Wunsch 2026-06-05, offen)
-- **Kündigen-Button verschieben:** Aktuell als großer Button in SettingsScreen. User will ihn auf der „Abrechnung verwalten"-Seite (= PricingScreen, das „manageBilling" öffnet) + in Settings kleiner/weg. → Cancel-Link in PricingScreen (Import `Linking` + `getManagementUrl` aus iap.ts), Block aus SettingsScreen entfernen.
-- **Update-Popup:** „Check for updates" (lib/updates.ts) soll ein Popup zeigen wenn ein Update verfügbar/geladen ist (z.B. „Update verfügbar — beim nächsten Start aktiv"). Aktuell lädt es still. ⚠️ `Updates.reloadAsync()` bleibt aus (white-screen SDK52) — also Popup = nur Hinweis, kein Auto-Reload.
+### OFFEN — nach Go-Live / parallel (User + Claude)
+1. **Website-Download-Buttons** verknüpfen — **erst NACH Play-Store-Live**: in `claude-webseite-neu/` die Download-Buttons auf **Desktop v0.2.3 GitHub-Release** + **Play-Store-Badge/Link** setzen. Diff baut Claude, User lädt per world4you hoch.
+2. **3 DPA-Mail-Antworten** (Expo/RevenueCat/Resend) abwarten → gegengezeichnete Kopien in `~/Downloads/DPA Fisora`. **Claude trackt das (Erinnerung).**
+3. **16-KB-Page-Size Rebuild** (Android 15) bei einem der nächsten Updates — Build 16 ist bypassed. Memory `android_16kb_pagesize`.
+4. **Vorstellungsgrafik** fiano→Fisora (Play-Grafik, evtl. noch altes Logo) — jederzeit änderbar.
 
 ### 🟡 POLISH / QoL (post-launch)
 - **Phase 9.11** Multi-Clip Manual-Mode + Drag-Reorder (~2-3h) — AddVideoProject hat noch SOON-Badge, react-native-draggable-flatlist einbauen
@@ -168,9 +170,10 @@ OFFEN (NIEDRIG, nicht launch-blocking): N-1..N-5 (kosmetisch), R2-Lifecycle-Rule
 - Worker: `https://fiano-render-worker-491699066139.europe-west1.run.app` · GCP `fiano-render-2026` · Billing `0163D0-FEB608-399413`
 - Supabase: `zibzcaknqzxgwootfjxc` · Secrets gesetzt: STRIPE_*, REVENUECAT_WEBHOOK_AUTH
 - RevenueCat: Projekt „Fisora Real" (id 011d02d7), Android-goog-Key `goog_wVPNxQSXBedWuHttLcODnVRLGqk` (public, in EAS prod env + .env)
-- EAS: `garyfischer/fiano-mobile` · Projekt `27f6d175-b3fd-4d87-bff9-f7d4642fae1a` · Build 14 · OTA-Channel `production`
+- EAS: `garyfischer/fiano-mobile` · Projekt `27f6d175-b3fd-4d87-bff9-f7d4642fae1a` · **Build 16 (versionCode 16) bei PRODUCTION in Review** · OTA-Channel `production` (runtime 0.0.3)
+- Desktop GitHub-Releases: v0.2.2 + **v0.2.3** (Mac arm64+x64 dmg/zip + Win Setup.exe) auf `garymikefischer-art/fiano`
 - Firebase `fiano-2bf11` · Play Developer-Konto-ID `6703219868415568447` · App-ID `4974515670189856538` · Package `app.fisora.video`
-- Backup-Tags: `pre-handoff-security-iap-20260605` (HEAD), `pre-security-mediums-legal-20260605`, `pre-handoff-stripe-live-20260602`
-- Memory-Files: test_phone, revenuecat_setup, cost_protection, feedback_test_instructions, feedback_root_cause, expo_prebuild_local_properties
+- Backup-Tags: `pre-thumbnail-neutralize-20260606`, `pre-handoff-security-iap-20260605`, `pre-security-mediums-legal-20260605`, `pre-handoff-stripe-live-20260602`
+- Memory-Files: test_phone, revenuecat_setup, cost_protection, eas_update_command, **android_16kb_pagesize**, feedback_test_instructions, feedback_root_cause, expo_prebuild_local_properties
 
-*Stand 2026-06-05. Nächster Chat: ZUERST diese Doku lesen, dann PHASE 1 (Trim-Bug) untersuchen+fixen. User-Actions (Website-Upload, Spend-Cap, DPAs, M6/M7) laufen parallel.*
+*Stand 2026-06-07. Mobile Build 16 bei Google PRODUCTION in Review (weltweit). Phase 1 (Trim-Bug) erledigt + live. Nächster Chat: ZUERST diese Doku lesen. Offene Punkte siehe §5 — v.a. Website-Download-Buttons NACH Go-Live, 3 DPA-Mail-Antworten (Erinnerung!), 16-KB-Rebuild künftig.*
