@@ -15,11 +15,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
+  Modal,
   PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
   StatusBar as RNStatusBar,
 } from 'react-native';
@@ -81,6 +83,7 @@ import { SubtitleOverlay } from '../components/SubtitleOverlay';
 import { ExportSettingsModal } from '../components/ExportSettingsModal';
 import { DEFAULT_SUBTITLES, type SubtitleSettings } from '../data/demoProjects';
 import { pickVideoFromFiles, pickVideoFromGallery, pickImageForWatermark } from '../lib/mediaPicker';
+import { downloadFromUrl, isYoutubeOrTwitchUrl } from '../lib/youtube';
 import { MultiAudioPicker, type AudioTrack } from '../components/MultiAudioPicker';
 import { ClipEffectsSection } from '../components/ClipEffectsSection';
 import { useT } from '../lib/i18n';
@@ -688,6 +691,13 @@ function HighlightsTab({
   const [analysisPhase, setAnalysisPhase] = useState<'uploading' | 'transcribing' | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [cueEditorOpen, setCueEditorOpen] = useState(false);
+  // URL-Popup (Add-Source-Dialog-Option „URL"): Single-URL → downloadFromUrl →
+  // an die Projekt-Sources anhängen (analog Files/Gallery-Picker).
+  const [urlModalOpen, setUrlModalOpen] = useState(false);
+  const [modalUrl, setModalUrl] = useState('');
+  const [urlBusy, setUrlBusy] = useState(false);
+  const [urlPhase, setUrlPhase] = useState<'requesting' | 'downloading' | null>(null);
+  const [urlProgress, setUrlProgress] = useState(0);
   // Phase A3 — Multi-Clip-Transcribe-Progress
   const [multiProgress, setMultiProgress] = useState<{
     current: number;
@@ -745,61 +755,36 @@ function HighlightsTab({
   // ans project.sourceUris[] angehängt UND ein neuer 'source'-Clip in
   // project.clips erzeugt (sonst nicht in den Listen sichtbar). Multi-Source-
   // Concat-Pipeline rendert alle Sources hintereinander beim 9:16-Export.
-  const onAddSourceVideo = async () => {
-    haptic.medium();
-    // Gallery vs Files (analog AddVideoProjectScreen askSource()).
-    const source = await new Promise<'gallery' | 'files' | null>((resolve) => {
-      appAlert(
-        t('highlights.addSourceSheetTitle', 'Add video from?'),
-        t('highlights.addSourceSheetBody', 'Where is the video you want to add?'),
-        [
-          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
-          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
-          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
-        ],
-      );
-    });
-    if (!source) return;
-    const picker = source === 'gallery' ? pickVideoFromGallery : pickVideoFromFiles;
-    const picked = await picker({});
-    if (!picked) return;
-
-    // Append uri to sourceUris[].
+  // Append-Helper: hängt eine Video-URI (vom Picker ODER URL-Download) als neue
+  // Source + source-Clip ans Projekt an. Genutzt von onAddSourceVideo (Files/
+  // Gallery) UND addSourceFromUrl (URL-Popup).
+  const addSourceUri = (uri: string, durationSec: number, label: string) => {
     const existing =
       project.sourceUris && project.sourceUris.length > 0
         ? project.sourceUris
         : project.sourceUri
           ? [project.sourceUri]
           : [];
-    const nextUris = [...existing, picked.uri];
+    const nextUris = [...existing, uri];
     const newSourceIdx = nextUris.length - 1;
 
-    // Phase C1.B+ Bug-Fix (2026-05-19):
-    //  - picked.durationSec ist 0 wenn Files-Picker (DocumentPicker liefert keine
-    //    metadata). Probe deferred via ClipDurationProbe component (mountet
-    //    hidden Video, captured onLoad.duration, updated store).
-    //  - Initial 0.1s als sentinel-min damit Clip nicht degenerate ist; Probe
-    //    überschreibt das mit der echten Duration.
-    const dur = picked.durationSec > 0 ? picked.durationSec : 0;
+    // durationSec ist 0 beim Files-Picker (DocumentPicker liefert keine Metadata)
+    // → ClipDurationProbe füllt das später; 0.1s sentinel-min damit der Clip
+    // nicht degenerate ist.
+    const dur = durationSec > 0 ? durationSec : 0;
     const safeDur = Math.max(0.1, dur);
     const clipId = `src-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
-    // Source-Clip (für HighlightsTab + TikTokTab + BuilderTab Listen).
-    // Wir registrieren ihn NUR als clip (nicht zusätzlich als builderExtra)
-    // damit es im Builder bei Auswahl keinen Duplikat-Eintrag gibt.
     const newClip: DemoClip = {
       id: clipId,
       startSec: 0,
       endSec: safeDur,
-      label: picked.filename ?? t('highlights.addedClipDefault', 'Imported clip'),
+      label,
       score: 0,
       kind: 'source',
       sourceIdx: newSourceIdx,
     };
 
-    // clipOrder: Clip-ID anhängen — sodass nach App-Restart der useEffect-
-    // restore (Line 130) den clip automatisch wieder selektiert + Builder ihn
-    // in derselben Reihenfolge rendert.
     const currentOrder =
       project.clipOrder && project.clipOrder.length > 0
         ? project.clipOrder
@@ -809,7 +794,6 @@ function HighlightsTab({
           ];
     const nextOrder = [...currentOrder, clipId];
 
-    // perClipDurations synchron halten falls bereits gepflegt (Multi-Whisper).
     const newPerClipDurations = project.perClipDurations
       ? [...project.perClipDurations, safeDur]
       : undefined;
@@ -822,11 +806,77 @@ function HighlightsTab({
       ...(newPerClipDurations ? { perClipDurations: newPerClipDurations } : {}),
     });
 
-    // Auto-select damit der neue Clip sofort in TikTokTab + BuilderTab
-    // Preview erscheint (statt User explicit selektieren zu lassen).
+    // Auto-select damit der neue Clip sofort in TikTokTab + BuilderTab erscheint.
     setSelectedClipIds(new Set([...selectedClipIds, clipId]));
-
     haptic.success();
+  };
+
+  // Videos vom Handy ODER per URL zum Projekt hinzufügen. Dialog: Files /
+  // Gallery / YouTube-Twitch-URL.
+  const onAddSourceVideo = async () => {
+    haptic.medium();
+    const source = await new Promise<'gallery' | 'files' | 'url' | null>((resolve) => {
+      appAlert(
+        t('highlights.addSourceSheetTitle', 'Add video from?'),
+        t('highlights.addSourceSheetBody', 'Where is the video you want to add?'),
+        [
+          { text: t('common.cancel', 'Cancel'), style: 'cancel', onPress: () => resolve(null) },
+          { text: t('addProject.sourceFiles', 'Files'), onPress: () => resolve('files') },
+          { text: t('addProject.sourceGallery', 'Gallery'), onPress: () => resolve('gallery') },
+          { text: t('addProject.sourceUrl', 'YouTube / Twitch URL'), onPress: () => resolve('url') },
+        ],
+      );
+    });
+    if (!source) return;
+    if (source === 'url') {
+      // URL-Popup öffnen (Texteingabe — appAlert kann das nicht).
+      setModalUrl('');
+      setUrlModalOpen(true);
+      return;
+    }
+    const picker = source === 'gallery' ? pickVideoFromGallery : pickVideoFromFiles;
+    const picked = await picker({});
+    if (!picked) return;
+    addSourceUri(
+      picked.uri,
+      picked.durationSec,
+      picked.filename ?? t('highlights.addedClipDefault', 'Imported clip'),
+    );
+  };
+
+  // URL-Popup-Import: lädt das Video via Worker (downloadFromUrl) und hängt es
+  // wie ein gepicktes File an die Projekt-Sources an.
+  const addSourceFromUrl = async (rawUrl: string) => {
+    const url = rawUrl.trim();
+    if (!isYoutubeOrTwitchUrl(url)) {
+      haptic.error();
+      appAlert(
+        t('addProject.urlInvalidTitle', 'Invalid URL'),
+        `${url.slice(0, 80)}\n\n${t('addProject.urlInvalidBody', 'Please enter a YouTube or Twitch URL.')}`,
+      );
+      return;
+    }
+    haptic.medium();
+    setUrlBusy(true);
+    setUrlPhase('requesting');
+    setUrlProgress(0);
+    try {
+      const result = await downloadFromUrl({ url, onPhase: setUrlPhase, onProgress: setUrlProgress });
+      addSourceUri(
+        result.uri,
+        result.durationSec,
+        (result.title || t('highlights.addedClipDefault', 'Imported clip')).slice(0, 60),
+      );
+      setUrlModalOpen(false);
+      setModalUrl('');
+    } catch (err: any) {
+      haptic.error();
+      appAlert(t('import.failedTitle', 'Import failed'), err?.message ?? String(err));
+    } finally {
+      setUrlBusy(false);
+      setUrlPhase(null);
+      setUrlProgress(0);
+    }
   };
 
   const runMultiAnalyze = async (sourceUris: string[]) => {
@@ -1501,6 +1551,117 @@ function HighlightsTab({
           onClose={() => setAiActionSheet(null)}
         />
       )}
+
+      {/* URL-Eingabe-Popup — Add-Source-Dialog-Option „YouTube / Twitch URL".
+          Single-URL → addSourceFromUrl → wird an die Projekt-Sources angehängt. */}
+      <Modal
+        visible={urlModalOpen}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {
+          if (!urlBusy) {
+            setUrlModalOpen(false);
+            setModalUrl('');
+          }
+        }}
+      >
+        <Pressable
+          onPress={() => {
+            if (!urlBusy) {
+              setUrlModalOpen(false);
+              setModalUrl('');
+            }
+          }}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', padding: 26 }}
+        >
+          <Pressable
+            onPress={() => {}}
+            style={{
+              backgroundColor: colors.bg.elevated,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: colors.border.subtle,
+              padding: 20,
+              gap: 14,
+            }}
+          >
+            <Text style={{ color: colors.text.primary, fontSize: 16, fontWeight: '700', letterSpacing: -0.2 }}>
+              {t('addProject.urlModalTitle', 'Paste a YouTube / Twitch link')}
+            </Text>
+            <View
+              style={{
+                backgroundColor: colors.bg.primary,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: colors.border.subtle,
+                paddingHorizontal: 14,
+              }}
+            >
+              <TextInput
+                value={modalUrl}
+                onChangeText={setModalUrl}
+                placeholder={t('addProject.urlPlaceholder', 'YouTube / Twitch URL…')}
+                placeholderTextColor="#52525b"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+                editable={!urlBusy}
+                onSubmitEditing={() => addSourceFromUrl(modalUrl)}
+                style={{ color: colors.text.primary, fontSize: 14, paddingVertical: 14 }}
+              />
+            </View>
+            {urlBusy && urlPhase && (
+              <Text style={{ color: colors.text.tertiary, fontSize: 11 }}>
+                {urlPhase === 'requesting'
+                  ? t('addProject.urlPhaseRequesting', 'Server downloading from YouTube/Twitch…')
+                  : t('addProject.urlPhaseDownloading', `Downloading to phone… ${Math.round(urlProgress * 100)}%`)}
+              </Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end', marginTop: 2 }}>
+              <Pressable
+                onPress={() => {
+                  setUrlModalOpen(false);
+                  setModalUrl('');
+                }}
+                disabled={urlBusy}
+                hitSlop={6}
+                style={{ paddingVertical: 11, paddingHorizontal: 16, opacity: urlBusy ? 0.4 : 1 }}
+              >
+                <Text style={{ color: colors.text.secondary, fontSize: 13, fontWeight: '700' }}>
+                  {t('common.cancel', 'Cancel')}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => addSourceFromUrl(modalUrl)}
+                disabled={urlBusy || modalUrl.trim().length === 0}
+                style={({ pressed }) => ({
+                  paddingVertical: 11,
+                  paddingHorizontal: 22,
+                  borderRadius: 12,
+                  backgroundColor:
+                    urlBusy || modalUrl.trim().length === 0
+                      ? colors.bg.primary
+                      : pressed
+                        ? '#cc0d2e'
+                        : '#ff1039',
+                  opacity: urlBusy || modalUrl.trim().length === 0 ? 0.5 : 1,
+                })}
+              >
+                <Text
+                  style={{
+                    color: urlBusy || modalUrl.trim().length === 0 ? '#a1a1aa' : '#fff',
+                    fontSize: 13,
+                    fontWeight: '700',
+                  }}
+                >
+                  {urlBusy ? t('common.busy', 'Working…') : t('addProject.importButton', 'Import')}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
