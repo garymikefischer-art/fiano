@@ -186,7 +186,14 @@ export function PricingScreen() {
     }
     setBusy(plan.id);
     try {
-      const result = await purchase(pkg);
+      // Plan-Wechsel: besteht schon ein aktives Abo, dessen Store-Produkt-ID
+      // mitgeben → Google ERSETZT das alte Abo statt ein zweites abzuschließen
+      // (Creator→Pro-Doppelabo-Fix 2026-06-08).
+      const oldProductId =
+        currentPlan && currentPlan !== plan.id
+          ? (packageForPlan(offering, currentPlan)?.product.identifier ?? null)
+          : null;
+      const result = await purchase(pkg, oldProductId);
       if (result.userCancelled) return; // User hat abgebrochen — kein Fehler.
       if (!result.ok) {
         appAlert(

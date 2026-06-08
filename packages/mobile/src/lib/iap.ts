@@ -142,11 +142,32 @@ export interface PurchaseResult {
  * Kauf eines Packages. Wrappt RevenueCats Error-Konvention: ein vom User
  * abgebrochener Kauf wirft mit `userCancelled === true` — das ist KEIN Fehler,
  * der UI angezeigt werden soll.
+ *
+ * Plan-Wechsel (Creator↔Pro): `oldProductIdentifier` = die Store-Produkt-ID des
+ * AKTUELL aktiven Abos. Damit ersetzt Google Play das bestehende Abo (Upgrade
+ * mit Proration) statt ein zweites parallel abzuschließen. Ohne diesen Parameter
+ * schloss ein Creator→Pro-Wechsel ZWEI aktive Abos ab (Bug-Fix 2026-06-08).
+ * Hinweis: WITH_TIME_PRORATION passt fürs Upgrade; ein echtes Downgrade
+ * (Pro→Creator) könnte später auf DEFERRED umgestellt werden, damit der User
+ * das höhere Abo bis Periodenende behält.
  */
-export async function purchase(pkg: PurchasesPackage): Promise<PurchaseResult> {
+export async function purchase(
+  pkg: PurchasesPackage,
+  oldProductIdentifier?: string | null,
+): Promise<PurchaseResult> {
   if (!configured) return { ok: false, error: 'IAP nicht verfügbar' };
   try {
-    const { customerInfo } = await Purchases.purchasePackage(pkg);
+    // Nur einen Produktwechsel anstoßen, wenn wirklich ein ANDERES Produkt aktiv
+    // ist — sonst normaler Neukauf. WITH_TIME_PRORATION = sofortiger Wechsel,
+    // Restguthaben des alten Abos wird als Zeit gutgeschrieben.
+    const productChangeInfo =
+      oldProductIdentifier && oldProductIdentifier !== pkg.product.identifier
+        ? {
+            oldProductIdentifier,
+            replacementMode: Purchases.STORE_REPLACEMENT_MODE.WITH_TIME_PRORATION,
+          }
+        : null;
+    const { customerInfo } = await Purchases.purchasePackage(pkg, null, productChangeInfo);
     return { ok: true, customerInfo };
   } catch (e: any) {
     if (e?.userCancelled) return { ok: false, userCancelled: true };
