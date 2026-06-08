@@ -13,7 +13,7 @@ import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/
 import * as Linking from 'expo-linking';
 import * as NavigationBar from 'expo-navigation-bar';
 
-import { LogBox, Platform } from 'react-native';
+import { AppState, LogBox, Platform } from 'react-native';
 
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { useAuthStore } from './src/stores/authStore';
@@ -187,6 +187,21 @@ export default function App() {
       sub.remove();
     };
   }, [initAuth, initApp, initNotifications, initProjects]);
+
+  // Fix (2026-06-08): Abo-Status beim App-Resume neu laden. Fängt Kündigung/
+  // Ablauf, die passierten WÄHREND die App im Hintergrund war (z.B. User war zum
+  // Kündigen/Verwalten in Google Play). Ohne das bleibt ein veralteter 'active'-
+  // Status kleben → Paywall-Gate greift nicht, „Aktueller Plan" bleibt trotz
+  // abgelaufenem Abo, kein Neukauf möglich. Der RootNavigator reagiert reaktiv
+  // auf den dann frischen subscription.status.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && useAuthStore.getState().session) {
+        void useAuthStore.getState().fetchSubscription();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg.secondary }}>

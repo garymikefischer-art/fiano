@@ -150,8 +150,24 @@ export function LoginScreen() {
         onRequestClose={() => setShowLangModal(false)}>
         <Pressable
           onPress={() => setShowLangModal(false)}
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 32 }}>
-          <View style={{ backgroundColor: colors.bg.elevated, borderRadius: 16, padding: 8, borderWidth: 1, borderColor: colors.border.subtle }}>
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          {/* AppAlert-Look (2026-06-08): dunkle Card, Red-Accent-Border, zentriert
+              mit maxWidth + Shadow — konsistent zu appAlert/UrlPromptModal. */}
+          <View
+            style={{
+              width: '100%',
+              maxWidth: 360,
+              backgroundColor: colors.bg.card,
+              borderRadius: 18,
+              padding: 8,
+              borderWidth: 1,
+              borderColor: colors.accent.border,
+              shadowColor: '#000',
+              shadowOpacity: 0.5,
+              shadowRadius: 32,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 12,
+            }}>
             {LANGUAGES.map((lang) => {
               const isActive = lang.code === currentLang;
               return (
