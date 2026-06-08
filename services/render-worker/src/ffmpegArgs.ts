@@ -251,7 +251,11 @@ export function buildMobileExportArgs(opts: MobileExportOpts, platform: Platform
     // bei gesättigten Reds/Oranges. Mit Tags interpretiert jeder moderne
     // Player den Stream als HD-Color-Space.
     args.push(
-      '-preset', 'medium',
+      // Perf (2026-06-08): 'medium' -> 'fast' für Cloud-Render-Speed (~1.3x).
+      // Target-Bitrate (kein CRF) -> gleiche Dateigröße, minimal geringere
+      // Effizienz, bei mobilen TikTok-Clips unsichtbar. NUR Worker-Kopie (Cloud
+      // Run); Desktop-lokales FFmpeg (shared/ffmpegArgs) bleibt 'medium'.
+      '-preset', 'fast',
       '-pix_fmt', 'yuv420p',
       '-colorspace', 'bt709',
       '-color_primaries', 'bt709',
@@ -880,7 +884,11 @@ export function buildTikTokExportArgs(
     // bei gesättigten Reds/Oranges. Mit Tags interpretiert jeder moderne
     // Player den Stream als HD-Color-Space.
     args.push(
-      '-preset', 'medium',
+      // Perf (2026-06-08): 'medium' -> 'fast' für Cloud-Render-Speed (~1.3x).
+      // Target-Bitrate (kein CRF) -> gleiche Dateigröße, minimal geringere
+      // Effizienz, bei mobilen TikTok-Clips unsichtbar. NUR Worker-Kopie (Cloud
+      // Run); Desktop-lokales FFmpeg (shared/ffmpegArgs) bleibt 'medium'.
+      '-preset', 'fast',
       '-pix_fmt', 'yuv420p',
       '-colorspace', 'bt709',
       '-color_primaries', 'bt709',
