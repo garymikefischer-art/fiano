@@ -139,16 +139,18 @@ export function AppAlertHost() {
             )}
           </View>
 
-          {/* Button-Row */}
+          {/* Button-Row — ab 4 Buttons vertikal stapeln, sonst werden lange
+              Labels (z.B. „YouTube / Twitch URL") in der Zeile gequetscht. */}
           <View
             style={{
-              flexDirection: 'row',
+              flexDirection: buttons.length > 3 ? 'column' : 'row',
               borderTopWidth: 1,
               borderTopColor: colors.border.subtle,
             }}
           >
             {buttons.map((btn, i) => {
               const isLast = i === buttons.length - 1;
+              const vertical = buttons.length > 3;
               const isDestructive = btn.style === 'destructive';
               const isCancel = btn.style === 'cancel';
               return (
@@ -156,13 +158,16 @@ export function AppAlertHost() {
                   key={i}
                   onPress={() => onPressBtn(btn)}
                   style={({ pressed }) => ({
-                    flex: 1,
+                    flex: vertical ? undefined : 1,
+                    width: vertical ? '100%' : undefined,
                     paddingVertical: 13,
                     alignItems: 'center',
                     justifyContent: 'center',
                     backgroundColor: pressed ? colors.bg.elevated : 'transparent',
-                    borderRightWidth: isLast ? 0 : 1,
+                    borderRightWidth: !vertical && !isLast ? 1 : 0,
                     borderRightColor: colors.border.subtle,
+                    borderBottomWidth: vertical && !isLast ? 1 : 0,
+                    borderBottomColor: colors.border.subtle,
                   })}
                 >
                   <Text
