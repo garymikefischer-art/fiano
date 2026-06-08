@@ -4052,7 +4052,7 @@ function FullModePreview({
   // mounted via key={activeUri}, im onLoad seeken wir dann dort hin.
   const [pendingSeekSec, setPendingSeekSec] = useState<number | null>(null);
   const videoRef = useRef<VideoRef>(null);
-  const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
+  const introRef = useRef<VideoRef | null>(null);
   const off = Math.min(1, Math.max(0, offsetX));
   const leftPct = -216 * off;
   const isPortrait = aspect < 1;
@@ -4711,7 +4711,7 @@ function StackedSplitPreview({
   const colors = useColors();
   const facecamRef = useRef<RegionCroppedVideoHandle>(null);
   const gameplayRef = useRef<RegionCroppedVideoHandle>(null);
-  const introRef = useRef<React.ComponentRef<typeof Video> | null>(null);
+  const introRef = useRef<VideoRef | null>(null);
 
   // Click-to-play (Phase 9.5.4-hotfix2): erst nach erstem Play mounten wir die
   // beiden <Video>-Decoder. Vorher zeigen die Panes nur das Poster (thumbUri),

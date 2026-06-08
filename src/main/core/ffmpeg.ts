@@ -140,7 +140,7 @@ export function runFfmpeg(args: string[], opts: FfmpegOpts = {}): Promise<void> 
       }
       reject(err);
     });
-    p.on('exit', (code, signal) => {
+    p.on('exit', (code, exitSignal) => {
       if (code === 0) {
         resolve();
         return;
@@ -158,9 +158,9 @@ export function runFfmpeg(args: string[], opts: FfmpegOpts = {}): Promise<void> 
       }
       // SIGTERM/SIGKILL ohne unsere Anfrage = externe Tötung (OOM, parent-restart).
       // Trotzdem cmd + stderr loggen damit User Diagnose hat.
-      if (signal === 'SIGTERM' || signal === 'SIGKILL') {
-        console.error(`[ffmpeg] killed by ${signal} (exit ${code})\n  cmd: ffmpeg ${args.join(' ')}\n  stderr: ${tail || '(empty)'}`);
-        reject(new Error(`ffmpeg killed by ${signal}: ${tail || '(empty stderr — possible OOM, dev-server-restart, or process-group kill)'}`));
+      if (exitSignal === 'SIGTERM' || exitSignal === 'SIGKILL') {
+        console.error(`[ffmpeg] killed by ${exitSignal} (exit ${code})\n  cmd: ffmpeg ${args.join(' ')}\n  stderr: ${tail || '(empty)'}`);
+        reject(new Error(`ffmpeg killed by ${exitSignal}: ${tail || '(empty stderr — possible OOM, dev-server-restart, or process-group kill)'}`));
         return;
       }
       console.error(`[ffmpeg] failed (exit ${code})\n  cmd: ffmpeg ${args.join(' ')}\n  err: ${tail}`);
