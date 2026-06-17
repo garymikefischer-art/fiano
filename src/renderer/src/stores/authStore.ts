@@ -236,6 +236,17 @@ export const useAuth = create<AuthState>((set, get) => ({
           const accessToken = params.get('access_token');
           const refreshToken = params.get('refresh_token');
           if (!accessToken || !refreshToken) return;
+          // M-4 (SECURITY_AUDIT_2026-06-10): Session-Fixation-Schutz. Ein
+          // unsolicited fiano://-Deep-Link mit fremden Tokens darf eine
+          // BESTEHENDE Session NICHT überschreiben (sonst könnte ein Angreifer
+          // dem eingeloggten Nutzer einen fremden Account unterschieben).
+          // Recovery (Passwort-Reset) ist legitim. Der reguläre OAuth-Login läuft
+          // über den PKCE-Loopback (exchangeCodeForSession), nicht diesen Pfad.
+          const isRecovery = params.get('type') === 'recovery';
+          if (get().session && !isRecovery) {
+            console.warn('[auth] fiano://-callback ignoriert — bereits eingeloggt (M-4 Session-Fixation-Schutz)');
+            return;
+          }
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,

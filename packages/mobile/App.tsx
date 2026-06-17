@@ -147,30 +147,47 @@ export default function App() {
       const url = typeof urlEvent === 'string' ? urlEvent : urlEvent.url;
       if (!url || !url.includes('auth-callback')) return;
       try {
-        // Token-Flow: hash-fragment
+        // Params aus hash UND query einmal parsen (für type-Check + Tokens/Code).
         const hashIdx = url.indexOf('#');
-        if (hashIdx >= 0) {
-          const params = new URLSearchParams(url.slice(hashIdx + 1));
-          const access_token = params.get('access_token');
-          const refresh_token = params.get('refresh_token');
-          if (access_token && refresh_token) {
-            await supabase.auth.setSession({ access_token, refresh_token });
-            // Phase R10 (Bug-4): Recovery-Link → ResetPasswordScreen erzwingen.
-            if (params.get('type') === 'recovery') {
-              useAuthStore.setState({ recoveryMode: true });
-            }
-            return;
+        const queryIdx = url.indexOf('?');
+        const hashParams = hashIdx >= 0 ? new URLSearchParams(url.slice(hashIdx + 1)) : new URLSearchParams();
+        const queryParams =
+          queryIdx >= 0
+            ? new URLSearchParams(url.slice(queryIdx + 1, hashIdx >= 0 ? hashIdx : url.length))
+            : new URLSearchParams();
+        const isRecovery = hashParams.get('type') === 'recovery' || queryParams.get('type') === 'recovery';
+
+        // M-4 (SECURITY_AUDIT_2026-06-10): Session-Fixation-Schutz. Ein
+        // UNSOLICITED auth-callback-Deep-Link darf eine BESTEHENDE Session NICHT
+        // überschreiben — sonst könnte ein Angreifer dem bereits eingeloggten
+        // Nutzer per untergeschobenem Link (fisora://auth-callback#access_token=…)
+        // einen fremden Account unterschieben (er lädt dann eigene Daten/zahlt in
+        // den Angreifer-Account). OAuth läuft ohnehin über openAuthSessionAsync
+        // (an den App-Aufruf gebunden) und erreicht diesen Handler nicht; der
+        // PKCE-?code=-Flow ist durch den lokalen Verifier geschützt. Verwundbar
+        // ist nur der raw-Token-Hash. Ausnahme: Recovery (Passwort-Reset) ist
+        // legitim. Neue User (signUp-Confirm) sind hier noch ausgeloggt → kein
+        // Bruch des Onboarding-Flows.
+        if (useAuthStore.getState().session && !isRecovery) {
+          console.warn('[App] auth-callback ignoriert — bereits eingeloggt (M-4 Session-Fixation-Schutz)');
+          return;
+        }
+
+        // Token-Flow: hash-fragment
+        const access_token = hashParams.get('access_token');
+        const refresh_token = hashParams.get('refresh_token');
+        if (access_token && refresh_token) {
+          await supabase.auth.setSession({ access_token, refresh_token });
+          // Phase R10 (Bug-4): Recovery-Link → ResetPasswordScreen erzwingen.
+          if (isRecovery) {
+            useAuthStore.setState({ recoveryMode: true });
           }
+          return;
         }
         // PKCE-Flow: ?code=...
-        const queryIdx = url.indexOf('?');
-        if (queryIdx >= 0) {
-          const queryEnd = hashIdx >= 0 ? hashIdx : url.length;
-          const params = new URLSearchParams(url.slice(queryIdx + 1, queryEnd));
-          const code = params.get('code');
-          if (code) {
-            await supabase.auth.exchangeCodeForSession(code);
-          }
+        const code = queryParams.get('code');
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
         }
       } catch (e) {
         console.warn('[App] auth-callback URL parse failed:', e);
