@@ -37,11 +37,15 @@ export type RenderQuotaResult =
         | 'subscription_required'
         | 'monthly_limit_exceeded'
         | 'resolution_locked'
+        // K-3 (SECURITY_AUDIT_2026-06-10): Per-User-Concurrency-Limit erreicht
+        // (ein anderer Render läuft noch) — transient, Worker antwortet mit 429.
+        | 'concurrency_limit'
         | 'rpc_error';
       plan: 'inactive' | 'creator' | 'pro' | null;
       render_count?: number;
       monthly_limit?: number;
       requested_resolution?: string;
+      max_concurrent?: number;
       message?: string;
     };
 

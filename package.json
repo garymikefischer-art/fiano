@@ -1,6 +1,6 @@
 {
   "name": "video-app",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "AI-powered video clipping desktop app (workspace root + Electron desktop)",
   "main": "./out/main/index.js",
   "workspaces": [

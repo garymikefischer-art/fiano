@@ -113,7 +113,25 @@ export type ValidationResult =
 const VALID_LAYOUTS: TikTokLayout[] = ['stacked', 'split', 'full'];
 const VALID_ENCODERS: Encoder[] = ['software', 'hardware'];
 const VALID_POSITIONS: ReadonlyArray<string | number> = ['top', 'center', 'bottom'];
-const VALID_MOTION_BLUR: ReadonlyArray<'off' | 'low' | 'medium' | 'high'> = ['off', 'low', 'medium', 'high'];
+
+// ─── K-4 (SECURITY_AUDIT_2026-06-10) — Cost-Caps ────────────────────────────
+// motionBlur (FFmpeg minterpolate) ist der teuerste Filter (~5–10× CPU) und der
+// Haupt-Denial-of-Wallet-Hebel. Er wird server-seitig KOMPLETT entfernt (nie
+// durchgereicht), unabhängig vom Plan — Entscheidung User 2026-06-17. Damit
+// kann KEIN Client (auch manipuliert/alt) je minterpolate auslösen. Auf Mobile
+// wird die UI-Option zusätzlich per OTA entfernt.
+//
+// MAX_FPS: die App bietet nur 24/30/60 an — höhere fps sind reiner Mehr-Compute
+// ohne legitimen Nutzen. Hart bei 60 deckeln.
+const MAX_FPS = 60;
+// Obergrenze für absolute Zeit-Positionen (Trim/Clip/Cue/VO) im Source. Großzügig
+// (4 h), damit lange Sources (Podcasts/Streams) trimmbar bleiben — schließt nur
+// absurde Werte (24 h) aus.
+const MAX_POSITION_SEC = 14400;
+// Harte Obergrenze für die effektive OUTPUT-Dauer (Summe getrimmter Segmente).
+// Greift wo eindeutig bestimmbar; der primäre €-Schutz ist zusätzlich der
+// FFmpeg-Prozess-Timeout MAX_DURATION_SEC (index.ts).
+const MAX_OUTPUT_DURATION_SEC = 1800;
 
 // subtitlePng-Validation: erlaubte Enum-Werte + numerische Slider-Ranges.
 const VALID_SUBTITLE_STYLES: ReadonlyArray<NonNullable<SubtitleRenderSettings['style']>> = [
@@ -175,8 +193,8 @@ function validateSubtitlePng(
   const cues = (sp.cues as unknown[]).map((c) => {
     const cc = (c ?? {}) as Record<string, unknown>;
     return {
-      startSec: clamp(cc.startSec, 0, 86400),
-      endSec: clamp(cc.endSec, 0, 86400),
+      startSec: clamp(cc.startSec, 0, MAX_POSITION_SEC),
+      endSec: clamp(cc.endSec, 0, MAX_POSITION_SEC),
       text: typeof cc.text === 'string' ? cc.text.slice(0, 500) : '',
     };
   });
@@ -257,8 +275,9 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     return { ok: false, error: 'invalid width/height' };
   }
 
-  // FPS 1..120.
-  if (typeof s.fps !== 'number' || s.fps < 1 || s.fps > 120) {
+  // FPS 1..MAX_FPS (60). K-4: höhere fps = reiner Mehr-Compute, App sendet eh
+  // max 60.
+  if (typeof s.fps !== 'number' || s.fps < 1 || s.fps > MAX_FPS) {
     return { ok: false, error: 'invalid fps' };
   }
 
@@ -312,8 +331,8 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     gameplayRegion: s.gameplayRegion as RegionRect,
     splitRatio: s.splitRatio !== undefined ? clamp01(s.splitRatio, 0.4, 0.1, 0.9) : undefined,
     fullOffsetX: s.fullOffsetX !== undefined ? clamp01(s.fullOffsetX, 0.5, 0, 1) : undefined,
-    trimStart: s.trimStart !== undefined ? clampPositive(s.trimStart, 0, 86400) : undefined,
-    trimEnd: s.trimEnd !== undefined ? clampPositive(s.trimEnd, 0, 86400) : undefined,
+    trimStart: s.trimStart !== undefined ? clampPositive(s.trimStart, 0, MAX_POSITION_SEC) : undefined,
+    trimEnd: s.trimEnd !== undefined ? clampPositive(s.trimEnd, 0, MAX_POSITION_SEC) : undefined,
     sourceAudioVolume: s.sourceAudioVolume !== undefined
       ? clamp01(s.sourceAudioVolume, 1, 0, 1.5)
       : undefined,
@@ -329,7 +348,7 @@ export function validateRenderSpec(input: unknown): ValidationResult {
   if (Array.isArray(s.voiceOvers)) {
     if (s.voiceOvers.length > 20) return { ok: false, error: 'too many voiceovers (max 20)' };
     spec.voiceOvers = s.voiceOvers.map((vo: any) => ({
-      startSec: clampPositive(vo?.startSec, 0, 86400),
+      startSec: clampPositive(vo?.startSec, 0, MAX_POSITION_SEC),
       volume: clamp01(vo?.volume, 1, 0, 1.5),
       // Phase C4: autoDuck default true. Explizit false → kein ducking.
       autoDuck: vo?.autoDuck !== false,
@@ -358,8 +377,8 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     if (Array.isArray(sub.cues)) {
       if (sub.cues.length > 2000) return { ok: false, error: 'too many cues (max 2000)' };
       spec.subtitle.cues = sub.cues.map((c: any) => ({
-        startSec: clampPositive(c?.startSec, 0, 86400),
-        endSec: clampPositive(c?.endSec, 0, 86400),
+        startSec: clampPositive(c?.startSec, 0, MAX_POSITION_SEC),
+        endSec: clampPositive(c?.endSec, 0, MAX_POSITION_SEC),
         text: typeof c?.text === 'string' ? c.text.slice(0, 500) : '',
       }));
     }
@@ -407,8 +426,8 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     if (s.clips.length > 100) return { ok: false, error: 'too many clips (max 100)' };
     spec.clips = s.clips.map((c: any) => ({
       src: typeof c?.src === 'number' && c.src >= 0 && c.src < 100 ? Math.floor(c.src) : 0,
-      startSec: clampPositive(c?.startSec, 0, 86400),
-      endSec: clampPositive(c?.endSec, 0, 86400),
+      startSec: clampPositive(c?.startSec, 0, MAX_POSITION_SEC),
+      endSec: clampPositive(c?.endSec, 0, MAX_POSITION_SEC),
     }));
   }
 
@@ -444,9 +463,8 @@ export function validateRenderSpec(input: unknown): ValidationResult {
     if (typeof eff.sharpen === 'number' && isFinite(eff.sharpen)) {
       effects.sharpen = Math.max(0, Math.min(5.0, eff.sharpen));
     }
-    if (typeof eff.motionBlur === 'string' && VALID_MOTION_BLUR.includes(eff.motionBlur as any)) {
-      effects.motionBlur = eff.motionBlur as 'off' | 'low' | 'medium' | 'high';
-    }
+    // K-4: motionBlur wird bewusst NICHT übernommen → minterpolate (~5–10× CPU)
+    // kann serverseitig nie ausgelöst werden. eff.motionBlur wird ignoriert.
     // Phase C6 (2026-05-19): Color-Wheels per-channel validation.
     if (eff.colorWheels && typeof eff.colorWheels === 'object') {
       const cw = eff.colorWheels as Record<string, unknown>;
@@ -468,6 +486,22 @@ export function validateRenderSpec(input: unknown): ValidationResult {
       };
     }
     spec.effects = effects;
+  }
+
+  // K-4: effektive Output-Dauer cappen, wo eindeutig bestimmbar. Summe der
+  // getrimmten Segmente (clips) bzw. trimEnd−trimStart. estOutputSec=0 = "volle
+  // Source ohne Trim" → nicht bestimmbar → greift der Prozess-Timeout (index.ts).
+  let estOutputSec = 0;
+  if (spec.clips && spec.clips.length > 0) {
+    estOutputSec = spec.clips.reduce((sum, c) => sum + Math.max(0, c.endSec - c.startSec), 0);
+  } else if (spec.trimStart !== undefined && spec.trimEnd !== undefined) {
+    estOutputSec = Math.max(0, spec.trimEnd - spec.trimStart);
+  }
+  if (estOutputSec > MAX_OUTPUT_DURATION_SEC) {
+    return {
+      ok: false,
+      error: `output duration ${Math.round(estOutputSec)}s exceeds cap (${MAX_OUTPUT_DURATION_SEC}s)`,
+    };
   }
 
   return { ok: true, spec };
