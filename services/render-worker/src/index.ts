@@ -19,7 +19,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 import express, { type Request, type Response, type NextFunction } from 'express';
-import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'node:crypto';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -45,10 +44,13 @@ import { transcribeAudio } from './transcribe.js';
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-// Phase C5.3 Bug-Fix (2026-05-19): bump von 300s auf 600s — Motion-Blur mit
-// minterpolate ist CPU-intensive, lange Clips brauchen mehr Spielraum.
-// Cloud-Run-Request-Timeout muss entsprechend ≥600s sein (--timeout 900 im deploy).
-const MAX_DURATION_SEC = parseInt(process.env.MAX_DURATION_SEC ?? '600', 10);
+// K-4 (SECURITY_AUDIT_2026-06-10): GEMEINSAMES FFmpeg-Zeitbudget pro Render
+// (User-Entscheidung 2026-06-17 = 400s). Früher 600s PRO Pass → bei Subtitle-PNG
+// (2 Pässe) bis ~1200s/Render. Jetzt teilen sich beide Pässe diese 400s (siehe
+// renderDeadline im /render-Handler) → harte Compute-Obergrenze pro Render.
+// motionBlur (minterpolate) ist serverseitig entfernt → kein langer CPU-Pfad mehr.
+// Cloud-Run-Request-Timeout bleibt --timeout 900 (Download + 400s ffmpeg + Upload).
+const MAX_DURATION_SEC = parseInt(process.env.MAX_DURATION_SEC ?? '400', 10);
 
 const supabase = createClient(
   SUPABASE_URL || 'https://placeholder.supabase.co',
@@ -65,63 +67,81 @@ app.use(express.json({ limit: '256kb' }));
 app.set('trust proxy', 1);
 
 // ─────────────────────────────────────────────────────────────────────────
-// A6.1 — Rate Limiting (Phase A6 Security-Audit Fix für P0-1)
+// K-1 (SECURITY_AUDIT_2026-06-10) — ZENTRALES Rate-Limiting (Postgres-RPC)
 // ─────────────────────────────────────────────────────────────────────────
-// Per-User-Limit nach `authMiddleware`. Verhindert finanziellen DoS via
-// Cloud Run + R2 + OpenAI-Key-Burn. Limits sind defensiv konservativ —
-// echte Power-User mit gültigem Pro/Lifetime-Plan brauchen sie nicht
-// strecken (5 renders/min = 300/hour = mehr als jeder Mensch verbraucht).
+// Früher (A6.1): express-rate-limit mit In-Memory-MemoryStore → zählte PRO
+// Cloud-Run-Instanz. Bei concurrency=1 + N Instanzen wurde "5/min" real zu
+// 5×N/min, und jeder Cold-Start/Deploy nullte den Zähler → faktisch wirkungslos
+// als finanzieller-DoS-Schutz, sobald >1 Instanz lief.
 //
-// Falls Limit-Hit: 429 mit `retryAfterSec`. Logs `[ratelimit:NAME] blocked
-// user=...` zu Cloud Logging — Operations-Team kann anomalous user_ids
-// griefen aufspüren.
+// Jetzt: EIN zentraler Zähler in Postgres (RPC check_rate_limit, Migration 012),
+// geteilt über ALLE Instanzen. Pro Request 1 RPC-Call vor dem teuren Pfad.
+// Key = "<name>:<userId|ip>" (userId nach authMiddleware).
 //
-// keyGenerator: req.userId nach authMiddleware. Fallback req.ip nur falls
-// das aus irgendeinem Grund nicht gesetzt ist (sollte nicht passieren weil
-// Limiter NACH authMiddleware in der chain steht).
+// Fail-OPEN bei RPC-Fehler: ein DB-Ausfall blockiert NICHT alle Renders — die
+// nachgelagerten harten Gates (Quota-RPC bzw. hasActiveSubscription) schlagen
+// bei DB-Ausfall ohnehin fehl und stoppen teuren Compute. Der Limiter ist die
+// erste Bremse, nicht der einzige Schutz.
 //
-// Limits abgestimmt auf Mobile-UX-Patterns:
-//  /upload-url    30/min  — 1 render kann bis zu 10 files uploaden (intro,
-//                           music[3], voice-over[3], subtitle, source[3])
-//  /render         5/min  — render ist 5-300s, mehr als 5/min schluckt
-//                           Cloud-Run-instances auf, financial-DoS-Vektor
-//  /transcribe     5/min  — Whisper ist teuer (User-OpenAI-Key, aber Worker
-//                           muss audio extracten = CPU)
-//  /download       3/min  — yt-dlp = bis 480s, max-filesize 500M = R2-cost
+// Limits: /upload-url 30/min · /render 5/min · /transcribe 5/min · /download 10/min
+// Plus K-2: zusätzliches Per-IP-TAGESLIMIT auf /render gegen Multi-Account-
+//   Farming von einer Quelle.
 // ─────────────────────────────────────────────────────────────────────────
-function makeLimiter(windowMs: number, max: number, name: string) {
-  return rateLimit({
-    windowMs,
-    max,
-    standardHeaders: true,  // sendet `RateLimit-*` Response-Headers
-    legacyHeaders: false,    // kein X-RateLimit-* (legacy)
-    keyGenerator: (req) => {
-      const authReq = req as AuthedRequest;
-      return authReq.userId ?? req.ip ?? 'anon';
-    },
-    handler: (req, res) => {
-      const authReq = req as AuthedRequest;
-      console.warn(
-        `[ratelimit:${name}] blocked user=${authReq.userId ?? req.ip ?? 'anon'} max=${max}/${Math.round(windowMs / 1000)}s`,
-      );
-      res.status(429).json({
-        ok: false,
-        error: 'rate-limit-exceeded',
-        endpoint: name,
-        retryAfterSec: Math.ceil(windowMs / 1000),
+function centralLimiter(opts: {
+  name: string;
+  max: number;
+  windowSec: number;
+  keyFrom?: (req: AuthedRequest) => string;
+}) {
+  return async (req: AuthedRequest, res: Response, next: NextFunction) => {
+    const id = opts.keyFrom ? opts.keyFrom(req) : (req.userId ?? req.ip ?? 'anon');
+    const key = `${opts.name}:${id}`;
+    try {
+      const { data, error } = await supabase.rpc('check_rate_limit', {
+        p_key: key,
+        p_max: opts.max,
+        p_window_sec: opts.windowSec,
       });
-    },
-  });
+      if (error) {
+        // Fail-open: downstream Gates (Quota / Abo) fangen DB-Ausfall ab.
+        console.error(`[ratelimit:${opts.name}] RPC error, failing open: ${error.message}`);
+        return next();
+      }
+      const result = data as { allowed: boolean; retry_after_sec?: number };
+      if (!result.allowed) {
+        console.warn(
+          `[ratelimit:${opts.name}] blocked key=${key} retryAfter=${result.retry_after_sec ?? '?'}s`,
+        );
+        return res.status(429).json({
+          ok: false,
+          error: 'rate-limit-exceeded',
+          endpoint: opts.name,
+          retryAfterSec: result.retry_after_sec,
+        });
+      }
+      next();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[ratelimit:${opts.name}] exception, failing open: ${msg}`);
+      next();
+    }
+  };
 }
 
-const limitUploadUrl  = makeLimiter(60_000, 30, 'upload-url');
-const limitRender     = makeLimiter(60_000, 5, 'render');
-const limitTranscribe = makeLimiter(60_000, 5, 'transcribe');
-// Phase B3.10 (2026-05-19): download-Limit 3 → 10/min. User-Report: 5 URL-
-// Imports in einem Project triggern rate-limit. Real-World ist Batch-Import
-// häufig (Multi-URL-Picker). 10/min ist ein Kompromiss zwischen UX und
-// yt-dlp/R2-Cost-Cap.
-const limitDownload   = makeLimiter(60_000, 10, 'download');
+const limitUploadUrl  = centralLimiter({ name: 'upload-url', max: 30, windowSec: 60 });
+const limitRender     = centralLimiter({ name: 'render', max: 5, windowSec: 60 });
+const limitTranscribe = centralLimiter({ name: 'transcribe', max: 5, windowSec: 60 });
+// download 10/min (Phase B3.10: Batch-URL-Import häufig).
+const limitDownload   = centralLimiter({ name: 'download', max: 10, windowSec: 60 });
+// K-2: Per-IP-Tageslimit auf /render. 40/Tag/IP — großzügig gewählt, weil
+// Mobilfunk-User hinter CGNAT sich eine IP teilen; bremst aber massenhaftes
+// Wegwerf-Account-Farming von einer Quelle. Wert leicht anpassbar.
+const limitRenderPerIp = centralLimiter({
+  name: 'render-ip',
+  max: 40,
+  windowSec: 86400,
+  keyFrom: (req) => req.ip ?? 'noip',
+});
 
 app.get('/health', (_req, res) => {
   // Phase A6.5 (2026-05-18): env-Fingerprint entfernt (P1-2 Audit). Vorher
@@ -178,6 +198,12 @@ app.post('/v1/upload-url', authMiddleware(supabase), limitUploadUrl, async (req:
       error: 'projectId + kind (source|intro|music|voice-over) required',
     });
   }
+  // H-2 (SECURITY_AUDIT_2026-06-10): Abo-Gate. Ohne aktives Creator/Pro-Abo
+  // keine Presigned-PUT-URLs — verhindert, dass unbezahlte (oder unverifizierte)
+  // Accounts R2 mit Uploads füllen. Spiegelt das Gate auf /download + /transcribe.
+  if (!(await hasActiveSubscription(supabase, userId))) {
+    return res.status(402).json({ ok: false, error: 'subscription_required' });
+  }
   try {
     const uuid = randomUUID();
     const suffix = index !== undefined ? `-${index}` : '';
@@ -202,10 +228,14 @@ app.post('/v1/upload-url', authMiddleware(supabase), limitUploadUrl, async (req:
  *   outputName?
  * }
  */
-app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: AuthedRequest, res: Response) => {
+app.post('/v1/render', authMiddleware(supabase), limitRender, limitRenderPerIp, async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   const jobId = randomUUID();
   const userId = req.userId!;
+  // K-3: true sobald die Quota-RPC einen in_flight-Slot belegt hat. Nur dann
+  // darf der finally-Block release_render_slot rufen (sonst gäbe ein
+  // abgewiesener Render fälschlich den Slot eines laufenden frei).
+  let slotAcquired = false;
 
   try {
     const { inputs, spec, projectId, outputName } = req.body as {
@@ -277,15 +307,23 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       `[${jobId}] render user=${userId} project=${projectId} sources=${sources.length} otherInputs=${allKeys.length - sources.length}`,
     );
 
-    // ── A6.3: Plan-Check + Quota-Increment (Server-side Enforcement) ──
-    // Resolution-Detection: bei spec-flow direkt aus spec.width/height,
-    // bei legacy args-flow via regex auf scale=W:H im filter_complex.
-    let requestedResolution: '720p' | '1080p' | '4k' = '1080p';
-    if (spec && typeof spec === 'object') {
-      const s = spec as { width?: number; height?: number };
-      const maxDim = Math.max(s.width ?? 0, s.height ?? 0);
-      requestedResolution = maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
+    // ── K-4: RenderSpec ZUERST validieren (vor Quota/Downloads) ───────
+    // Worker validiert die RenderSpec (Allow-List + Clamping in renderSpec.ts)
+    // und baut args[] selbst → keine FFmpeg-Argument-Injection (Audit-H-1).
+    // Vorgezogen, damit (a) die Resolution für den Quota-Check aus der
+    // VALIDIERTEN spec stammt und (b) eine kaputte/zu teure spec abgelehnt wird
+    // BEVOR ein in_flight-Slot belegt oder etwas heruntergeladen wird.
+    const v = validateRenderSpec(spec);
+    if (!v.ok) {
+      console.warn(`[${jobId}] spec validation failed: ${v.error}`);
+      return res.status(400).json({ ok: false, jobId, error: `spec invalid: ${v.error}` });
     }
+    const validatedSpec: ClientRenderSpec = v.spec;
+
+    // ── A6.3 + K-3: Plan-Check + atomarer Quota-/Concurrency-Increment ──
+    const maxDim = Math.max(validatedSpec.width, validatedSpec.height);
+    const requestedResolution: '720p' | '1080p' | '4k' =
+      maxDim >= 3840 ? '4k' : maxDim >= 1920 ? '1080p' : '720p';
 
     const quotaResult = await checkAndIncrementRenderQuota(
       supabase,
@@ -296,6 +334,17 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
       console.log(
         `[${jobId}] render rejected: plan=${quotaResult.plan} reason=${quotaResult.reason}`,
       );
+      // K-3: concurrency_limit ist transient (anderer Render läuft) → 429 mit
+      // Retry-Hinweis, NICHT 402 (kein Plan-Problem → kein Upgrade-Dialog).
+      if (quotaResult.reason === 'concurrency_limit') {
+        return res.status(429).json({
+          ok: false,
+          jobId,
+          error: 'A render is already in progress — please wait for it to finish and try again.',
+          reason: 'concurrency_limit',
+          retryAfterSec: 30,
+        });
+      }
       return res.status(402).json({
         ok: false,
         jobId,
@@ -307,6 +356,8 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
         requestedResolution: 'requested_resolution' in quotaResult ? quotaResult.requested_resolution : requestedResolution,
       });
     }
+    // K-3: Slot belegt → muss im finally freigegeben werden.
+    slotAcquired = true;
     console.log(
       `[${jobId}] quota ok: plan=${quotaResult.plan} count=${quotaResult.render_count}/${quotaResult.monthly_limit} res=${requestedResolution}`,
     );
@@ -398,22 +449,9 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     replaceMap['{DST}'] = outputTmp;
 
     // ── 2. Args bauen — Phase A6.4 + Audit-H-1: NUR typed spec-Pfad ──
-    // Worker validiert die RenderSpec (Allow-List + Clamping in renderSpec.ts)
-    // und baut args[] selbst → keine FFmpeg-Argument-Injection möglich. Der
-    // alte rohe args[]-Pfad wurde entfernt (Audit-H-1, 2026-06-05).
-    const v = validateRenderSpec(spec);
-    if (!v.ok) {
-      console.warn(`[${jobId}] spec validation failed: ${v.error}`);
-      return res.status(400).json({
-        ok: false,
-        jobId,
-        error: `spec invalid: ${v.error}`,
-      });
-    }
-    // validatedSpec wird für den subtitlePng-Pass-2 (unten) wiederverwendet.
-    const validatedSpec: ClientRenderSpec = v.spec;
-    // Sammle resolved-Pfade in derselben Reihenfolge wie das spec sie
-    // erwartet (sources[]-Index → /tmp/jobId-src-N.mp4).
+    // validatedSpec wurde oben (vor dem Quota-Check) erzeugt. Hier nur noch die
+    // resolved tmp-Pfade in spec-Reihenfolge sammeln (sources[]-Index →
+    // /tmp/jobId-src-N.mp4).
     const sourcePaths: string[] = [];
     if (sources.length === 1) {
       sourcePaths.push(replaceMap['{SRC_0}']!);
@@ -445,8 +483,17 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     // user file paths + filter strings (PII-Risk in Cloud Logging).
     console.log(`[${jobId}] ffmpeg start (${finalArgs.length} args)`);
 
+    // ── K-4: GEMEINSAMES Zeitbudget über beide FFmpeg-Pässe ───────────
+    // Ab hier teilen sich Pass 1 + Pass 2 die MAX_DURATION_SEC (400s). Deadline
+    // NACH den Downloads gesetzt (reines ffmpeg-Budget). Jeder Pass bekommt das
+    // verbleibende Budget; läuft es ab → SIGKILL. So ist die Compute-Zeit pro
+    // Render hart gedeckelt, auch bei 2 Pässen.
+    const renderDeadline = Date.now() + MAX_DURATION_SEC * 1000;
+    const remainingBudgetSec = () =>
+      Math.max(1, Math.ceil((renderDeadline - Date.now()) / 1000));
+
     // ── 3. FFmpeg ausführen (Pass 1 — Render ohne Subtitles) ──────────
-    await runFFmpeg(finalArgs, { maxDurationSec: MAX_DURATION_SEC, jobId });
+    await runFFmpeg(finalArgs, { maxDurationSec: remainingBudgetSec(), jobId });
 
     // ── 3b. Subtitle-PNG-Overlay (Pass 2) ─────────────────────────────
     // Phase D1 (2026-05-20): wenn spec.subtitlePng gesetzt ist, rendert der
@@ -555,7 +602,7 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
           console.log(
             `[${jobId}] subtitlePng pass-2: ${cuePngPaths.length} cue PNGs overlay`,
           );
-          await runFFmpeg(pass2Args, { maxDurationSec: MAX_DURATION_SEC, jobId });
+          await runFFmpeg(pass2Args, { maxDurationSec: remainingBudgetSec(), jobId });
           uploadTmp = finalTmp;
         } else {
           console.warn(`[${jobId}] subtitlePng: all cue PNGs empty — skipping pass-2`);
@@ -591,6 +638,13 @@ app.post('/v1/render', authMiddleware(supabase), limitRender, async (req: Authed
     const stack = e instanceof Error ? e.stack : '';
     console.error(`[${jobId}] render failed:`, msg, '\n', stack);
     return res.status(500).json({ ok: false, jobId, error: msg });
+  } finally {
+    // K-3: in_flight-Slot IMMER freigeben (success/fail/timeout), aber nur wenn
+    // dieser Request ihn auch belegt hat.
+    if (slotAcquired) {
+      const { error: relErr } = await supabase.rpc('release_render_slot', { p_user_id: userId });
+      if (relErr) console.error(`[${jobId}] release_render_slot failed: ${relErr.message}`);
+    }
   }
 });
 

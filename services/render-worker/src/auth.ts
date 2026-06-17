@@ -5,8 +5,15 @@
  * dass nur authentifizierte User mit aktivem Abo rendern. Wir verifizieren via
  * Supabase admin-client (Service-Role-Key) — kein Klartext-Key client-side nötig.
  *
- * Quota-Check ist Stub für jetzt — TODO Phase 9.6.2 wenn Stripe-Subscription-
- * Tabelle steht: rufe RPC `check_render_quota(user_id)` auf, returnt remaining_jobs.
+ * K-2 (SECURITY_AUDIT_2026-06-10): Email-Verifizierung als harte Vorbedingung
+ * für ALLE kostenrelevanten Endpoints (Denial-of-Wallet / Trial-Farming). Ohne
+ * bestätigte Email kein Cloud-Compute. Greift NUR, wenn Supabase die Email als
+ * unbestätigt markiert (email_confirmed_at IS NULL) — also nur bei aktivem
+ * "Confirm email" im Supabase-Dashboard. OAuth-Logins (Google) sind immer
+ * bestätigt. Fail-safe: solange Confirm-Email aus ist, sind alle Accounts
+ * auto-confirmed und das Gate lässt sie durch (bricht nichts).
+ * ⚠️ Damit das Gate WIRKT, muss "Confirm email" im Supabase-Dashboard aktiv
+ *    sein (Auth → Providers → Email → Confirm email).
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -30,12 +37,18 @@ export function authMiddleware(supabase: SupabaseClient) {
       if (error || !data?.user) {
         return res.status(401).json({ ok: false, error: 'invalid token' });
       }
+
+      // K-2: Email-Verify-Gate. email_confirmed_at wird von Supabase bei jedem
+      // bestätigten Account (OAuth oder Confirm-Email-Flow) gesetzt. NULL =
+      // unbestätigte Email → 403, kein Cloud-Compute. Verhindert Trial-/Multi-
+      // Account-Farming mit Wegwerf-Emails.
+      if (!data.user.email_confirmed_at) {
+        console.warn(`[auth] blocked unverified email user=${data.user.id}`);
+        return res.status(403).json({ ok: false, error: 'email_unverified' });
+      }
+
       req.userId = data.user.id;
       req.userEmail = data.user.email ?? undefined;
-
-      // TODO Phase 9.6.2 — Quota-Check:
-      // const { data: quota } = await supabase.rpc('check_render_quota', { user_id: data.user.id });
-      // if (!quota?.allowed) return res.status(402).json({ ok: false, error: 'quota exceeded' });
 
       next();
     } catch (e) {
